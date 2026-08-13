@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "ThousandLi",
+  "classifications": ["ThousandLi", "Game", "Vue"],
+  "identity": "ThousandLi.Templates.Game",
+  "name": "ThousandLi Game Package",
+  "shortName": "thousandli-game",
+  "sourceName": "ThousandLi.TemplateName",
+  "preferNameDirectory": true,
+  "sources": [
+    {
+      "source": "./content/",
+      "target": "./"
+    }
+  ],
+  "symbols": {
+    "authorId": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "creator",
+      "replaces": "ThousandLi.TemplateAuthor"
+    },
+    "packageName": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "my-game",
+      "replaces": "ThousandLi.TemplatePackage"
+    }
+  }
+}

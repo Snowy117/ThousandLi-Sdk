@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsThousandLiPackageArtifact>true</IsThousandLiPackageArtifact>
+    <ThousandLiFrontendDirectory>$(MSBuildProjectDirectory)/frontend</ThousandLiFrontendDirectory>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/ThousandLi.Contracts/ThousandLi.Contracts.csproj" />
+    <ProjectReference Include="../../src/ThousandLi.GameAuthoring/ThousandLi.GameAuthoring.csproj" />
+  </ItemGroup>
+</Project>

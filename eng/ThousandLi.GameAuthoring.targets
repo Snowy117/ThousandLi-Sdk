@@ -1,0 +1,45 @@
+<Project>
+  <PropertyGroup Condition="'$(IsThousandLiPackageArtifact)' == 'true'">
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <ThousandLiPackageArtifactDirectory>$(OutputPath)PackageArtifact</ThousandLiPackageArtifactDirectory>
+    <ThousandLiPackageArtifactZipPath>$(OutputPath)$(AssemblyName).zip</ThousandLiPackageArtifactZipPath>
+  </PropertyGroup>
+
+  <Target Name="BuildThousandLiFrontend" BeforeTargets="BuildThousandLiPackageArtifactDirectory"
+          Condition="'$(IsThousandLiPackageArtifact)' == 'true' and '$(ThousandLiFrontendDirectory)' != ''">
+    <Exec WorkingDirectory="$(ThousandLiFrontendDirectory)" Command="npm install" />
+    <Exec WorkingDirectory="$(ThousandLiFrontendDirectory)" Command="npm run build" />
+  </Target>
+
+  <Target Name="BuildThousandLiPackageArtifactDirectory" AfterTargets="Build"
+          Condition="'$(IsThousandLiPackageArtifact)' == 'true'">
+    <ItemGroup>
+      <ThousandLiPackageArtifactBinary Include="$(TargetPath)" />
+      <ThousandLiPackageArtifactBinary Include="$(OutDir)*.deps.json" />
+      <ThousandLiPackageArtifactBinary Include="@(ReferenceCopyLocalPaths)"
+        Condition="'%(Filename)' != 'ThousandLi.Contracts'" />
+      <ThousandLiPackageManifest Include="$(MSBuildProjectDirectory)/package.json" />
+      <ThousandLiPackageFrontend Include="$(ThousandLiFrontendDirectory)/dist/**/*"
+        Condition="'$(ThousandLiFrontendDirectory)' != ''" />
+    </ItemGroup>
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)/package.json')"
+           Text="ThousandLi Package Artifact requires package.json beside the project file." />
+    <RemoveDir Directories="$(ThousandLiPackageArtifactDirectory)" />
+    <MakeDir Directories="$(ThousandLiPackageArtifactDirectory)/bin" />
+    <Copy SourceFiles="@(ThousandLiPackageArtifactBinary)"
+          DestinationFolder="$(ThousandLiPackageArtifactDirectory)/bin"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(ThousandLiPackageManifest)"
+          DestinationFolder="$(ThousandLiPackageArtifactDirectory)" />
+    <Copy SourceFiles="@(ThousandLiPackageFrontend)"
+          DestinationFiles="@(ThousandLiPackageFrontend->'$(ThousandLiPackageArtifactDirectory)/frontend/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" Condition="'@(ThousandLiPackageFrontend)' != ''" />
+  </Target>
+
+  <Target Name="BuildThousandLiPackageArtifactZip" AfterTargets="BuildThousandLiPackageArtifactDirectory"
+          Condition="'$(IsThousandLiPackageArtifact)' == 'true'">
+    <Delete Files="$(ThousandLiPackageArtifactZipPath)" />
+    <ZipDirectory SourceDirectory="$(ThousandLiPackageArtifactDirectory)"
+                  DestinationFile="$(ThousandLiPackageArtifactZipPath)" />
+  </Target>
+</Project>

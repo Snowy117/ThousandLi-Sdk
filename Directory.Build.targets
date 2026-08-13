@@ -1,0 +1,3 @@
+<Project>
+  <Import Project="eng/ThousandLi.GameAuthoring.targets" />
+</Project>

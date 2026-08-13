@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>ThousandLi.GameAuthoring</PackageId>
+    <Description>Game authoring conveniences built on ThousandLi public contracts.</Description>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="JetBrains.Annotations" PrivateAssets="all" />
+    <ProjectReference Include="../ThousandLi.Contracts/ThousandLi.Contracts.csproj" />
+    <None Include="../../eng/ThousandLi.GameAuthoring.targets"
+          Pack="true"
+          PackagePath="buildTransitive/ThousandLi.GameAuthoring.targets" />
+  </ItemGroup>
+</Project>

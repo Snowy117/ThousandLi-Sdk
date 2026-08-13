@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>ThousandLi.Testing</PackageId>
+    <Description>Deterministic test doubles for ThousandLi Game Packages.</Description>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="JetBrains.Annotations" PrivateAssets="all" />
+    <ProjectReference Include="../ThousandLi.Contracts/ThousandLi.Contracts.csproj" />
+  </ItemGroup>
+</Project>

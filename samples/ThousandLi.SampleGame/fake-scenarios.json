@@ -1,0 +1,14 @@
+[
+  {
+    "contract": {
+      "id": "thousandli.sample/narrator",
+      "version": { "major": 1, "minor": 0 },
+      "fingerprint": "sample-narrator-v1"
+    },
+    "scenarioId": "advance",
+    "events": [
+      { "eventType": "narrative", "payload": { "text": "A new path opens." } }
+    ],
+    "result": { "text": "A new path opens." }
+  }
+]

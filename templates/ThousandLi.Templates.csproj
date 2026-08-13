@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>ThousandLi.Templates</PackageId>
+    <Description>Code-first ThousandLi Game Package templates with a C# backend, Vue frontend, and tests.</Description>
+    <PackageType>Template</PackageType>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <ContentTargetFolders>content</ContentTargetFolders>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <IsPackable>true</IsPackable>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="ThousandLi.Game/**/*"
+             Exclude="ThousandLi.Game/content/frontend/node_modules/**/*;ThousandLi.Game/content/frontend/dist/**/*"
+             Pack="true"
+             PackagePath="content/ThousandLi.Game/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

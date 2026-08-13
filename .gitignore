@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+.vs/
+.idea/
+.vscode/
+artifacts/
+*.user
+*.suo
+*.nupkg
+*.snupkg
+*.tgz

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PackageId>ThousandLi.DevHost</PackageId>
+    <Description>Lightweight local runtime and preview host for ThousandLi creators.</Description>
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>thousandli-dev</ToolCommandName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="JetBrains.Annotations" PrivateAssets="all" />
+    <ProjectReference Include="../ThousandLi.Contracts/ThousandLi.Contracts.csproj" />
+  </ItemGroup>
+</Project>

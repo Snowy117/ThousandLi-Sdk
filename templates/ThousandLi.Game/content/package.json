@@ -1,0 +1,19 @@
+{
+  "authorId": "ThousandLi.TemplateAuthor",
+  "packageKind": "GamePackage",
+  "packageName": "ThousandLi.TemplatePackage",
+  "packageVersion": "0.1.0",
+  "entryAssembly": "bin/ThousandLi.TemplateName.dll",
+  "frontendRoot": "frontend",
+  "compatibility": {
+    "runtime": { "major": 1, "minor": 0 },
+    "frontend": { "major": 1, "minor": 0 },
+    "expertContracts": [
+      {
+        "id": "ThousandLi.TemplateAuthor/narrator",
+        "version": { "major": 1, "minor": 0 },
+        "fingerprint": "template-narrator-v1"
+      }
+    ]
+  }
+}

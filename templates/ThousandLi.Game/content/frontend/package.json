@@ -1,0 +1,23 @@
+{
+  "name": "ThousandLi.TemplateAuthor-ThousandLi.TemplatePackage-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173",
+    "type-check": "vue-tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "build": "vue-tsc --noEmit && vite build"
+  },
+  "dependencies": {
+    "@thousandli/sdk": "^0.1.0",
+    "vue": "^3.5.41"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.1",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.1",
+    "vitest": "^3.2.4",
+    "vue-tsc": "^3.3.9"
+  }
+}

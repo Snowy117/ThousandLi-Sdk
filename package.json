@@ -1,0 +1,21 @@
+{
+  "name": "thousandli-sdk-workspace",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "samples/*/frontend",
+    "templates/*/content/frontend"
+  ],
+  "scripts": {
+    "type-check": "npm run build --workspace @thousandli/sdk && npm run type-check --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "dev": "npm run dev --workspace @thousandli/sample-game-frontend"
+  },
+  "overrides": {
+    "typescript": "5.9.3"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

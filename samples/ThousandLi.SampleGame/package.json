@@ -1,0 +1,19 @@
+{
+  "authorId": "thousandli",
+  "packageKind": "GamePackage",
+  "packageName": "sample-game",
+  "packageVersion": "0.1.0",
+  "entryAssembly": "bin/ThousandLi.SampleGame.dll",
+  "frontendRoot": "frontend",
+  "compatibility": {
+    "runtime": { "major": 1, "minor": 0 },
+    "frontend": { "major": 1, "minor": 0 },
+    "expertContracts": [
+      {
+        "id": "thousandli.sample/narrator",
+        "version": { "major": 1, "minor": 0 },
+        "fingerprint": "sample-narrator-v1"
+      }
+    ]
+  }
+}
