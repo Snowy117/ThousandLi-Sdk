@@ -121,6 +121,7 @@ public sealed class LocalGameRuntimeTests
     {
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var wroteEvent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var observedEvent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var backend = new DelegateBackend(async (_, context, cancellationToken) =>
         {
             context.State.Replace(new JsonPointer("/turn"), TestSupport.Json("1"));
@@ -134,10 +135,14 @@ public sealed class LocalGameRuntimeTests
         {
             await foreach (var runtimeEvent in runtime.HandleActionAsync(
                                TestSupport.Action(), TestSupport.CancellationToken))
+            {
                 collected.Add(runtimeEvent);
+                if (runtimeEvent.Kind is ActionRuntimeEventKind.FrontendEvent) observedEvent.SetResult();
+            }
         }, TestSupport.CancellationToken);
 
         await wroteEvent.Task.WaitAsync(TestSupport.CancellationToken);
+        await observedEvent.Task.WaitAsync(TestSupport.CancellationToken);
         Assert.Equal([ActionRuntimeEventKind.Started, ActionRuntimeEventKind.FrontendEvent],
             collected.Select(runtimeEvent => runtimeEvent.Kind));
         Assert.Equal(0, runtime.CommittedState.GetProperty("turn").GetInt32());
