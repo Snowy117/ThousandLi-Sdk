@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>ThousandLi.GameHelper</PackageId>
+    <Description>Convenience library for ThousandLi Game creators: typed session state (Castle proxy write-back, tracked collections) and game settings request helpers. Games bundle this package into their own Package Artifact (bin/); it is NOT part of the SDK runtime, and the platform Host does not provide it.</Description>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Castle.Core" />
+    <PackageReference Include="JetBrains.Annotations" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ThousandLi.Contracts/ThousandLi.Contracts.csproj" />
+  </ItemGroup>
+</Project>

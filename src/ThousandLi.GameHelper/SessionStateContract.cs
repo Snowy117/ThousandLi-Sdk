@@ -3,8 +3,9 @@ using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
 using JetBrains.Annotations;
+using ThousandLi.Contracts;
 
-namespace ThousandLi.Contracts;
+namespace ThousandLi.GameHelper;
 
 /// <summary>SessionState 单个成员的描述符。</summary>
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]

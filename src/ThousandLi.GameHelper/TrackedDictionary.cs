@@ -1,8 +1,9 @@
 using System.Collections;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ThousandLi.Contracts;
 
-namespace ThousandLi.Contracts;
+namespace ThousandLi.GameHelper;
 
 /// <summary>可在 GameHelper attach 后记录精细 JSON Pointer 差异并按 key ordinal 序列化的 SessionState dictionary。</summary>
 [JsonConverter(typeof(TrackedDictionaryJsonConverterFactory))]

@@ -9,8 +9,6 @@ public sealed class LocalGameRuntime
 {
     public static BranchId MainBranchId { get; } = new("main");
 
-    private static readonly UserId DevUserId = new("dev-user");
-
     private readonly SemaphoreSlim _actionGate = new(1, 1);
     private readonly IGameBackend _backend;
     private readonly BoundPlayerProfile _playerProfile;
@@ -18,6 +16,7 @@ public sealed class LocalGameRuntime
     private readonly IExpertFacade _expertFacade;
     private readonly IHistoryBucketSet _buckets;
     private readonly ILocalSessionStore _store;
+    private readonly IGameSettingsStore _gameSettingsStore = new InMemoryGameSettingsStore();
     private LocalSessionDocument _session;
 
     private LocalGameRuntime(
@@ -110,9 +109,7 @@ public sealed class LocalGameRuntime
             new ReadOnlyGameState(captured.CommittedState),
             new LocalActionHistory(captured.CommittedActions),
             _buckets,
-            DevUserId,
-            gameSettingsStore: null,
-            gamePackageId: _session.PackageId);
+            _gameSettingsStore);
         return await _backend.HandleFrontendRequestAsync(request, context, cancellationToken).ConfigureAwait(false);
     }
 

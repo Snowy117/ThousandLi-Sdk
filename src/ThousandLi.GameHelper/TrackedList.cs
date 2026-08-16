@@ -2,8 +2,9 @@ using System.Collections;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ThousandLi.Contracts;
 
-namespace ThousandLi.Contracts;
+namespace ThousandLi.GameHelper;
 
 /// <summary>可在 GameHelper attach 后记录精细 JSON Pointer 差异的 SessionState list。</summary>
 [JsonConverter(typeof(TrackedListJsonConverterFactory))]

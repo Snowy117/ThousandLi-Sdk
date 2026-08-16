@@ -1,7 +1,7 @@
 using System.Reflection;
 using Castle.DynamicProxy;
 
-namespace ThousandLi.Contracts;
+namespace ThousandLi.GameHelper;
 
 internal interface ISessionStateProxyFactory
 {

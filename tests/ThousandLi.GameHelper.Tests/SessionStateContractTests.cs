@@ -1,8 +1,7 @@
 using System.Text.Json;
 using ThousandLi.Contracts;
-using ThousandLi.DevHost;
 
-namespace ThousandLi.Sdk.Tests;
+namespace ThousandLi.GameHelper.Tests;
 
 [SessionStateRoot]
 public class TestSessionVariables
@@ -30,7 +29,7 @@ public sealed class SessionStateContractTests
     [Fact]
     public void MaterializeSessionStateEmitsGameHelperManagedRoot()
     {
-        var state = SessionStateExtensions.MaterializeSessionState<TestSessionVariables>(ContextSupport.Player);
+        var state = SessionStateExtensions.MaterializeSessionState<TestSessionVariables>(Support.Player);
 
         var sessionVariables = state.GetProperty("_gameHelper").GetProperty("sessionVariables");
         Assert.Equal(JsonValueKind.Object, sessionVariables.ValueKind);
@@ -40,8 +39,8 @@ public sealed class SessionStateContractTests
     [Fact]
     public void GetSessionStateOnActionContextWritesFineGrainedChanges()
     {
-        var state = new GameState(TestSupport.Json("{}"));
-        var context = ContextSupport.BuildActionContext(state);
+        var state = new GameState(Support.Json("{}"));
+        var context = Support.BuildActionContext(state);
 
         var variables = context.GetSessionState<TestSessionVariables>();
 
@@ -65,8 +64,8 @@ public sealed class SessionStateContractTests
     [Fact]
     public void TrackedListAddWritesAddChangeAtDashPath()
     {
-        var state = new GameState(TestSupport.Json("{}"));
-        var context = ContextSupport.BuildActionContext(state);
+        var state = new GameState(Support.Json("{}"));
+        var context = Support.BuildActionContext(state);
 
         var variables = context.GetSessionState<TestSessionVariables>();
         variables.TurnOutputs.Add(new TestTurnRecord { TurnOrdinal = 1, Label = "turn" });
@@ -83,10 +82,9 @@ public sealed class SessionStateContractTests
     [Fact]
     public void GetSessionStateOnFrontendRequestReadsCommittedSnapshot()
     {
-        var state = new GameState(TestSupport.Json(
+        var state = new GameState(Support.Json(
             "{\"_gameHelper\":{\"sessionVariables\":{\"name\":\"雪之下\",\"score\":42,\"turnOutputs\":[]}}}"));
-        var context = ContextSupport.BuildFrontendRequestContext(
-            new ReadOnlyGameState(state.Snapshot), new InMemoryHistoryBucketSet());
+        var context = Support.BuildFrontendRequestContext(new ReadOnlyGameState(state.Snapshot));
 
         var variables = context.GetSessionState<TestSessionVariables>();
 
@@ -97,8 +95,7 @@ public sealed class SessionStateContractTests
     [Fact]
     public void GetSessionStateOnFrontendRequestReturnsDefaultWhenUnmounted()
     {
-        var context = ContextSupport.BuildFrontendRequestContext(
-            new ReadOnlyGameState(TestSupport.Json("{}")), new InMemoryHistoryBucketSet());
+        var context = Support.BuildFrontendRequestContext(new ReadOnlyGameState(Support.Json("{}")));
 
         var variables = context.GetSessionState<TestSessionVariables>();
 

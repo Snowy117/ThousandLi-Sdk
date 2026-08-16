@@ -6,7 +6,7 @@ namespace ThousandLi.Sdk.Tests;
 
 internal static class ContextSupport
 {
-    public static BoundPlayerProfile Player { get; } = new(new PlayerId("test-player"), "Creator", "Curious explorer");
+    private static BoundPlayerProfile Player { get; } = new(new PlayerId("test-player"), "Creator", "Curious explorer");
 
     public static ActionContext BuildActionContext(
         GameState state,
@@ -25,24 +25,6 @@ internal static class ContextSupport
             new ThrowingExpertExecutor(),
             buckets ?? new InMemoryHistoryBucketSet(),
             getGameSettings);
-
-    public static FrontendRequestContext BuildFrontendRequestContext(
-        ReadOnlyGameState state,
-        IHistoryBucketSet buckets,
-        IGameSettingsStore? store = null,
-        UserId? userId = null,
-        string gamePackageId = "tests_game@1.0.0")
-        => new(
-            new SessionId("session-1"),
-            new BranchId("main"),
-            headActionId: null,
-            Player,
-            state,
-            new EmptyActionHistory(),
-            buckets,
-            userId ?? new UserId("test-user"),
-            store,
-            gamePackageId);
 
     private sealed class NoopFrontendEventSink : IFrontendEventSink
     {

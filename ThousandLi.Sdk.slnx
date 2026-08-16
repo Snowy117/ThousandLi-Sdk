@@ -3,12 +3,14 @@
     <Project Path="src/ThousandLi.Contracts/ThousandLi.Contracts.csproj" />
     <Project Path="src/ThousandLi.DevHost/ThousandLi.DevHost.csproj" />
     <Project Path="src/ThousandLi.GameAuthoring/ThousandLi.GameAuthoring.csproj" />
+    <Project Path="src/ThousandLi.GameHelper/ThousandLi.GameHelper.csproj" />
     <Project Path="src/ThousandLi.Testing/ThousandLi.Testing.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/ThousandLi.SampleGame/ThousandLi.SampleGame.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ThousandLi.GameHelper.Tests/ThousandLi.GameHelper.Tests.csproj" />
     <Project Path="tests/ThousandLi.Sdk.Tests/ThousandLi.Sdk.Tests.csproj" />
   </Folder>
 </Solution>

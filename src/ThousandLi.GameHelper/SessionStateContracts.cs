@@ -1,6 +1,6 @@
 using JetBrains.Annotations;
 
-namespace ThousandLi.Contracts;
+namespace ThousandLi.GameHelper;
 
 /// <summary>标记 Game Package 的唯一强类型 SessionState 根类型。</summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]

@@ -1,7 +1,8 @@
 using System.Collections;
 using System.Text.Json;
+using ThousandLi.Contracts;
 
-namespace ThousandLi.Contracts;
+namespace ThousandLi.GameHelper;
 
 internal interface ITrackedCollection
 {

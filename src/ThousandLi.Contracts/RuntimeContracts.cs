@@ -73,9 +73,7 @@ public sealed class FrontendRequestContext(
     ReadOnlyGameState state,
     IActionHistory history,
     IHistoryBucketSet buckets,
-    UserId userId,
-    IGameSettingsStore? gameSettingsStore = null,
-    string gamePackageId = "unknown")
+    IGameSettingsStore? gameSettingsStore = null)
 {
     public SessionId SessionId { get; } = sessionId;
     public BranchId BranchId { get; } = branchId;
@@ -87,14 +85,11 @@ public sealed class FrontendRequestContext(
     /// <summary>历史消息桶集合（只读快照；Game 可读取已提交的 bucket 状态）。</summary>
     public IHistoryBucketSet Buckets { get; } = buckets ?? throw new ArgumentNullException(nameof(buckets));
 
-    /// <summary>当前用户标识符。</summary>
-    public UserId UserId { get; } = userId;
-
-    /// <summary>游戏设置持久化存储端口；运行时未注入时为 null。</summary>
+    /// <summary>
+    /// 游戏设置持久化存储端口；运行时未注入时为 null。存储契约无身份参数——
+    /// SDK 契约面不含用户/游戏包身份概念（Player≠User），身份由平台在构造 store 实现时绑定。
+    /// </summary>
     public IGameSettingsStore? GameSettingsStore { get; } = gameSettingsStore;
-
-    /// <summary>规范化游戏包标识字符串（如 "official_xuezhixia@1.0.0"）。</summary>
-    public string GamePackageId { get; } = gamePackageId;
 }
 
 public interface IGameBackend

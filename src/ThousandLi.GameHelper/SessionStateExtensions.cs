@@ -1,7 +1,8 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using ThousandLi.Contracts;
 
-namespace ThousandLi.Contracts;
+namespace ThousandLi.GameHelper;
 
 /// <summary>类型化 SessionState 的 Game-facing 访问扩展。</summary>
 public static class SessionStateExtensions
