@@ -32,6 +32,12 @@ jobs:
           node-version: '22'
           cache: npm
 
+      - name: Frontend install
+        run: npm ci
+
+      - name: Frontend SDK package build
+        run: npm run build --workspace @thousandli/sdk
+
       - name: Restore
         run: dotnet restore ThousandLi.Sdk.slnx
 
@@ -63,9 +69,6 @@ jobs:
           print(f'InspectCode issues: {count}')
           sys.exit(1 if count else 0)
           "
-
-      - name: Frontend install
-        run: npm ci
 
       - name: Frontend type-check
         run: npm run type-check
