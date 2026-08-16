@@ -13,19 +13,26 @@ public sealed class LocalGameRuntime
     private readonly IGameBackend _backend;
     private readonly BoundPlayerProfile _playerProfile;
     private readonly IExpertExecutor _experts;
+    private readonly IExpertFacade _expertFacade;
+    private readonly IHistoryBucketSet _buckets;
     private readonly ILocalSessionStore _store;
+    private readonly IGameSettingsStore _gameSettingsStore = new InMemoryGameSettingsStore();
     private LocalSessionDocument _session;
 
     private LocalGameRuntime(
         IGameBackend backend,
         BoundPlayerProfile playerProfile,
         IExpertExecutor experts,
+        IExpertFacade expertFacade,
+        IHistoryBucketSet buckets,
         ILocalSessionStore store,
         LocalSessionDocument session)
     {
         _backend = backend;
         _playerProfile = playerProfile;
         _experts = experts;
+        _expertFacade = expertFacade;
+        _buckets = buckets;
         _store = store;
         _session = session;
     }
@@ -41,6 +48,8 @@ public sealed class LocalGameRuntime
         IExpertExecutor experts,
         ILocalSessionStore store,
         SessionId sessionId,
+        IExpertFacade? expertFacade = null,
+        IHistoryBucketSet? buckets = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(packageId);
@@ -57,7 +66,9 @@ public sealed class LocalGameRuntime
                 throw new LocalDataException(
                     $"Session '{sessionId}' belongs to package '{existing.PackageId}', not '{packageId}'.");
             }
-            return new LocalGameRuntime(backend, playerProfile, experts, store, existing);
+            return new LocalGameRuntime(
+                backend, playerProfile, experts, expertFacade ?? DisabledExpertFacade.Instance,
+                buckets ?? new InMemoryHistoryBucketSet(), store, existing);
         }
 
         var initialState = await backend.CreateInitialStateAsync(playerProfile, cancellationToken).ConfigureAwait(false);
@@ -71,7 +82,9 @@ public sealed class LocalGameRuntime
             initialState,
             committedActions: []);
         await store.SaveAsync(session, cancellationToken).ConfigureAwait(false);
-        return new LocalGameRuntime(backend, playerProfile, experts, store, session);
+        return new LocalGameRuntime(
+            backend, playerProfile, experts, expertFacade ?? DisabledExpertFacade.Instance,
+            buckets ?? new InMemoryHistoryBucketSet(), store, session);
     }
 
     public IAsyncEnumerable<ActionRuntimeEvent> HandleActionAsync(
@@ -94,7 +107,9 @@ public sealed class LocalGameRuntime
             captured.HeadActionId,
             _playerProfile,
             new ReadOnlyGameState(captured.CommittedState),
-            new LocalActionHistory(captured.CommittedActions));
+            new LocalActionHistory(captured.CommittedActions),
+            _buckets,
+            _gameSettingsStore);
         return await _backend.HandleFrontendRequestAsync(request, context, cancellationToken).ConfigureAwait(false);
     }
 
@@ -144,7 +159,9 @@ public sealed class LocalGameRuntime
                 state,
                 frontend,
                 new LocalActionHistory(baseSession.CommittedActions),
-                _experts);
+                _expertFacade,
+                _experts,
+                _buckets);
 
             await writer.WriteAsync(
                 ActionRuntimeEvent.Started(baseSession.SessionId, baseSession.BranchId, actionId, actionRunId),

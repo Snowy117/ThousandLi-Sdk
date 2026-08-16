@@ -26,7 +26,7 @@ public sealed class GameBackend : IGameBackend
         var turn = context.State.Get(new JsonPointer("/turn")).GetInt32() + 1;
         var sink = new DelegateExpertSemanticEventSink(async (semanticEvent, token) =>
             await context.Frontend.WriteAsync(semanticEvent.EventType, semanticEvent.Payload, token).ConfigureAwait(false));
-        var result = await context.Experts.ExecuteAsync(
+        var result = await context.ExpertExecutor.ExecuteAsync(
             new ExpertInvocationRequest(
                 NarratorContract,
                 "advance",
