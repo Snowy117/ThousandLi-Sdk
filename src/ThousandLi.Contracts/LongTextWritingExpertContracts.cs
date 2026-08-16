@@ -31,7 +31,7 @@ public abstract class AbstractLongTextWritingExpert
     protected IExpertPrimaryOutput? ConfiguredPrimaryOutput { get; private set; }
 
     /// <summary>当前已启用的 Feature 列表。</summary>
-    protected IReadOnlyList<ILongTextWritingFeature> ConfiguredFeatures { get; } = [];
+    protected IReadOnlyList<ILongTextWritingFeature> ConfiguredFeatures { get; private set; } = [];
 
     /// <summary>当前已配置的历史消息桶（供具体专家读取）。</summary>
     protected IReadOnlyList<IHistoryBucket> ConfiguredHistoryBuckets { get; private set; } = [];
@@ -91,9 +91,9 @@ public abstract class AbstractLongTextWritingExpert
         {
             if (feature is null)
                 throw new ArgumentException("Feature elements cannot be null.", nameof(features));
-            ((List<ILongTextWritingFeature>)ConfiguredFeatures).Add(feature);
         }
 
+        ConfiguredFeatures = [.. ConfiguredFeatures, .. features];
         return this;
     }
 
