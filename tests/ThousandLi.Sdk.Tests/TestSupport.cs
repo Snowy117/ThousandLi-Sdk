@@ -38,7 +38,7 @@ internal static class TestSupport
             experts ?? FakeExpert(),
             store ?? new InMemoryLocalSessionStore(),
             sessionId ?? SessionId,
-            CancellationToken);
+            cancellationToken: CancellationToken);
 
     public static async Task<IReadOnlyList<ActionRuntimeEvent>> CollectAsync(
         IAsyncEnumerable<ActionRuntimeEvent> source)

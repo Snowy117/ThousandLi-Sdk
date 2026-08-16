@@ -71,3 +71,17 @@ public readonly record struct PlayerId
 
     public override string ToString() => Value;
 }
+
+public readonly record struct UserId
+{
+    [JsonConstructor]
+    public UserId(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        Value = value;
+    }
+
+    public string Value { get; }
+
+    public override string ToString() => Value;
+}

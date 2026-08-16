@@ -27,7 +27,10 @@ public sealed class ActionContext(
     GameState state,
     IFrontendEventSink frontend,
     IActionHistory history,
-    IExpertExecutor experts)
+    IExpertFacade experts,
+    IExpertExecutor expertExecutor,
+    IHistoryBucketSet buckets,
+    Func<Type, CancellationToken, Task<object>>? getGameSettings = null)
 {
     public SessionId SessionId { get; } = sessionId;
     public BranchId BranchId { get; } = branchId;
@@ -37,7 +40,28 @@ public sealed class ActionContext(
     public GameState State { get; } = state ?? throw new ArgumentNullException(nameof(state));
     public IFrontendEventSink Frontend { get; } = frontend ?? throw new ArgumentNullException(nameof(frontend));
     public IActionHistory History { get; } = history ?? throw new ArgumentNullException(nameof(history));
-    public IExpertExecutor Experts { get; } = experts ?? throw new ArgumentNullException(nameof(experts));
+
+    /// <summary>类型化专家 facade（生产 Host 注入；DevHost 在支持前注入禁用实现）。</summary>
+    public IExpertFacade Experts { get; } = experts ?? throw new ArgumentNullException(nameof(experts));
+
+    /// <summary>本地 JSON 脚本化专家执行端口（DevHost 假场景 / 测试用）。</summary>
+    public IExpertExecutor ExpertExecutor { get; } = expertExecutor ?? throw new ArgumentNullException(nameof(expertExecutor));
+
+    /// <summary>历史消息桶集合。</summary>
+    public IHistoryBucketSet Buckets { get; } = buckets ?? throw new ArgumentNullException(nameof(buckets));
+
+    /// <summary>
+    /// 读取当前会话下解析后的游戏设置实例。运行时注入解析器时走注入路径；
+    /// 否则回退到默认实例（与平台默认行为一致）。
+    /// </summary>
+    public async Task<TSettings> GetGameSettingsAsync<TSettings>(CancellationToken cancellationToken = default)
+        where TSettings : class, new()
+    {
+        if (getGameSettings is not null)
+            return (TSettings)await getGameSettings(typeof(TSettings), cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        return new TSettings();
+    }
 }
 
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
@@ -47,7 +71,11 @@ public sealed class FrontendRequestContext(
     ActionId? headActionId,
     BoundPlayerProfile playerProfile,
     ReadOnlyGameState state,
-    IActionHistory history)
+    IActionHistory history,
+    IHistoryBucketSet buckets,
+    UserId userId,
+    IGameSettingsStore? gameSettingsStore = null,
+    string gamePackageId = "unknown")
 {
     public SessionId SessionId { get; } = sessionId;
     public BranchId BranchId { get; } = branchId;
@@ -55,6 +83,18 @@ public sealed class FrontendRequestContext(
     public BoundPlayerProfile PlayerProfile { get; } = playerProfile ?? throw new ArgumentNullException(nameof(playerProfile));
     public ReadOnlyGameState State { get; } = state ?? throw new ArgumentNullException(nameof(state));
     public IActionHistory History { get; } = history ?? throw new ArgumentNullException(nameof(history));
+
+    /// <summary>历史消息桶集合（只读快照；Game 可读取已提交的 bucket 状态）。</summary>
+    public IHistoryBucketSet Buckets { get; } = buckets ?? throw new ArgumentNullException(nameof(buckets));
+
+    /// <summary>当前用户标识符。</summary>
+    public UserId UserId { get; } = userId;
+
+    /// <summary>游戏设置持久化存储端口；运行时未注入时为 null。</summary>
+    public IGameSettingsStore? GameSettingsStore { get; } = gameSettingsStore;
+
+    /// <summary>规范化游戏包标识字符串（如 "official_xuezhixia@1.0.0"）。</summary>
+    public string GamePackageId { get; } = gamePackageId;
 }
 
 public interface IGameBackend

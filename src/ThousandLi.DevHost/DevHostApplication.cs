@@ -55,7 +55,7 @@ public static class DevHostApplication
                 fakeExperts,
                 store,
                 sessionId,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken: cancellationToken).ConfigureAwait(false);
             var state = new DevHostApplicationState(package, runtime, player);
 
             var builder = WebApplication.CreateBuilder(webApplicationArgs ?? []);

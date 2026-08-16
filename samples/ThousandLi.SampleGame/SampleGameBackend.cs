@@ -41,7 +41,7 @@ public sealed class SampleGameBackend : IGameBackend
                 semanticEvent.EventType,
                 semanticEvent.Payload,
                 token).ConfigureAwait(false));
-        var result = await context.Experts.ExecuteAsync(
+        var result = await context.ExpertExecutor.ExecuteAsync(
             new ExpertInvocationRequest(NarratorContract, "advance", input),
             semanticEvents,
             cancellationToken).ConfigureAwait(false);

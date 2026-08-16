@@ -5,6 +5,7 @@
     <IsPackable>true</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Castle.Core" />
     <PackageReference Include="JetBrains.Annotations" PrivateAssets="all" />
   </ItemGroup>
 </Project>
