@@ -87,12 +87,6 @@ public abstract class AbstractLongTextWritingExpert
     public AbstractLongTextWritingExpert WithFeatures(params ILongTextWritingFeature[] features)
     {
         ArgumentNullException.ThrowIfNull(features);
-        foreach (var feature in features)
-        {
-            if (feature is null)
-                throw new ArgumentException("Feature elements cannot be null.", nameof(features));
-        }
-
         ConfiguredFeatures = [.. ConfiguredFeatures, .. features];
         return this;
     }
@@ -100,13 +94,15 @@ public abstract class AbstractLongTextWritingExpert
     /// <summary>
     /// 传入历史消息桶引用。专家自己调 <see cref="IHistoryBucket.GetCompressedView" /> /
     /// <see cref="IHistoryBucket.GetRawTurns" /> / <see cref="IHistoryBucket.Description" /> 按需投影提取信息。
-    /// 平台具体实现负责在专家执行期间只读暴露（防专家写账本）。
+    /// 每个 bucket 在存储时被包装为 <see cref="ReadOnlyHistoryBucket" />——专家执行期间是历史桶的只读消费者，
+    /// <see cref="IHistoryBucket.AddMessages" /> 抛 <see cref="NotSupportedException" />（防专家写账本）。
     /// </summary>
     public AbstractLongTextWritingExpert WithHistoryBuckets(params IHistoryBucket[] buckets)
     {
         ArgumentNullException.ThrowIfNull(buckets);
-        ConfiguredHistoryBuckets = [.. buckets.Select(bucket => bucket
-            ?? throw new ArgumentException("History bucket elements cannot be null.", nameof(buckets)))];
+        ConfiguredHistoryBuckets = [.. buckets.Select(bucket =>
+            new ReadOnlyHistoryBucket(bucket
+                ?? throw new ArgumentException("History bucket elements cannot be null.", nameof(buckets))))];
         return this;
     }
 

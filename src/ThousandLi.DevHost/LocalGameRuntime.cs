@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
+using Microsoft.Extensions.Logging.Abstractions;
 using ThousandLi.Contracts;
 
 namespace ThousandLi.DevHost;
@@ -15,8 +16,10 @@ public sealed class LocalGameRuntime
     private readonly IExpertExecutor _experts;
     private readonly IExpertFacade _expertFacade;
     private readonly IHistoryBucketSet _buckets;
+    private readonly IHistoryBucketSetHost _bucketHost;
     private readonly ILocalSessionStore _store;
-    private readonly IGameSettingsStore _gameSettingsStore = new InMemoryGameSettingsStore();
+    private readonly IGameSettingsStore _gameSettingsStore;
+    private readonly ILogger _logger;
     private LocalSessionDocument _session;
 
     private LocalGameRuntime(
@@ -26,15 +29,20 @@ public sealed class LocalGameRuntime
         IExpertFacade expertFacade,
         IHistoryBucketSet buckets,
         ILocalSessionStore store,
-        LocalSessionDocument session)
+        LocalSessionDocument session,
+        IGameSettingsStore gameSettingsStore,
+        ILogger logger)
     {
         _backend = backend;
         _playerProfile = playerProfile;
         _experts = experts;
         _expertFacade = expertFacade;
         _buckets = buckets;
+        _bucketHost = buckets as IHistoryBucketSetHost ?? new NoopHistoryBucketSetHost(buckets);
         _store = store;
         _session = session;
+        _gameSettingsStore = gameSettingsStore;
+        _logger = logger;
     }
 
     public SessionId SessionId => _session.SessionId;
@@ -50,6 +58,8 @@ public sealed class LocalGameRuntime
         SessionId sessionId,
         IExpertFacade? expertFacade = null,
         IHistoryBucketSet? buckets = null,
+        IGameSettingsStore? gameSettingsStore = null,
+        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(packageId);
@@ -58,6 +68,9 @@ public sealed class LocalGameRuntime
         ArgumentNullException.ThrowIfNull(experts);
         ArgumentNullException.ThrowIfNull(store);
 
+        var bucketSet = buckets ?? new InMemoryHistoryBucketSet();
+        var settingsStore = gameSettingsStore ?? new InMemoryGameSettingsStore();
+        var executionLogger = logger ?? NullLogger.Instance;
         var existing = await store.LoadAsync(sessionId, cancellationToken).ConfigureAwait(false);
         if (existing is not null)
         {
@@ -68,7 +81,7 @@ public sealed class LocalGameRuntime
             }
             return new LocalGameRuntime(
                 backend, playerProfile, experts, expertFacade ?? DisabledExpertFacade.Instance,
-                buckets ?? new InMemoryHistoryBucketSet(), store, existing);
+                bucketSet, store, existing, settingsStore, executionLogger);
         }
 
         var initialState = await backend.CreateInitialStateAsync(playerProfile, cancellationToken).ConfigureAwait(false);
@@ -84,7 +97,7 @@ public sealed class LocalGameRuntime
         await store.SaveAsync(session, cancellationToken).ConfigureAwait(false);
         return new LocalGameRuntime(
             backend, playerProfile, experts, expertFacade ?? DisabledExpertFacade.Instance,
-            buckets ?? new InMemoryHistoryBucketSet(), store, session);
+            bucketSet, store, session, settingsStore, executionLogger);
     }
 
     public IAsyncEnumerable<ActionRuntimeEvent> HandleActionAsync(
@@ -108,8 +121,9 @@ public sealed class LocalGameRuntime
             _playerProfile,
             new ReadOnlyGameState(captured.CommittedState),
             new LocalActionHistory(captured.CommittedActions),
-            _buckets,
-            _gameSettingsStore);
+            _bucketHost.CreateCommittedSnapshot(),
+            _gameSettingsStore,
+            _logger);
         return await _backend.HandleFrontendRequestAsync(request, context, cancellationToken).ConfigureAwait(false);
     }
 
@@ -150,6 +164,7 @@ public sealed class LocalGameRuntime
             var state = new GameState(baseSession.CommittedState);
             var frontend = new StreamingFrontendEventSink(
                 baseSession.SessionId, baseSession.BranchId, actionId, actionRunId, writer);
+            _bucketHost.BindActionRun();
             var context = new ActionContext(
                 baseSession.SessionId,
                 baseSession.BranchId,
@@ -161,7 +176,10 @@ public sealed class LocalGameRuntime
                 new LocalActionHistory(baseSession.CommittedActions),
                 _expertFacade,
                 _experts,
-                _buckets);
+                _buckets,
+                getGameSettings: null,
+                _gameSettingsStore,
+                _logger);
 
             await writer.WriteAsync(
                 ActionRuntimeEvent.Started(baseSession.SessionId, baseSession.BranchId, actionId, actionRunId),
@@ -193,6 +211,7 @@ public sealed class LocalGameRuntime
             cancellationToken.ThrowIfCancellationRequested();
             var committed = CreateCommittedSession(baseSession, context, frontend, action, actionId, actionRunId);
             await _store.SaveAsync(committed, cancellationToken).ConfigureAwait(false);
+            _bucketHost.CommitActionRun();
             _session = committed;
             await writer.WriteAsync(
                 ActionRuntimeEvent.Committed(baseSession.SessionId, baseSession.BranchId, actionId, actionRunId),
@@ -200,12 +219,14 @@ public sealed class LocalGameRuntime
         }
         catch (OperationCanceledException exception)
         {
+            _bucketHost.AbortActionRun();
             await WriteAbortedAsync(baseSession, actionId, actionRunId, ActionTerminalStatus.Aborted, exception, writer)
                 .ConfigureAwait(false);
             throw;
         }
         catch (Exception exception)
         {
+            _bucketHost.AbortActionRun();
             await WriteAbortedAsync(baseSession, actionId, actionRunId, ActionTerminalStatus.Failed, exception, writer)
                 .ConfigureAwait(false);
             throw;
