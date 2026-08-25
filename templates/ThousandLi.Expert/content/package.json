@@ -1,0 +1,7 @@
+{
+  "authorId": "ThousandLi.TemplateAuthor",
+  "packageKind": "ExpertPackage",
+  "packageName": "ThousandLi.TemplatePackage",
+  "packageVersion": "0.1.0",
+  "entryAssembly": "bin/ThousandLi.TemplateName.dll"
+}

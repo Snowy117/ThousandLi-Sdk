@@ -1,14 +1,12 @@
 using System.Text.Json;
 using ThousandLi.Contracts;
+using ThousandLi.ExpertContracts.Narration;
 using ThousandLi.GameAuthoring;
 
 namespace ThousandLi.SampleGame;
 
 public sealed class SampleGameBackend : IGameBackend
 {
-    public static ExpertContractDescriptor NarratorContract { get; } =
-        new("thousandli.sample/narrator", new ContractVersion(1, 0), "sample-narrator-v1");
-
     public ValueTask<JsonElement> CreateInitialStateAsync(
         BoundPlayerProfile playerProfile,
         CancellationToken cancellationToken = default)
@@ -42,7 +40,7 @@ public sealed class SampleGameBackend : IGameBackend
                 semanticEvent.Payload,
                 token).ConfigureAwait(false));
         var result = await context.Experts.ExecuteAsync(
-            new ExpertInvocationRequest(NarratorContract, "advance", input),
+            new ExpertInvocationRequest(AbstractNarratorExpert.Descriptor, "advance", input),
             semanticEvents,
             cancellationToken).ConfigureAwait(false);
         context.State.Replace("/turn", currentTurn + 1);

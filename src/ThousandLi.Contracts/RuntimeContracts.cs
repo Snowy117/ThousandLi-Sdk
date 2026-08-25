@@ -80,6 +80,21 @@ public sealed class GamePackageEntryPointAttribute(Type entryPointType) : Attrib
     public Type EntryPointType { get; } = entryPointType ?? throw new ArgumentNullException(nameof(entryPointType));
 }
 
+/// <summary>
+/// Declares the binding of an Expert Package Assembly: the abstract expert type carrying the
+/// contract identity and the concrete expert implementation. An expert package assembly declares
+/// exactly one entry point; loaders reject zero or multiple declarations.
+/// </summary>
+[AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
+public sealed class ExpertPackageEntryPointAttribute(Type abstractExpertType, Type concreteExpertType) : Attribute
+{
+    public Type AbstractExpertType { get; } =
+        abstractExpertType ?? throw new ArgumentNullException(nameof(abstractExpertType));
+
+    public Type ConcreteExpertType { get; } =
+        concreteExpertType ?? throw new ArgumentNullException(nameof(concreteExpertType));
+}
+
 public enum ActionRuntimeEventKind
 {
     Started,

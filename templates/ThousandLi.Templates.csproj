@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageId>ThousandLi.Templates</PackageId>
-    <Description>Code-first ThousandLi Game Package templates with a C# backend, Vue frontend, and tests.</Description>
+    <Description>Code-first ThousandLi Game and Expert Package templates with a C# backend, Vue frontend, and tests.</Description>
     <PackageType>Template</PackageType>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <ContentTargetFolders>content</ContentTargetFolders>
@@ -14,5 +14,8 @@
              Exclude="ThousandLi.Game/content/frontend/node_modules/**/*;ThousandLi.Game/content/frontend/dist/**/*"
              Pack="true"
              PackagePath="content/ThousandLi.Game/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Content Include="ThousandLi.Expert/**/*"
+             Pack="true"
+             PackagePath="content/ThousandLi.Expert/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

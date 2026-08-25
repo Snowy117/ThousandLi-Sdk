@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>ThousandLi.ExpertContracts</PackageId>
+    <Description>Abstract expert contracts, contract identity primitives, and the explicit contract registry for ThousandLi experts.</Description>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="JetBrains.Annotations" PrivateAssets="all" />
+    <ProjectReference Include="../ThousandLi.Contracts/ThousandLi.Contracts.csproj" />
+    <ProjectReference Include="../ThousandLi.ExpertAuthoring/ThousandLi.ExpertAuthoring.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Expert-only authors do not consume ThousandLi.GameAuthoring, so the shared Package
+         Artifact build targets must also ship from this package. The targets file stays
+         single-sourced in eng/. -->
+    <None Include="../../eng/ThousandLi.GameAuthoring.targets"
+          Pack="true"
+          PackagePath="buildTransitive/ThousandLi.ExpertContracts.targets" />
+  </ItemGroup>
+</Project>

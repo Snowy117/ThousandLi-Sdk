@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsThousandLiPackageArtifact>true</IsThousandLiPackageArtifact>
+    <IsThousandLiExpertPackageArtifact>true</IsThousandLiExpertPackageArtifact>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/ThousandLi.ExpertContracts/ThousandLi.ExpertContracts.csproj" />
+  </ItemGroup>
+</Project>

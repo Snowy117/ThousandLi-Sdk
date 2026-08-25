@@ -14,7 +14,48 @@ internal static class TestSupport
         new("tests/narrator", new ContractVersion(1, 0), "tests-narrator-v1");
     public static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
 
+    public static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "ThousandLi.Sdk.slnx")))
+            directory = directory.Parent;
+        return directory?.FullName ?? throw new DirectoryNotFoundException("Could not locate the SDK repository root.");
+    }
+
     public static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement.Clone();
+
+    internal static ExpertInvocationRecording CreateRecording(
+        ExpertContractDescriptor? contract = null,
+        string? input = """{"prompt":"hello"}""",
+        IReadOnlyList<(string EventType, string Payload)>? events = null,
+        string? terminalStatus = null,
+        string? output = """{"text":"done"}""",
+        string? terminalError = null,
+        string? scenarioId = "advance",
+        string? channelKey = "channel-1",
+        string? invocationId = "fake-0001",
+        string? executor = "fake",
+        string? expertPackageId = null,
+        DateTimeOffset recordedAtUtc = default,
+        long durationMs = 42)
+    {
+        var status = terminalStatus ?? ExpertRecordingTerminal.Committed;
+        return new ExpertInvocationRecording(
+            contract ?? Contract,
+            Json(input ?? "{}"),
+            [.. (events ?? [("narrative", """{"text":"hello"}""")])
+                .Select(pair => new ExpertSemanticEvent(pair.EventType, Json(pair.Payload)))],
+            status == ExpertRecordingTerminal.Committed
+                ? new ExpertRecordingTerminal(ExpertRecordingTerminal.Committed, Json(output ?? "{}"))
+                : new ExpertRecordingTerminal(status, error: terminalError),
+            scenarioId,
+            channelKey,
+            invocationId,
+            executor,
+            expertPackageId,
+            recordedAtUtc == default ? new DateTimeOffset(2026, 8, 24, 8, 0, 0, TimeSpan.Zero) : recordedAtUtc,
+            durationMs);
+    }
 
     public static PlayerActionEnvelope Action(string json = "{}") => new(PlayerId, Json(json), "client-action-1");
 

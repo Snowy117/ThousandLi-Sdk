@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsThousandLiPackageArtifact>true</IsThousandLiPackageArtifact>
+    <IsThousandLiExpertPackageArtifact>true</IsThousandLiExpertPackageArtifact>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/ThousandLi.ExpertContracts/ThousandLi.ExpertContracts.csproj" />
+  </ItemGroup>
+</Project>

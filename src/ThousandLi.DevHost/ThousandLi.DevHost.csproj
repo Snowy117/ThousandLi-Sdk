@@ -2,13 +2,18 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <PackageId>ThousandLi.DevHost</PackageId>
-    <Description>Lightweight local runtime and preview host for ThousandLi creators.</Description>
+    <Description>Lightweight local runtime, expert execution, and preview host for ThousandLi creators.</Description>
     <IsPackable>true</IsPackable>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>thousandli-dev</ToolCommandName>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="JetBrains.Annotations" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../ThousandLi.Contracts/ThousandLi.Contracts.csproj" />
+    <ProjectReference Include="../ThousandLi.ExpertAuthoring/ThousandLi.ExpertAuthoring.csproj" />
+    <ProjectReference Include="../ThousandLi.ExpertContracts/ThousandLi.ExpertContracts.csproj" />
+    <ProjectReference Include="../ThousandLi.Testing/ThousandLi.Testing.csproj" />
   </ItemGroup>
 </Project>
