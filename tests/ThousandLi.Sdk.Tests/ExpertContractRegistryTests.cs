@@ -1,10 +1,10 @@
 using System.Text.Json;
 using ThousandLi.BrokenContractFixtures;
 using ThousandLi.Contracts;
-using ThousandLi.ExpertAuthoring;
 using ThousandLi.ExpertContracts;
 using ThousandLi.ExpertContracts.Narration;
 using JetBrains.Annotations;
+using ExpertCompletionResult = ThousandLi.ExpertAuthoring.ExpertCompletionResult;
 
 namespace ThousandLi.Sdk.Tests;
 

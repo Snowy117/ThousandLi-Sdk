@@ -4,6 +4,10 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
+using ExpertCompletionResult = ThousandLi.ExpertAuthoring.ExpertCompletionResult;
+using IExpertFeature = ThousandLi.ExpertAuthoring.IExpertFeature;
+using IExpertPrimaryOutput = ThousandLi.ExpertAuthoring.IExpertPrimaryOutput;
+using TextPrimaryOutput = ThousandLi.ExpertAuthoring.TextPrimaryOutput;
 
 namespace ThousandLi.Sdk.Tests;
 

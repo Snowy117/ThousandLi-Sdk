@@ -1,6 +1,8 @@
 using System.Text.Json;
 using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
+using ExpertCompletionResult = ThousandLi.ExpertAuthoring.ExpertCompletionResult;
+using IExpertFeature = ThousandLi.ExpertAuthoring.IExpertFeature;
 
 [assembly: ExpertPackageEntryPoint(
     typeof(ThousandLi.LocalExpertNoContractFixture.LocalAbstractExpert),

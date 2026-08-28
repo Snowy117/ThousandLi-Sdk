@@ -134,7 +134,7 @@ public sealed class LocalExpertExecutorTests
             var sink = new DelegateExpertSemanticEventSink(async (semanticEvent, token) =>
                 await context.Frontend.WriteAsync(semanticEvent.EventType, semanticEvent.Payload, token)
                     .ConfigureAwait(false));
-            var result = await context.Experts.ExecuteAsync(
+            var result = await context.ExpertExecutor.ExecuteAsync(
                 new ExpertInvocationRequest(AbstractNarratorExpert.Descriptor, "advance", input),
                 sink, TestContext.Current.CancellationToken).ConfigureAwait(false);
             var turn = context.State.Get(new JsonPointer("/turn")).GetInt32() + 1;
@@ -298,7 +298,11 @@ public sealed class LocalExpertExecutorTests
 
             Assert.Contains("ThousandLi.Contracts", exception.Message, StringComparison.Ordinal);
             Assert.Contains("2.5", exception.Message, StringComparison.Ordinal);
-            Assert.Contains("0.1", exception.Message, StringComparison.Ordinal);
+            var devHostVersion = typeof(ExpertInvocationRequest).Assembly.GetName().Version ?? new Version();
+            Assert.Contains(
+                $"{devHostVersion.Major}.{devHostVersion.Minor}",
+                exception.Message,
+                StringComparison.Ordinal);
         }
         finally
         {

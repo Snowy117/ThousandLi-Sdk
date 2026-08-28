@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
+using IExpertFeature = ThousandLi.ExpertAuthoring.IExpertFeature;
 
 namespace ThousandLi.ExpertContracts.Narration;
 

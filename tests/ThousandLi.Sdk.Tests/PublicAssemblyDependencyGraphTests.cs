@@ -9,12 +9,19 @@ public sealed class PublicAssemblyDependencyGraphTests
     [
         "ThousandLi.Contracts",
         "ThousandLi.GameAuthoring",
+        "ThousandLi.GameHelper",
         "ThousandLi.Testing",
         "ThousandLi.DevHost",
         "ThousandLi.ExpertContracts",
         "ThousandLi.ExpertAuthoring",
         "ThousandLi.RemoteExperts"
     ];
+
+    /// <summary>
+    /// Deliberate public third-party dependencies. GameHelper ships Castle.Core inside game Package
+    /// Artifacts for typed session-state proxy write-back; it is not part of the SDK runtime set.
+    /// </summary>
+    private static readonly string[] AllowedThirdPartyAssemblies = ["Castle.Core"];
 
     private static readonly string[] ForbiddenAssemblyPrefixes =
     [
@@ -84,6 +91,9 @@ public sealed class PublicAssemblyDependencyGraphTests
                 }
 
                 if (HasPrefix(referenceName, FrameworkAssemblyPrefixes))
+                    continue;
+
+                if (AllowedThirdPartyAssemblies.Contains(referenceName, StringComparer.Ordinal))
                     continue;
 
                 if (referenceName.StartsWith("ThousandLi.", StringComparison.Ordinal) &&
