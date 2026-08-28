@@ -7,6 +7,7 @@ namespace ThousandLi.DevHost;
 public sealed class LoadedGamePackage : IDisposable
 {
     private readonly PackageLoadContext _loadContext;
+    private int _disposeState;
 
     internal LoadedGamePackage(
         string artifactDirectory,
@@ -24,17 +25,32 @@ public sealed class LoadedGamePackage : IDisposable
     public GamePackageManifest Manifest { get; }
     public IGameBackend Backend { get; }
 
-    public void Dispose() => _loadContext.Unload();
+    /// <summary>Idempotent: unload is a one-shot operation and repeat calls are no-ops.</summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0)
+            return;
+        _loadContext.Unload();
+    }
 }
 
-internal sealed class PackageLoadContext(string entryAssemblyPath) : AssemblyLoadContext(isCollectible: true)
+internal sealed class PackageLoadContext(
+    string entryAssemblyPath,
+    IReadOnlyDictionary<string, Assembly>? sharedAssemblies = null) : AssemblyLoadContext(isCollectible: true)
 {
+    private static readonly IReadOnlyDictionary<string, Assembly> DefaultSharedAssemblies =
+        new Dictionary<string, Assembly>(StringComparer.Ordinal)
+        {
+            ["ThousandLi.Contracts"] = typeof(IGameBackend).Assembly
+        };
+
     private readonly AssemblyDependencyResolver _resolver = new(entryAssemblyPath);
+    private readonly IReadOnlyDictionary<string, Assembly> _sharedAssemblies = sharedAssemblies ?? DefaultSharedAssemblies;
 
     protected override Assembly? Load(AssemblyName assemblyName)
     {
-        if (string.Equals(assemblyName.Name, typeof(IGameBackend).Assembly.GetName().Name, StringComparison.Ordinal))
-            return typeof(IGameBackend).Assembly;
+        if (_sharedAssemblies.TryGetValue(assemblyName.Name ?? string.Empty, out var shared))
+            return shared;
         var path = _resolver.ResolveAssemblyToPath(assemblyName);
         return path is null ? null : LoadFromAssemblyPath(path);
     }

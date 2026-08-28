@@ -1,6 +1,6 @@
 using ThousandLi.Contracts;
 using ThousandLi.DevHost;
-using ThousandLi.SampleGame;
+using ThousandLi.ExpertContracts.Narration;
 
 namespace ThousandLi.Sdk.Tests;
 
@@ -13,7 +13,7 @@ public sealed class CompatibilityAndPackageLoaderTests
         var available = new DevHostCompatibility(
             SdkContracts.Runtime,
             SdkContracts.Frontend,
-            [SampleGameBackend.NarratorContract]);
+            [AbstractNarratorExpert.Descriptor]);
 
         CompatibilityValidator.Validate(manifest, available);
 
@@ -40,10 +40,10 @@ public sealed class CompatibilityAndPackageLoaderTests
 
         var exception = Assert.Throws<CompatibilityException>(() =>
             CompatibilityValidator.Validate(manifest, new DevHostCompatibility(
-                SdkContracts.Runtime, SdkContracts.Frontend, [SampleGameBackend.NarratorContract])));
+                SdkContracts.Runtime, SdkContracts.Frontend, [AbstractNarratorExpert.Descriptor])));
 
         Assert.Contains("2.0", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("1.0", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(SdkContracts.Runtime.ToString(), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -51,8 +51,8 @@ public sealed class CompatibilityAndPackageLoaderTests
     {
         var manifest = GamePackageManifest.Parse(ManifestJson());
         var incompatible = new ExpertContractDescriptor(
-            SampleGameBackend.NarratorContract.Id,
-            SampleGameBackend.NarratorContract.Version,
+            AbstractNarratorExpert.Descriptor.Id,
+            AbstractNarratorExpert.Descriptor.Version,
             "wrong");
 
         var exception = Assert.Throws<CompatibilityException>(() =>
@@ -66,14 +66,14 @@ public sealed class CompatibilityAndPackageLoaderTests
     public void BuiltArtifactContainsBackendFrontendManifestAndLoadsWithSharedContractsIdentity()
     {
         var artifact = Path.Combine(
-            FindRepositoryRoot(),
+            TestSupport.FindRepositoryRoot(),
             "samples", "ThousandLi.SampleGame", "bin", "Debug", "net10.0", "PackageArtifact");
 
         Assert.True(File.Exists(Path.Combine(artifact, "package.json")));
         Assert.True(File.Exists(Path.Combine(artifact, "frontend", "index.html")));
         Assert.True(File.Exists(Path.Combine(artifact, "bin", "ThousandLi.SampleGame.dll")));
 
-        using var loaded = GamePackageLoader.Load(artifact, [SampleGameBackend.NarratorContract]);
+        using var loaded = GamePackageLoader.Load(artifact, [AbstractNarratorExpert.Descriptor]);
 
         Assert.IsType<IGameBackend>(loaded.Backend, exactMatch: false);
         Assert.Same(typeof(IGameBackend).Assembly, loaded.Backend.GetType().Assembly
@@ -107,6 +107,38 @@ public sealed class CompatibilityAndPackageLoaderTests
         }
     }
 
+    [Fact]
+    public void ExpertLoaderRejectsGamePackageKindManifests()
+    {
+        var exception = Assert.Throws<CompatibilityException>(() =>
+            ExpertPackageManifest.Parse(ExpertManifestJson(packageKind: "GamePackage")));
+
+        Assert.Contains("packageKind 'ExpertPackage'", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ExpertManifestOpenAiModelsAreOptionalAdvisoryMetadata()
+    {
+        var without = ExpertPackageManifest.Parse(ExpertManifestJson());
+        Assert.Empty(without.OpenAiModels);
+        Assert.Equal("thousandli_expert-probe@0.1.0", without.PackageId);
+
+        var with = ExpertPackageManifest.Parse(ExpertManifestJson(openAiModels: """["m1","m2"]"""));
+        Assert.Equal(["m1", "m2"], with.OpenAiModels);
+    }
+
+    [Theory]
+    [InlineData("Bad Slug!")]
+    [InlineData("")]
+    [InlineData("UPPER")]
+    public void ExpertManifestRejectsInvalidPackageNameSlugs(string packageName)
+    {
+        var exception = Assert.Throws<CompatibilityException>(() =>
+            ExpertPackageManifest.Parse(ExpertManifestJson(packageName: packageName)));
+
+        Assert.Contains("packageName", exception.Message, StringComparison.Ordinal);
+    }
+
     private static string ManifestJson(string entryAssembly = "bin/ThousandLi.SampleGame.dll", int runtimeMajor = 1)
     {
         var escapedEntryAssembly = entryAssembly.Replace(@"\", @"\\", StringComparison.Ordinal);
@@ -123,9 +155,9 @@ public sealed class CompatibilityAndPackageLoaderTests
             "frontend": { "major": 1, "minor": 0 },
             "expertContracts": [
               {
-                "id": "thousandli.sample/narrator",
+                "id": "thousandli.expert/narrator",
                 "version": { "major": 1, "minor": 0 },
-                "fingerprint": "sample-narrator-v1"
+                "fingerprint": "c514466424e626a6f24dfb5b53894c493351fb2466d30f1ba6e00e5153264b10"
               }
             ]
           }
@@ -133,11 +165,21 @@ public sealed class CompatibilityAndPackageLoaderTests
         """;
     }
 
-    private static string FindRepositoryRoot()
+    private static string ExpertManifestJson(
+        string packageKind = "ExpertPackage",
+        string packageName = "expert-probe",
+        string? openAiModels = null)
     {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "ThousandLi.Sdk.slnx")))
-            directory = directory.Parent;
-        return directory?.FullName ?? throw new DirectoryNotFoundException("Could not locate the SDK repository root.");
+        var models = openAiModels is null ? string.Empty : $""","openAiModels": {openAiModels}""";
+        return $$"""
+        {
+          "authorId": "thousandli",
+          "packageKind": "{{packageKind}}",
+          "packageName": "{{packageName}}",
+          "packageVersion": "0.1.0",
+          "entryAssembly": "bin/probe.dll"
+          {{models}}
+        }
+        """;
     }
 }

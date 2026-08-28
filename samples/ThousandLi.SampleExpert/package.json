@@ -1,0 +1,7 @@
+{
+  "authorId": "thousandli",
+  "packageKind": "ExpertPackage",
+  "packageName": "sample-expert",
+  "packageVersion": "0.1.0",
+  "entryAssembly": "bin/ThousandLi.SampleExpert.dll"
+}

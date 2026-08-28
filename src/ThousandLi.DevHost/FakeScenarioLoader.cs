@@ -66,6 +66,9 @@ public sealed class ScriptedFakeExpertExecutor : IExpertExecutor
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(events);
         cancellationToken.ThrowIfCancellationRequested();
+        if (request.ScenarioId is null)
+            throw new InvalidOperationException(
+                $"Fake Expert execution requires a scenario key, but the invocation for contract '{request.Contract.Id}' does not provide one.");
         if (!_scenarios.TryGetValue(Key(request.Contract.Id, request.ScenarioId), out var scenario))
             throw new InvalidOperationException($"No Fake scenario '{request.ScenarioId}' for '{request.Contract.Id}'.");
         if (!scenario.Contract.Version.Supports(request.Contract.Version) ||

@@ -1,0 +1,8 @@
+{
+  "authorId": "thousandli",
+  "packageKind": "ExpertPackage",
+  "packageName": "local-expert-fixture",
+  "packageVersion": "0.1.0",
+  "entryAssembly": "bin/ThousandLi.LocalExpertFixture.dll",
+  "openAiModels": ["test-model"]
+}

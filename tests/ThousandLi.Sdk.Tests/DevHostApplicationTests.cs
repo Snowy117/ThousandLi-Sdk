@@ -81,6 +81,43 @@ public sealed class DevHostApplicationTests
         }
     }
 
+    [Fact]
+    public async Task RemoteExecutorStartsGameArtifactsWithoutFakeScenarioBindings()
+    {
+        var port = ReservePort();
+        var repositoryRoot = FindRepositoryRoot();
+        var artifact = Path.Combine(
+            repositoryRoot,
+            "samples", "ThousandLi.SampleGame", "bin", "Debug", "net10.0", "PackageArtifact");
+        var options = new DevHostOptions
+        {
+            ArtifactDirectory = artifact,
+            WorkspaceId = "http-tests",
+            FrontendUrl = "/game/",
+            SessionId = $"session-{Guid.NewGuid():N}",
+            Port = port,
+            Ephemeral = true,
+            ExpertExecutor = DevHostOptions.RemoteExecutorName,
+            RemoteEndpoint = "http://127.0.0.1:9/"
+        };
+        await using var app = await DevHostApplication.BuildAsync(
+            options,
+            webApplicationArgs: [],
+            TestSupport.CancellationToken);
+        await app.StartAsync(TestSupport.CancellationToken);
+        try
+        {
+            using var client = CreateClient(new Uri($"http://127.0.0.1:{port}"));
+
+            var shell = await client.GetStringAsync("/", TestSupport.CancellationToken);
+            Assert.Contains("<iframe", shell, StringComparison.Ordinal);
+        }
+        finally
+        {
+            await app.StopAsync(TestSupport.CancellationToken);
+        }
+    }
+
     private static HttpClient CreateClient(Uri baseAddress) => new() { BaseAddress = baseAddress };
 
     private static int ReservePort()
