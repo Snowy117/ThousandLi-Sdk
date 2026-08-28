@@ -1,6 +1,6 @@
 {
   "name": "@thousandli/sdk",
-  "version": "0.2.0-preview.1",
+  "version": "0.3.0-preview.1",
   "description": "Framework-neutral frontend SDK for ThousandLi game packages.",
   "license": "MIT",
   "type": "module",
