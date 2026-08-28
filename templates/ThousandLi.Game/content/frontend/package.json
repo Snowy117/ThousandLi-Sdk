@@ -10,7 +10,7 @@
     "build": "vue-tsc --noEmit && vite build"
   },
   "dependencies": {
-    "@thousandli/sdk": "^0.1.0",
+    "@thousandli/sdk": "^0.2.0-preview.1",
     "vue": "^3.5.41"
   },
   "devDependencies": {

@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/ThousandLi.Contracts/ThousandLi.Contracts.csproj" />
     <ProjectReference Include="../../src/ThousandLi.GameAuthoring/ThousandLi.GameAuthoring.csproj" />
+    <ProjectReference Include="../../src/ThousandLi.GameHelper/ThousandLi.GameHelper.csproj" />
     <ProjectReference Include="../../src/ThousandLi.Testing/ThousandLi.Testing.csproj" />
     <ProjectReference Include="../../src/ThousandLi.DevHost/ThousandLi.DevHost.csproj" />
     <ProjectReference Include="../../samples/ThousandLi.SampleGame/ThousandLi.SampleGame.csproj" />

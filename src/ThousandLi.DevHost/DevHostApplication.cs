@@ -36,6 +36,8 @@ public static class DevHostApplication
     {
         ArgumentNullException.ThrowIfNull(options);
         var fakeExperts = ScriptedFakeExpertExecutor.Load(options.FakeScenariosPath);
+        var expertFacade = ScriptedLongTextWritingExpertFacade.Load(options.FakeScenariosPath);
+        var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
         var package = GamePackageLoader.Load(options.ArtifactDirectory, fakeExperts.Contracts);
         try
         {
@@ -55,6 +57,10 @@ public static class DevHostApplication
                 fakeExperts,
                 store,
                 sessionId,
+                expertFacade,
+                buckets: null,
+                gameSettingsStore: null,
+                logger: loggerFactory.CreateLogger($"ThousandLi.GameBackend/{package.Manifest.PackageId}"),
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             var state = new DevHostApplicationState(package, runtime, player);
 
