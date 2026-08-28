@@ -39,7 +39,13 @@ public abstract class RuntimeLongTextWritingExpertBase : AbstractLongTextWriting
         _executionContext ?? throw new InvalidOperationException(
             "The expert instance has not been bound to an execution context. Expert instances must be created through a factory or facade that binds an IExpertExecutionContext before execution.");
 
-    internal void Bind(IExpertExecutionContext context)
+    /// <summary>
+    /// Binds the execution context to this instance, exactly once, before invocation. Callers are the
+    /// facades/executors that hand runtime experts to game code: the production Host facade, local
+    /// composition roots, and test doubles (for example the <c>ThousandLi.Testing</c> fake facade
+    /// pattern where the registered factory creates, binds, and returns the expert).
+    /// </summary>
+    public void Bind(IExpertExecutionContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
         if (_executionContext is not null)

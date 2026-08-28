@@ -1,6 +1,7 @@
 using ThousandLi.Contracts;
 using ThousandLi.DevHost;
 using ThousandLi.Testing;
+using InMemoryHistoryBucketSet = ThousandLi.DevHost.InMemoryHistoryBucketSet;
 
 namespace ThousandLi.Sdk.Tests;
 

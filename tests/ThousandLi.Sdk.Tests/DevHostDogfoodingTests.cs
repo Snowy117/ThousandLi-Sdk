@@ -4,6 +4,8 @@ using ThousandLi.Contracts;
 using ThousandLi.DevHost;
 using ThousandLi.GameHelper;
 using ThousandLi.Testing;
+using InMemoryGameSettingsStore = ThousandLi.DevHost.InMemoryGameSettingsStore;
+using InMemoryHistoryBucketSet = ThousandLi.DevHost.InMemoryHistoryBucketSet;
 
 namespace ThousandLi.Sdk.Tests;
 

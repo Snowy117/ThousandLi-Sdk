@@ -90,6 +90,10 @@ public sealed class FakeExpertExecutor : IExpertExecutor
 [JetBrains.Annotations.PublicAPI]
 public sealed class ThrowingExpertExecutor : IExpertExecutor
 {
+    /// <summary>共享实例（无状态）。</summary>
+    public static ThrowingExpertExecutor Instance { get; } = new();
+
+    /// <inheritdoc />
     public ValueTask<ExpertInvocationResult> ExecuteAsync(
         ExpertInvocationRequest request,
         IExpertSemanticEventSink events,
