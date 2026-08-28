@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Slice 1 binary-compatibility fixture (intentionally NOT part of ThousandLi.Sdk.slnx).
+
+    The committed DLL under tests/ThousandLi.Sdk.Tests/Assets/Slice1Compat/ was compiled against the
+    Slice 1 Contracts, where ExpertInvocationRequest had only the 3-parameter constructor. The test
+    suite loads that DLL against the current runtime to prove that assemblies compiled against older
+    Contracts still execute (design.md section 2 / AC4). Rebuilding this project against current
+    sources would defeat that purpose, so it is excluded from the solution build.
+
+    To regenerate deliberately (e.g. pinning a new baseline after an intentional contract break):
+      1. Check out the Contracts baseline you want to pin.
+      2. dotnet build tests/ThousandLi.Slice1CompatFixture -c Release
+      3. Copy bin/Release/net10.0/ThousandLi.Slice1CompatFixture.dll to
+         tests/ThousandLi.Sdk.Tests/Assets/Slice1Compat/.
+
+    The fixture binds to ThousandLi.Contracts by assembly identity (the AssemblyVersion of the pinned
+    baseline); regenerating against a checkout whose AssemblyVersion differs requires the test host to
+    run that same version.
+  -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/ThousandLi.Contracts/ThousandLi.Contracts.csproj" />
+    <ProjectReference Include="../../src/ThousandLi.Testing/ThousandLi.Testing.csproj" />
+  </ItemGroup>
+</Project>

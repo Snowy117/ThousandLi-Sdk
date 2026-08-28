@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="ThousandLi.TemplateName.csproj" />
+  <Project Path="tests/ThousandLi.TemplateName.Tests.csproj" />
+</Solution>

@@ -17,7 +17,12 @@
       <ThousandLiPackageArtifactBinary Include="$(TargetPath)" />
       <ThousandLiPackageArtifactBinary Include="$(OutDir)*.deps.json" />
       <ThousandLiPackageArtifactBinary Include="@(ReferenceCopyLocalPaths)"
-        Condition="'%(Filename)' != 'ThousandLi.Contracts'" />
+        Condition="'$(IsThousandLiExpertPackageArtifact)' != 'true' and '%(Filename)' != 'ThousandLi.Contracts'" />
+      <!-- Expert packages share Contracts/ExpertContracts/ExpertAuthoring/logging with the DevHost:
+           those DLLs are never distributed inside the artifact and always resolve to the
+           DevHost-provided versions at load time. -->
+      <ThousandLiPackageArtifactBinary Include="@(ReferenceCopyLocalPaths)"
+        Condition="'$(IsThousandLiExpertPackageArtifact)' == 'true' and '%(Filename)' != 'ThousandLi.Contracts' and '%(Filename)' != 'ThousandLi.ExpertContracts' and '%(Filename)' != 'ThousandLi.ExpertAuthoring' and '%(Filename)' != 'Microsoft.Extensions.Logging.Abstractions'" />
       <ThousandLiPackageManifest Include="$(MSBuildProjectDirectory)/package.json" />
       <ThousandLiPackageFrontend Include="$(ThousandLiFrontendDirectory)/dist/**/*"
         Condition="'$(ThousandLiFrontendDirectory)' != ''" />

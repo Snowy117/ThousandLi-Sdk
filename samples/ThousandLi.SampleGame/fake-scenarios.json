@@ -1,13 +1,13 @@
 [
   {
     "contract": {
-      "id": "thousandli.sample/narrator",
+      "id": "thousandli.expert/narrator",
       "version": { "major": 1, "minor": 0 },
-      "fingerprint": "sample-narrator-v1"
+      "fingerprint": "c514466424e626a6f24dfb5b53894c493351fb2466d30f1ba6e00e5153264b10"
     },
     "scenarioId": "advance",
     "events": [
-      { "eventType": "narrative", "payload": { "text": "A new path opens." } }
+      { "eventType": "chunk", "payload": { "text": "A new path opens." } }
     ],
     "result": { "text": "A new path opens." }
   }

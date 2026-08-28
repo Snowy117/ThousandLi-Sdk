@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using JetBrains.Annotations;
@@ -43,6 +44,7 @@ public sealed record ExpertContractDescriptor
 
 public sealed record ExpertInvocationRequest
 {
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public ExpertInvocationRequest(ExpertContractDescriptor contract, string scenarioId, JsonElement input)
     {
         Contract = contract ?? throw new ArgumentNullException(nameof(contract));
@@ -52,8 +54,22 @@ public sealed record ExpertInvocationRequest
         Input = input.Clone();
     }
 
+    public ExpertInvocationRequest(ExpertContractDescriptor contract, string? scenarioId, JsonElement input, string? channelKey)
+    {
+        Contract = contract ?? throw new ArgumentNullException(nameof(contract));
+        if (scenarioId is not null)
+            ArgumentException.ThrowIfNullOrWhiteSpace(scenarioId);
+        if (channelKey is not null)
+            ArgumentException.ThrowIfNullOrWhiteSpace(channelKey);
+        JsonContractGuard.ThrowIfUndefined(input, nameof(input));
+        ScenarioId = scenarioId;
+        ChannelKey = channelKey;
+        Input = input.Clone();
+    }
+
     public ExpertContractDescriptor Contract { get; }
-    public string ScenarioId { get; }
+    public string? ScenarioId { get; }
+    public string? ChannelKey { get; }
     public JsonElement Input { get; }
 }
 
@@ -63,7 +79,7 @@ public sealed record ExpertInvocationRecord
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(invocationId);
-        Request = new ExpertInvocationRequest(request.Contract, request.ScenarioId, request.Input);
+        Request = new ExpertInvocationRequest(request.Contract, request.ScenarioId, request.Input, request.ChannelKey);
         InvocationId = invocationId;
     }
 
@@ -132,6 +148,6 @@ public sealed record GamePackageCompatibility
 
 public static class SdkContracts
 {
-    public static ContractVersion Runtime { get; } = new(1, 0);
+    public static ContractVersion Runtime { get; } = new(1, 1);
     public static ContractVersion Frontend { get; } = new(1, 0);
 }

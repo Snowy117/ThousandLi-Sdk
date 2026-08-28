@@ -1,0 +1,8 @@
+{
+  "authorId": "thousandli",
+  "packageKind": "ExpertPackage",
+  "packageName": "unregistered-contract-fixture",
+  "packageVersion": "0.1.0",
+  "entryAssembly": "bin/ThousandLi.UnregisteredContractFixture.dll",
+  "openAiModels": ["test-model"]
+}

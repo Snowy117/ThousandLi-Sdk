@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "ThousandLi",
+  "classifications": ["ThousandLi", "Expert", "AI"],
+  "identity": "ThousandLi.Templates.Expert",
+  "name": "ThousandLi Expert Package",
+  "shortName": "thousandli-expert",
+  "sourceName": "ThousandLi.TemplateName",
+  "preferNameDirectory": true,
+  "sources": [
+    {
+      "source": "./content/",
+      "target": "./"
+    }
+  ],
+  "symbols": {
+    "authorId": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "creator",
+      "replaces": "ThousandLi.TemplateAuthor"
+    },
+    "packageName": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "my-expert",
+      "replaces": "ThousandLi.TemplatePackage"
+    }
+  }
+}

@@ -11,3 +11,7 @@ artifacts/
 *.nupkg
 *.snupkg
 *.tgz
+
+# Local direnv environments
+.envrc
+.direnv/

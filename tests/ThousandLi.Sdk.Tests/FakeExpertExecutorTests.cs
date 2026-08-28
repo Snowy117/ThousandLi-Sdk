@@ -37,6 +37,21 @@ public sealed class FakeExpertExecutorTests
         Assert.Empty(executor.Invocations);
     }
 
+    [Fact]
+    public async Task ChannelKeyDoesNotParticipateInScenarioLookupAndIsPreservedInInvocationLog()
+    {
+        var executor = TestSupport.FakeExpert();
+        var request = new ExpertInvocationRequest(
+            TestSupport.Contract, "default", TestSupport.Json("{\"value\":1}"), "channel-7");
+
+        var result = await executor.ExecuteAsync(request, new RecordingSemanticSink(), TestSupport.CancellationToken);
+
+        Assert.Equal("complete", result.Output.GetProperty("text").GetString());
+        var invocation = Assert.Single(executor.Invocations);
+        Assert.Equal("default", invocation.Request.ScenarioId);
+        Assert.Equal("channel-7", invocation.Request.ChannelKey);
+    }
+
     [Theory]
     [InlineData(2, 0, "tests-narrator-v1")]
     [InlineData(1, 0, "different")]

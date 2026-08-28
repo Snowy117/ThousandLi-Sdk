@@ -1,0 +1,8 @@
+{
+  "authorId": "thousandli",
+  "packageKind": "ExpertPackage",
+  "packageName": "multi-entry-fixture",
+  "packageVersion": "0.1.0",
+  "entryAssembly": "bin/ThousandLi.LocalExpertMultiEntryFixture.dll",
+  "openAiModels": ["test-model"]
+}

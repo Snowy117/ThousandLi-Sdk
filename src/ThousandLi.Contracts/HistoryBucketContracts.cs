@@ -269,7 +269,9 @@ public sealed record HistoryProjectionGrandSummary : HistoryProjectionEntry
     public string Summary { get; }
 }
 
-/// <summary>单个历史消息桶：存全量原文不可变账本 + 提供压缩视图服务。</summary>
+/// <summary>
+/// 单个历史消息桶：存全量原文不可变账本 + 提供压缩视图服务。
+/// </summary>
 /// <remarks>
 ///     bucket 接口是纯线性的（<see cref="AddMessages" /> / <see cref="GetRawTurns" /> /
 ///     <see cref="GetCompressedView" />），不暴露任何分支语义给 Game。
@@ -301,6 +303,34 @@ public interface IHistoryBucket
     IReadOnlyList<HistoryProjectionEntry> GetCompressedView([UsedImplicitly] CompressedViewOptions? options = null);
 }
 // ReSharper restore UnusedMemberInSuper.Global
+
+/// <summary>
+/// 只读历史桶视图：专家执行期间持有 bucket 时禁止写账本。
+/// 读取（<see cref="GetRawTurns" /> / <see cref="GetCompressedView" /> / <see cref="Description" />）透传，
+/// <see cref="AddMessages" /> 抛 <see cref="NotSupportedException" />。
+/// </summary>
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
+public sealed class ReadOnlyHistoryBucket(IHistoryBucket inner) : IHistoryBucket
+{
+    /// <summary>被包装的可读写 bucket。</summary>
+    public IHistoryBucket Inner { get; } = inner ?? throw new ArgumentNullException(nameof(inner));
+
+    /// <inheritdoc />
+    public string Description => Inner.Description;
+
+    /// <inheritdoc />
+    public void AddMessages(string? digest, IReadOnlyDictionary<string, string>? metadata, params ChatMessage[] messages)
+    {
+        throw new NotSupportedException("Expert cannot mutate history buckets during execution.");
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<HistoryTurn> GetRawTurns() => Inner.GetRawTurns();
+
+    /// <inheritdoc />
+    public IReadOnlyList<HistoryProjectionEntry> GetCompressedView(CompressedViewOptions? options = null)
+        => Inner.GetCompressedView(options);
+}
 
 /// <summary>一个 session 内的历史消息桶集合：管理多 bucket 的显式创建与按名访问。</summary>
 /// <remarks>
