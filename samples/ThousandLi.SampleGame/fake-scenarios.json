@@ -10,5 +10,22 @@
       { "eventType": "chunk", "payload": { "text": "A new path opens." } }
     ],
     "result": { "text": "A new path opens." }
+  },
+  {
+    "contract": {
+      "id": "thousandli.expert/narrator",
+      "version": { "major": 1, "minor": 0 },
+      "fingerprint": "c514466424e626a6f24dfb5b53894c493351fb2466d30f1ba6e00e5153264b10"
+    },
+    "scenarioId": "reflect",
+    "result": { "text": "You pause and consider how far you have come." },
+    "output": {
+      "narrative": "You pause and consider how far you have come.",
+      "variableUpdates": [
+        { "op": "delta", "path": "/courage", "value": 5 },
+        { "op": "replace", "path": "/reflectCount", "value": 999 },
+        { "op": "replace", "path": "/trust", "value": 80 }
+      ]
+    }
   }
 ]

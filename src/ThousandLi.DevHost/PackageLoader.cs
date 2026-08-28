@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.Loader;
 using ThousandLi.Contracts;
@@ -38,6 +39,8 @@ internal sealed class PackageLoadContext(
     string entryAssemblyPath,
     IReadOnlyDictionary<string, Assembly>? sharedAssemblies = null) : AssemblyLoadContext(isCollectible: true)
 {
+    private const string HostProvidedAbstractionPrefix = "Microsoft.Extensions.";
+
     private static readonly IReadOnlyDictionary<string, Assembly> DefaultSharedAssemblies =
         new Dictionary<string, Assembly>(StringComparer.Ordinal)
         {
@@ -51,8 +54,32 @@ internal sealed class PackageLoadContext(
     {
         if (_sharedAssemblies.TryGetValue(assemblyName.Name ?? string.Empty, out var shared))
             return shared;
+        if (TryLoadHostProvidedAbstraction(assemblyName, out var hostProvided))
+            return hostProvided;
         var path = _resolver.ResolveAssemblyToPath(assemblyName);
         return path is null ? null : LoadFromAssemblyPath(path);
+    }
+
+    /// <summary>
+    /// Microsoft.Extensions.* 抽象由宿主提供：优先从默认上下文解析以保持跨边界类型同一性
+    /// （例如 GameHelper 包内代码读取宿主创建的 <c>ILogger</c>），宿主未提供时回退包内探测。
+    /// </summary>
+    private static bool TryLoadHostProvidedAbstraction(
+        AssemblyName assemblyName,
+        [NotNullWhen(true)] out Assembly? assembly)
+    {
+        assembly = null;
+        if (!(assemblyName.Name ?? string.Empty).StartsWith(HostProvidedAbstractionPrefix, StringComparison.Ordinal))
+            return false;
+        try
+        {
+            assembly = Assembly.Load(assemblyName);
+            return true;
+        }
+        catch (FileNotFoundException)
+        {
+            return false;
+        }
     }
 }
 

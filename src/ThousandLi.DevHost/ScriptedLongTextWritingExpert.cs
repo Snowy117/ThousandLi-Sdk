@@ -244,8 +244,33 @@ public sealed class ScriptedLongTextWritingExpert : AbstractLongTextWritingExper
                 case ActionOptionsFeature actionOptions:
                     await StreamActionOptionsAsync(actionOptions, cancellationToken).ConfigureAwait(false);
                     break;
+                case VariableUpdateFeature variableUpdate:
+                    await ProposeVariableUpdatesAsync(variableUpdate, cancellationToken).ConfigureAwait(false);
+                    break;
             }
         }
+    }
+
+    /// <summary>
+    /// 把脚本化输出中的 <c>variableUpdates</c> 数组作为补丁提案交给 Game 回调（GameHelper
+    /// 的 <c>WithVariableUpdate</c> 接线）：缺失或非数组时回退空提案（no-op），
+    /// 与 <c>ExpertVariableUpdateExecution</c> 的容错语义一致；数组内畸形命令在解析边界抛
+    /// <see cref="System.Text.Json.JsonException" />。
+    /// </summary>
+    private async ValueTask ProposeVariableUpdatesAsync(
+        VariableUpdateFeature feature,
+        CancellationToken cancellationToken)
+    {
+        if (!_scenario.Output.TryGetProperty("variableUpdates", out var patch) ||
+            patch.ValueKind != JsonValueKind.Array)
+        {
+            await feature.OnPatchProposed(new VariableUpdatePatchProposal([]), cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        await feature.OnPatchProposed(VariableUpdatePatchProposal.FromJson(patch), cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async ValueTask StreamTimeTagsAsync(TimeTagsFeature feature, CancellationToken cancellationToken)

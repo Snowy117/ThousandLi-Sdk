@@ -82,6 +82,83 @@ public sealed class DevHostApplicationTests
     }
 
     [Fact]
+    public async Task ReflectActionStreamsTypedExpertAndCommitsVariableUpdates()
+    {
+        var port = ReservePort();
+        var repositoryRoot = FindRepositoryRoot();
+        var artifact = Path.Combine(
+            repositoryRoot,
+            "samples", "ThousandLi.SampleGame", "bin", "Debug", "net10.0", "PackageArtifact");
+        var scenarios = Path.Combine(repositoryRoot, "samples", "ThousandLi.SampleGame", "fake-scenarios.json");
+        var options = new DevHostOptions
+        {
+            ArtifactDirectory = artifact,
+            WorkspaceId = "http-tests",
+            FrontendUrl = "/game/",
+            SessionId = $"session-{Guid.NewGuid():N}",
+            Port = port,
+            Ephemeral = true,
+            FakeScenariosPath = scenarios
+        };
+        await using var app = await DevHostApplication.BuildAsync(
+            options,
+            webApplicationArgs: [],
+            TestSupport.CancellationToken);
+        await app.StartAsync(TestSupport.CancellationToken);
+        try
+        {
+            using var client = CreateClient(new Uri($"http://127.0.0.1:{port}"));
+
+            var actionResponse = await client.PostAsJsonAsync(
+                "/api/actions",
+                new { type = "reflect" },
+                TestSupport.CancellationToken);
+            actionResponse.EnsureSuccessStatusCode();
+            var lines = (await actionResponse.Content.ReadAsStringAsync(TestSupport.CancellationToken))
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(line => JsonDocument.Parse(line))
+                .ToArray();
+            try
+            {
+                var types = lines.Select(line => line.RootElement.GetProperty("type").GetString()).ToArray();
+                Assert.Equal("started", types[0]);
+                Assert.Equal("committed", types[^1]);
+                Assert.All(types[1..^1], type => Assert.Equal("frontendEvent", type));
+                Assert.Contains(lines, line =>
+                    line.RootElement.GetProperty("type").GetString() == "frontendEvent" &&
+                    line.RootElement.GetProperty("frontendEvent").GetProperty("eventType").GetString() ==
+                    "narrativeDelta");
+            }
+            finally
+            {
+                foreach (var line in lines) line.Dispose();
+            }
+
+            var requestResponse = await client.PostAsJsonAsync(
+                "/api/frontend-requests",
+                new { request = "state" },
+                TestSupport.CancellationToken);
+            requestResponse.EnsureSuccessStatusCode();
+            var committed = await requestResponse.Content.ReadFromJsonAsync<JsonElement>(
+                TestSupport.CancellationToken);
+            var variables = committed.GetProperty("_gameHelper").GetProperty("sessionVariables");
+            Assert.Equal(0, committed.GetProperty("turn").GetInt32());
+            Assert.Equal(
+                "You pause and consider how far you have come.",
+                committed.GetProperty("lastNarrative").GetString());
+            // 脚本化 variableUpdates 的 delta/replace 生效；指向仅持久化成员的命令被拒绝，
+            // reflectCount 由游戏侧在补丁后状态上簿记。
+            Assert.Equal(15, variables.GetProperty("courage").GetInt32());
+            Assert.Equal(80, variables.GetProperty("trust").GetInt32());
+            Assert.Equal(1, variables.GetProperty("reflectCount").GetInt32());
+        }
+        finally
+        {
+            await app.StopAsync(TestSupport.CancellationToken);
+        }
+    }
+
+    [Fact]
     public async Task RemoteExecutorStartsGameArtifactsWithoutFakeScenarioBindings()
     {
         var port = ReservePort();

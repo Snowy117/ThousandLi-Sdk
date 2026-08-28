@@ -48,14 +48,13 @@ async function refreshSession(): Promise<void> {
   if ('committedState' in context) committedState.value = context.committedState
 }
 
-async function runAction(): Promise<void> {
+async function runAction(action: Record<string, unknown>): Promise<void> {
   if (running.value) return
   running.value = true
   error.value = ''
   events.value = []
   sequence = 0
   actionCommitted = false
-  const action = { type: 'advance', command: 'continue' }
 
   try {
     const actionUrl = await sdk.getActionUrl(action)
@@ -171,9 +170,23 @@ function errorMessage(reason: unknown): string {
         </div>
         <pre class="tl-state" data-testid="committed-state">{{ stateText }}</pre>
         <div class="tl-actions">
-          <button class="tl-primary" type="button" :disabled="loading || running" @click="runAction">
+          <button
+            class="tl-primary"
+            type="button"
+            :disabled="loading || running"
+            @click="runAction({ type: 'advance', command: 'continue' })"
+          >
             <span aria-hidden="true">▶</span>
             {{ running ? 'Running action' : 'Advance' }}
+          </button>
+          <button
+            class="tl-secondary"
+            type="button"
+            :disabled="loading || running"
+            @click="runAction({ type: 'reflect' })"
+          >
+            <span aria-hidden="true">✎</span>
+            Reflect
           </button>
           <button class="tl-secondary" type="button" :disabled="loading || reading" @click="readState">
             <span aria-hidden="true">↻</span>

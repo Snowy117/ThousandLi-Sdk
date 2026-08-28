@@ -7,5 +7,6 @@
     <ProjectReference Include="../../src/ThousandLi.Contracts/ThousandLi.Contracts.csproj" />
     <ProjectReference Include="../../src/ThousandLi.ExpertContracts/ThousandLi.ExpertContracts.csproj" />
     <ProjectReference Include="../../src/ThousandLi.GameAuthoring/ThousandLi.GameAuthoring.csproj" />
+    <ProjectReference Include="../../src/ThousandLi.GameHelper/ThousandLi.GameHelper.csproj" />
   </ItemGroup>
 </Project>
