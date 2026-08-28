@@ -1,5 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using ThousandLi.Contracts;
 
 namespace ThousandLi.GameHelper;
@@ -92,6 +94,39 @@ public static class SessionStateExtensions
     private static JsonElement ReadManagedRoot(GameState state)
     {
         return state.Get(new JsonPointer(SessionVariablesPath));
+    }
+
+    internal static JsonElement ReadAiFacingManagedRoot(GameState state, SessionStateContract contract)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(contract);
+        return contract.ProjectAiFacingState(ReadManagedRoot(state));
+    }
+
+    internal static void InvalidateCachedSessionState(ActionContext context, Type rootType)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(rootType);
+        if (ContextStates.TryGetValue(context, out var cache))
+            _ = cache.Remove(rootType);
+    }
+
+    /// <summary>将专家提出的结构化变量更新应用到 GameHelper 托管根。</summary>
+    internal static VariableUpdateApplyResult ApplyVariableUpdateToManagedRoot(
+        GameState state,
+        SessionStateContract contract,
+        IReadOnlyList<VariableUpdateOperation> operations,
+        ILogger? logger = null,
+        Func<VariableUpdateOperation, bool>? validateOperation = null)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(operations);
+        var managedState = new GameState(ReadManagedRoot(state));
+        var result = VariableUpdatePatchApplier.Apply(
+            managedState, contract, operations, logger ?? NullLogger.Instance, validateOperation);
+        state.Replace(new JsonPointer(SessionVariablesPath), managedState.Snapshot);
+        return result;
     }
 
     private static void EnsureSessionStateMounted(GameState state, SessionStateContract contract,
