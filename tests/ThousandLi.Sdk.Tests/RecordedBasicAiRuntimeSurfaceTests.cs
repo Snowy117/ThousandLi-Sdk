@@ -164,7 +164,7 @@ public sealed class RecordedBasicAiRuntimeSurfaceTests
     public void RuntimeAvailableModelsProjectFromConfiguration()
     {
         var basicAi = new RecordedBasicAi(["a", "b"], []);
-        var runtime = (IRuntimeBasicAi)basicAi;
+        IRuntimeBasicAi runtime = basicAi;
 
         Assert.Equal(["a", "b"], runtime.AvailableModels.Select(descriptor => descriptor.ModelId));
     }

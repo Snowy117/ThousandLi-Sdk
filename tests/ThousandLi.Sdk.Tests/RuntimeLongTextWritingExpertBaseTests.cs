@@ -77,18 +77,18 @@ public sealed class RuntimeLongTextWritingExpertBaseTests
         var fields = new HashSet<string>(["afterThinking"], StringComparer.Ordinal);
         var expert = new TestExpert(fields);
 
-        Assert.Equal(["afterThinking"], ((IExpertExecutionParticipant)expert).MetadataFieldNames);
+        IExpertExecutionParticipant participant = expert;
+        Assert.Equal(["afterThinking"], participant.MetadataFieldNames);
     }
 
     [Fact]
     public void Participant_ReasoningHandler_ReflectsWithReasoningHandlerRegistration()
     {
         var expert = new TestExpert(null);
-        var participant = (IExpertExecutionParticipant)expert;
+        IExpertExecutionParticipant participant = expert;
         Assert.Null(participant.ReasoningHandler);
 
-        static ValueTask Handler(ReasoningDeltaEvent delta, CancellationToken cancellationToken) => ValueTask.CompletedTask;
-        Func<ReasoningDeltaEvent, CancellationToken, ValueTask> handler = Handler;
+        var handler = static (ReasoningDeltaEvent delta, CancellationToken _) => ValueTask.CompletedTask;
         expert.WithReasoningHandler(handler);
 
         Assert.Same(handler, participant.ReasoningHandler);
@@ -101,7 +101,7 @@ public sealed class RuntimeLongTextWritingExpertBaseTests
     {
         public IExpertExecutionContext ExposedRuntimeContext => RuntimeContext;
 
-        protected internal override IReadOnlySet<string> MetadataFieldNames =>
+        protected override IReadOnlySet<string> MetadataFieldNames =>
             metadataFields ?? base.MetadataFieldNames;
 
         public override Task<ExpertCompletionResult> StreamAsync(CancellationToken cancellationToken = default) =>

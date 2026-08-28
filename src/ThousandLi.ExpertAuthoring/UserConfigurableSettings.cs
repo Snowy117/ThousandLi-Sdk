@@ -76,7 +76,7 @@ internal static class ExpertSettingsJson
 
 internal static class SettingsContractHelper
 {
-    private static readonly HashSet<Type> s_numericTypes =
+    private static readonly HashSet<Type> SNumericTypes =
     [
         typeof(byte), typeof(sbyte), typeof(short), typeof(ushort), typeof(int), typeof(uint), typeof(long),
         typeof(ulong), typeof(float), typeof(double), typeof(decimal),
@@ -87,7 +87,7 @@ internal static class SettingsContractHelper
         return type == typeof(bool) ||
                type == typeof(string) ||
                type.IsEnum ||
-               s_numericTypes.Contains(type);
+               SNumericTypes.Contains(type);
     }
 
     internal static EnumValueDescriptor[]? BuildEnumValues(Type type)

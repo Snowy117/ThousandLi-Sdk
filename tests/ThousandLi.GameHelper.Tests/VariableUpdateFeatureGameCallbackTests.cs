@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using ThousandLi.Contracts;
-using ThousandLi.GameHelper;
 
 namespace ThousandLi.GameHelper.Tests;
 
@@ -43,6 +42,14 @@ public sealed class VariableUpdateFeatureGameCallbackTests
             .GetProperty("stats")
             .GetProperty("level")
             .GetInt32());
+
+        // The typed view over the same managed root must observe the applied patch.
+        var context = Support.BuildActionContext(state);
+        var hydrated = context.GetSessionState<TestSessionState>();
+        Assert.Equal("Alice", hydrated.Name);
+        Assert.Equal(4, hydrated.Stats.Level);
+        Assert.Empty(hydrated.Tags);
+        Assert.Empty(hydrated.Flags);
     }
 
     [Fact]
@@ -131,6 +138,7 @@ public sealed class VariableUpdateFeatureGameCallbackTests
         [SessionStateMember] public virtual string PrivateNote { get; set; } = "secret";
     }
 
+    // ReSharper disable AutoPropertyCanBeMadeGetOnly.Global, UnusedAutoPropertyAccessor.Global — SessionState 契约形状，由 Castle 跟踪代理读写
     [SessionStateRoot]
     public class TestSessionState
     {
@@ -142,11 +150,14 @@ public sealed class VariableUpdateFeatureGameCallbackTests
 
         [AiStateMember(3, "旗标")] public virtual TrackedDictionary<int> Flags { get; set; } = [];
     }
+    // ReSharper restore AutoPropertyCanBeMadeGetOnly.Global, UnusedAutoPropertyAccessor.Global
 
+    // ReSharper disable ClassWithVirtualMembersNeverInherited.Global, UnusedAutoPropertyAccessor.Global — 由 Castle 运行时代理继承并反射读写
     public class StatsVariables
     {
         [AiStateMember(0, "等级")] public virtual int Level { get; set; }
     }
+    // ReSharper restore ClassWithVirtualMembersNeverInherited.Global, UnusedAutoPropertyAccessor.Global
 
     // ReSharper disable once ClassWithVirtualMembersNeverInherited.Local — 测试替身仅捕获 fluent 配置，不被继承
     private sealed class CapturingLongTextWritingExpert : AbstractLongTextWritingExpert

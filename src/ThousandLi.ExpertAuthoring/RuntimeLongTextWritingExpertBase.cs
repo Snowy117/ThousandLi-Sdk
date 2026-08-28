@@ -30,7 +30,7 @@ public interface IExpertExecutionParticipant
 /// </summary>
 public abstract class RuntimeLongTextWritingExpertBase : AbstractLongTextWritingExpert, IExpertExecutionParticipant
 {
-    private static readonly IReadOnlySet<string> EmptyMetadataFields = new HashSet<string>(StringComparer.Ordinal);
+    private static readonly IReadOnlySet<string> SEmptyMetadataFields = new HashSet<string>(StringComparer.Ordinal);
 
     private IExpertExecutionContext? _executionContext;
 
@@ -58,7 +58,7 @@ public abstract class RuntimeLongTextWritingExpertBase : AbstractLongTextWriting
     /// Root property names captured as turn metadata; concrete experts override to declare their
     /// intrinsic metadata fields (for example <c>afterThinking</c>/<c>afterFormat</c>).
     /// </summary>
-    protected internal virtual IReadOnlySet<string> MetadataFieldNames => EmptyMetadataFields;
+    protected virtual IReadOnlySet<string> MetadataFieldNames => SEmptyMetadataFields;
 
     IRuntimeBasicAi IExpertExecutionParticipant.BasicAi => RuntimeContext.BasicAi;
 

@@ -8,9 +8,9 @@ public sealed class GameContextTestFactoryTests
 {
     private sealed class SampleSettings
     {
-        public string Mode { get; set; } = "normal";
+        public string Mode { get; init; } = "normal";
 
-        public int Level { get; set; }
+        public int Level { get; init; }
     }
 
     [Fact]
@@ -211,7 +211,7 @@ public sealed class GameContextTestFactoryTests
         Assert.Equal(["一", "二", "答"], turns.SelectMany(turn => turn.Messages).Select(item => item.Content));
         Assert.Equal("digest", turns[1].Digest);
         var projections = buckets["main"].GetCompressedView()
-            .Select(entry => Assert.IsType<HistoryProjectionRawTurn>(entry))
+            .Select(Assert.IsType<HistoryProjectionRawTurn>)
             .ToArray();
         Assert.Equal(turns, projections.Select(projection => projection.Turn));
         Assert.Equal([0L, 1L], projections.Select(projection => projection.StartOrdinal));

@@ -224,10 +224,10 @@ public sealed class BlockScopeTests
     public void NextWriterSupportsInterpolatedAppends()
     {
         var (writer, buffer) = Create();
-        const string Name = "world";
+        const string name = "world";
         using (var blocks = writer.BeginBlocks())
         {
-            blocks.Next().Append($"Hello, {Name}!");
+            blocks.Next().Append($"Hello, {name}!");
         }
 
         Assert.Equal("Hello, world!", buffer.ToString());

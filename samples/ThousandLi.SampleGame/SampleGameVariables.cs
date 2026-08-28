@@ -8,6 +8,7 @@ namespace ThousandLi.SampleGame;
 /// 根类型必须是非密封类且成员为公共 virtual 可读写属性，
 /// 由 GameHelper 生成写回 <c>/_gameHelper/sessionVariables</c> 的跟踪代理。
 /// </summary>
+// ReSharper disable AutoPropertyCanBeMadeGetOnly.Global — SessionState 契约要求 virtual 可写属性，由 Castle 跟踪代理写回
 [SessionStateRoot]
 public class SampleGameVariables
 {
@@ -23,3 +24,4 @@ public class SampleGameVariables
     [AiStateMember(1, "主角对引路人的信任程度（0-100）。")]
     public virtual int Trust { get; set; } = 30;
 }
+// ReSharper restore AutoPropertyCanBeMadeGetOnly.Global

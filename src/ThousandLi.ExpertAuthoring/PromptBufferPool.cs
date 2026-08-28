@@ -10,12 +10,12 @@ namespace ThousandLi.ExpertAuthoring;
 public static class PromptBufferPool
 {
     private const int DefaultCapacity = 32 * 1024;
-    private static readonly ConcurrentBag<StringBuilder> s_pool = [];
+    private static readonly ConcurrentBag<StringBuilder> SPool = [];
 
     /// <summary>Rents a <see cref="StringBuilder"/> and returns a <see cref="PromptBufferLease"/>.</summary>
     public static PromptBufferLease Rent()
     {
-        if (!s_pool.TryTake(out var sb)) sb = new StringBuilder(DefaultCapacity);
+        if (!SPool.TryTake(out var sb)) sb = new StringBuilder(DefaultCapacity);
 
         return new PromptBufferLease(sb);
     }
@@ -23,7 +23,7 @@ public static class PromptBufferPool
     internal static void Return(StringBuilder sb)
     {
         sb.Clear();
-        s_pool.Add(sb);
+        SPool.Add(sb);
     }
 }
 

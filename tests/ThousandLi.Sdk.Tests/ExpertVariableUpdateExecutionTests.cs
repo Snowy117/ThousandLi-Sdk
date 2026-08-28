@@ -1,19 +1,18 @@
 using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
-using ExpertCompletionResult = ThousandLi.Contracts.ExpertCompletionResult;
 
 namespace ThousandLi.Sdk.Tests;
 
 public sealed partial class ExpertVariableUpdateExecutionTests
 {
-    private static readonly IReadOnlySet<string> s_emptyFields = new HashSet<string>(StringComparer.Ordinal);
+    private static readonly IReadOnlySet<string> SEmptyFields = new HashSet<string>(StringComparer.Ordinal);
 
-    private static readonly BasicAiRequest s_mainRequest = new(
+    private static readonly BasicAiRequest SMainRequest = new(
         "main-model",
         [BasicAiMessage.User("main")],
         AiJsonSchema.Object());
 
-    private static readonly ExpertVariableUpdateContext s_context = new(
+    private static readonly ExpertVariableUpdateContext SContext = new(
         "world-rules",
         "previous-state",
         "state-schema",
@@ -41,7 +40,7 @@ public sealed partial class ExpertVariableUpdateExecutionTests
         });
 
         var result = await ExpertVariableUpdateExecution.CompleteAsync(
-            expert, s_mainRequest, new RecordingSink(), feature, s_context, TestSupport.CancellationToken);
+            expert, SMainRequest, new RecordingSink(), feature, SContext, TestSupport.CancellationToken);
 
         Assert.Equal("provider reasoning", result.Reasoning);
         Assert.Equal(2, basicAi.CompletionRequests.Count);
@@ -90,14 +89,14 @@ public sealed partial class ExpertVariableUpdateExecutionTests
 
         var result = await ExpertVariableUpdateExecution.StreamAsync(
             CreateBoundExpert(basicAi),
-            s_mainRequest,
+            SMainRequest,
             sink,
             new VariableUpdateFeature((proposal, _) =>
             {
                 proposals.Add(proposal);
                 return ValueTask.CompletedTask;
             }),
-            s_context,
+            SContext,
             TestSupport.CancellationToken);
 
         Assert.Equal("stream reasoning", result.Reasoning);
@@ -129,7 +128,7 @@ public sealed partial class ExpertVariableUpdateExecutionTests
 
         var result = await ExpertVariableUpdateExecution.CompleteAsync(
             expert,
-            s_mainRequest,
+            SMainRequest,
             new RecordingSink(),
             feature: null,
             context: null,
@@ -151,7 +150,7 @@ public sealed partial class ExpertVariableUpdateExecutionTests
 
         var result = await ExpertVariableUpdateExecution.StreamAsync(
             CreateBoundExpert(basicAi, new HashSet<string>(["summary"], StringComparer.Ordinal)),
-            s_mainRequest,
+            SMainRequest,
             sink,
             feature: null,
             context: null,
@@ -179,14 +178,14 @@ public sealed partial class ExpertVariableUpdateExecutionTests
 
         await ExpertVariableUpdateExecution.CompleteAsync(
             CreateBoundExpert(basicAi),
-            s_mainRequest,
+            SMainRequest,
             new RecordingSink(),
             new VariableUpdateFeature((value, _) =>
             {
                 proposal = value;
                 return ValueTask.CompletedTask;
             }),
-            s_context,
+            SContext,
             TestSupport.CancellationToken);
 
         Assert.Empty(Assert.IsType<VariableUpdatePatchProposal>(proposal).Operations);
@@ -204,14 +203,14 @@ public sealed partial class ExpertVariableUpdateExecutionTests
 
         await Assert.ThrowsAsync<System.Text.Json.JsonException>(() => ExpertVariableUpdateExecution.CompleteAsync(
             CreateBoundExpert(basicAi),
-            s_mainRequest,
+            SMainRequest,
             new RecordingSink(),
             new VariableUpdateFeature((_, _) =>
             {
                 callbackCount++;
                 return ValueTask.CompletedTask;
             }),
-            s_context,
+            SContext,
             TestSupport.CancellationToken));
 
         Assert.Equal(0, callbackCount);
@@ -230,10 +229,10 @@ public sealed partial class ExpertVariableUpdateExecutionTests
         var actual = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             ExpertVariableUpdateExecution.CompleteAsync(
                 CreateBoundExpert(basicAi),
-                s_mainRequest,
+                SMainRequest,
                 new RecordingSink(),
                 new VariableUpdateFeature((_, _) => ValueTask.FromException(expected)),
-                s_context,
+                SContext,
                 TestSupport.CancellationToken));
 
         Assert.Same(expected, actual);
@@ -250,10 +249,10 @@ public sealed partial class ExpertVariableUpdateExecutionTests
         var actual = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             ExpertVariableUpdateExecution.CompleteAsync(
                 CreateBoundExpert(basicAi),
-                s_mainRequest,
+                SMainRequest,
                 new RecordingSink(),
                 new VariableUpdateFeature((_, _) => ValueTask.CompletedTask),
-                s_context,
+                SContext,
                 TestSupport.CancellationToken));
 
         Assert.Same(expected, actual);
@@ -270,10 +269,10 @@ public sealed partial class ExpertVariableUpdateExecutionTests
         var actual = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             ExpertVariableUpdateExecution.CompleteAsync(
                 CreateBoundExpert(basicAi),
-                s_mainRequest,
+                SMainRequest,
                 new RecordingSink(),
                 new VariableUpdateFeature((_, _) => ValueTask.CompletedTask),
-                s_context,
+                SContext,
                 TestSupport.CancellationToken));
 
         Assert.Same(expected, actual);
@@ -289,10 +288,10 @@ public sealed partial class ExpertVariableUpdateExecutionTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             ExpertVariableUpdateExecution.CompleteAsync(
                 CreateBoundExpert(basicAi),
-                s_mainRequest,
+                SMainRequest,
                 new RecordingSink(),
                 new VariableUpdateFeature((_, _) => ValueTask.CompletedTask),
-                s_context,
+                SContext,
                 cancellationTokenSource.Token));
 
         Assert.Empty(basicAi.CompletionRequests);
@@ -312,7 +311,7 @@ public sealed partial class ExpertVariableUpdateExecutionTests
 
         await Assert.ThrowsAsync<ArgumentException>(() => ExpertVariableUpdateExecution.CompleteAsync(
             CreateBoundExpert(basicAi),
-            s_mainRequest,
+            SMainRequest,
             new RecordingSink(),
             feature,
             new ExpertVariableUpdateContext(worldSettings, previousState, stateSchema, "update-model"),
@@ -332,7 +331,7 @@ public sealed partial class ExpertVariableUpdateExecutionTests
 
         await Assert.ThrowsAsync<ArgumentException>(() => ExpertVariableUpdateExecution.CompleteAsync(
             CreateBoundExpert(basicAi),
-            s_mainRequest,
+            SMainRequest,
             new RecordingSink(),
             feature,
             new ExpertVariableUpdateContext("world-rules", "previous-state", "state-schema", modelId!),
@@ -348,7 +347,7 @@ public sealed partial class ExpertVariableUpdateExecutionTests
 
         await Assert.ThrowsAsync<ArgumentNullException>(() => ExpertVariableUpdateExecution.CompleteAsync(
             CreateBoundExpert(basicAi),
-            s_mainRequest,
+            SMainRequest,
             new RecordingSink(),
             new VariableUpdateFeature((_, _) => ValueTask.CompletedTask),
             context: null,

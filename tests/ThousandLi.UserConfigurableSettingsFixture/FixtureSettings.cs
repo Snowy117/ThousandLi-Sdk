@@ -8,7 +8,7 @@ namespace ThousandLi.UserConfigurableSettingsFixture;
 /// The single legal user-configurable settings type of this fixture assembly; consumed through
 /// <c>UserConfigurableSettingsContract.Discover</c> to exercise the single-marked-type success path.
 /// </summary>
-[UsedImplicitly]
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 [UserConfigurableSettings]
 public sealed class FixtureSettings
 {

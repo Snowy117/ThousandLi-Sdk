@@ -1,9 +1,7 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
 using ThousandLi.ExpertContracts.Narration;
-using ThousandLi.GameHelper;
 using ThousandLi.SampleGame;
 using ThousandLi.Testing;
 using ExpertCompletionResult = ThousandLi.Contracts.ExpertCompletionResult;
@@ -135,7 +133,7 @@ public sealed class SampleGameVariableUpdateTests
 
     private static RecordedBasicAi CreateRecordedVariableUpdatePipeline()
     {
-        var updateCompletionJson = """
+        const string updateCompletionJson = """
             {"variableUpdates":[
                 {"op":"delta","path":"/courage","value":5},
                 {"op":"replace","path":"/reflectCount","value":999},

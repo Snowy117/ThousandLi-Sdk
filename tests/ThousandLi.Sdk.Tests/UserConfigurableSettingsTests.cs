@@ -7,9 +7,15 @@ using ThousandLi.UserConfigurableSettingsFixture;
 
 namespace ThousandLi.Sdk.Tests;
 
+// ReSharper disable UnusedMember.Local — 负例 fixture 成员经 BuildSchema/JsonSerializer 反射消费
+// ReSharper disable UnusedType.Local — 负例 fixture 类型经 Discover 程序集扫描消费
+// ReSharper disable ClassNeverInstantiated.Local — 负例 fixture 类型仅以 typeof(...) 传入契约验证
+// ReSharper disable AutoPropertyCanBeMadeGetOnly.Local — 契约要求可写属性，默认值经 JSON 反序列化物化
+// ReSharper disable UnusedAutoPropertyAccessor.Local — 访问器由 JSON 反序列化反射调用
+
 public sealed class UserConfigurableSettingsTests
 {
-    private static readonly Assembly s_testAssembly = typeof(UserConfigurableSettingsTests).Assembly;
+    private static readonly Assembly STestAssembly = typeof(UserConfigurableSettingsTests).Assembly;
 
     private static Exception ErrorFactory(string message) => new InvalidOperationException(message);
 
@@ -20,7 +26,7 @@ public sealed class UserConfigurableSettingsTests
         Assert.Throws<ArgumentNullException>(
             () => UserConfigurableSettingsContract.Discover(null!, ErrorFactory));
         Assert.Throws<ArgumentNullException>(
-            () => UserConfigurableSettingsContract.Discover(s_testAssembly, null!));
+            () => UserConfigurableSettingsContract.Discover(STestAssembly, null!));
     }
 
     [Fact]
@@ -38,7 +44,7 @@ public sealed class UserConfigurableSettingsTests
             typeof(FixtureSettings).Assembly, ErrorFactory);
 
         Assert.NotNull(schema);
-        Assert.Equal(typeof(FixtureSettings), schema!.SettingsType);
+        Assert.Equal(typeof(FixtureSettings), schema.SettingsType);
         Assert.Equal(JsonValueKind.Object, schema.DefaultValue.ValueKind);
         Assert.Equal(6, schema.Members.Count);
     }
@@ -49,7 +55,7 @@ public sealed class UserConfigurableSettingsTests
         // This test assembly deliberately contains zero [UserConfigurableSettings] types and the
         // OrphanedMembers helper below with attributed properties, so Discover must reject it.
         var exception = Assert.Throws<InvalidOperationException>(
-            () => UserConfigurableSettingsContract.Discover(s_testAssembly, ErrorFactory));
+            () => UserConfigurableSettingsContract.Discover(STestAssembly, ErrorFactory));
 
         Assert.Contains("require [UserConfigurableSettings]", exception.Message, StringComparison.Ordinal);
     }
@@ -91,13 +97,13 @@ public sealed class UserConfigurableSettingsTests
 
         Assert.NotNull(tone.EnumValues);
         Assert.Equal(3, tone.EnumValues!.Count);
-        Assert.Equal(0, tone.EnumValues[0].Value);
+        Assert.Equal((int)AnnotatedTone.Easy, tone.EnumValues[0].Value);
         Assert.Equal("Beginner", tone.EnumValues[0].DisplayName);
         Assert.Equal("For new players", tone.EnumValues[0].Description);
-        Assert.Equal(1, tone.EnumValues[1].Value);
+        Assert.Equal((int)AnnotatedTone.Normal, tone.EnumValues[1].Value);
         Assert.Equal("Standard", tone.EnumValues[1].DisplayName);
         Assert.Equal("Normal challenge", tone.EnumValues[1].Description);
-        Assert.Equal(2, tone.EnumValues[2].Value);
+        Assert.Equal((int)AnnotatedTone.Hard, tone.EnumValues[2].Value);
         Assert.Equal("Expert", tone.EnumValues[2].DisplayName);
         Assert.Equal("Maximum challenge", tone.EnumValues[2].Description);
     }
@@ -109,7 +115,9 @@ public sealed class UserConfigurableSettingsTests
         var member = Assert.Single(schema.Members);
 
         Assert.NotNull(member.EnumValues);
-        Assert.Equal(["Easy", "Normal", "Hard"], member.EnumValues!.Select(value => value.DisplayName));
+        Assert.Equal(
+            [nameof(PlainTone.Easy), nameof(PlainTone.Normal), nameof(PlainTone.Hard)],
+            member.EnumValues!.Select(value => value.DisplayName));
         Assert.All(member.EnumValues, value => Assert.Null(value.Description));
     }
 
@@ -329,7 +337,7 @@ public sealed class UserConfigurableSettingsTests
             JsonSerializer.SerializeToElement(new { value = 100 }),
             [new UserConfigurableSettingDescriptor("Value", typeof(int), "Val", "Short", "Long")]);
 
-    public enum AnnotatedTone
+    private enum AnnotatedTone
     {
         [Display(Name = "Beginner", Description = "For new players")]
         Easy = 0,
@@ -341,7 +349,7 @@ public sealed class UserConfigurableSettingsTests
         Hard = 2,
     }
 
-    public enum PlainTone
+    private enum PlainTone
     {
         Easy = 0,
         Normal = 1,
@@ -350,7 +358,7 @@ public sealed class UserConfigurableSettingsTests
 
     private sealed class DummySettings
     {
-        public int Value { get; set; }
+        public int Value { get; init; }
     }
 
     private sealed class OrphanedMembers
@@ -373,11 +381,13 @@ public sealed class UserConfigurableSettingsTests
 
     private sealed class IndexerSettings
     {
+        private readonly Dictionary<int, int> _values = [];
+
         [UserConfigurableSetting("X", "X short", "X long")]
         public int this[int index]
         {
-            get => 0;
-            set { _ = value; }
+            get => _values.GetValueOrDefault(index);
+            set => _values[index] = value;
         }
     }
 
@@ -426,25 +436,25 @@ public sealed class UserConfigurableSettingsTests
     private sealed class MixedSettings
     {
         [UserConfigurableSetting("Verbosity", "Narrative verbosity", "Controls how verbose generated text is.")]
-        public int Verbosity { get; set; } = 3;
+        public int Verbosity { get; init; } = 3;
 
         [UserConfigurableSetting("Tone", "Narrative tone", "Selects the narrative tone.")]
-        public AnnotatedTone Tone { get; set; } = AnnotatedTone.Normal;
+        public AnnotatedTone Tone { get; init; } = AnnotatedTone.Normal;
 
         [UserConfigurableSetting("Style", "Narrative style", "Controls the narrative style of generated text.")]
-        public string Style { get; set; } = "balanced";
+        public string Style { get; init; } = "balanced";
 
         [UserConfigurableSetting("Ratio", "Sampling ratio", "Controls the sampling ratio.")]
-        public double Ratio { get; set; } = 0.5;
+        public double Ratio { get; init; } = 0.5;
 
         [UserConfigurableSetting("Name", "Player name", "The player's display name.")]
-        public string Name { get; set; } = "neutral";
+        public string Name { get; init; } = "neutral";
 
         [UserConfigurableSetting("Enabled2", "Byte toggle", "A byte value.")]
-        public byte Enabled2 { get; set; } = 7;
+        public byte Enabled2 { get; init; } = 7;
 
         [UserConfigurableSetting("Enabled", "Feature toggle", "Whether the feature is enabled.")]
-        public bool Enabled { get; set; } = true;
+        public bool Enabled { get; init; } = true;
     }
 
     private sealed class PlainEnumSettings

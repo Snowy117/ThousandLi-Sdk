@@ -175,20 +175,20 @@ public sealed class SessionStateContractTests
     [SessionStateRoot]
     public class VisibilityState
     {
-        // ReSharper disable UnusedAutoPropertyAccessor.Global — 契约投影测试固定形状
+        // ReSharper disable UnusedMember.Global — 契约投影测试固定形状，经 Castle 跟踪代理反射读写
         [SessionStateMember] public virtual bool InternalFlag { get; set; }
 
         [AiStateMember(0, "AI visible score", UpdateRule = "Keep within range", Min = "0", Max = "10")]
         public virtual int Score { get; set; }
-        // ReSharper restore UnusedAutoPropertyAccessor.Global
 
         public virtual string NotPersisted { get; set; } = string.Empty;
+        // ReSharper restore UnusedMember.Global
     }
 
     [SessionStateRoot]
     public class RecursiveState
     {
-        // ReSharper disable UnusedAutoPropertyAccessor.Global — 契约渲染测试固定形状
+        // ReSharper disable UnusedMember.Global — 契约渲染测试固定形状，经 Castle 跟踪代理反射读写
         [AiStateMember(0, "Nested")] public virtual NestedState PublicNested { get; set; } = new();
 
         [SessionStateMember] public virtual NestedState PersistedNested { get; set; } = new();
@@ -196,15 +196,18 @@ public sealed class SessionStateContractTests
         [AiStateMember(1, "Items")] public virtual TrackedList<NestedState> Items { get; set; } = [];
 
         [AiStateMember(2, "Map")] public virtual TrackedDictionary<NestedState> Map { get; set; } = [];
-        // ReSharper restore UnusedAutoPropertyAccessor.Global
+        // ReSharper restore UnusedMember.Global
     }
 
+    // ReSharper disable ClassWithVirtualMembersNeverInherited.Global — 由 Castle 运行时代理继承并反射读取
     public class NestedState
     {
-        // ReSharper disable UnusedAutoPropertyAccessor.Global — 契约渲染测试固定形状
+        // ReSharper disable UnusedMember.Global — 契约渲染测试固定形状，经 Castle 跟踪代理反射读写
         [AiStateMember(0, "Visible")] public virtual int Visible { get; set; }
 
         [SessionStateMember] public virtual string Secret { get; set; } = string.Empty;
-        // ReSharper restore UnusedAutoPropertyAccessor.Global
+        // ReSharper restore UnusedMember.Global
     }
+    // ReSharper restore ClassWithVirtualMembersNeverInherited.Global
+
 }

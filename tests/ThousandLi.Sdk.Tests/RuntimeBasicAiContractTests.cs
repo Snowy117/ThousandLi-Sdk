@@ -38,6 +38,18 @@ public sealed class RuntimeBasicAiContractTests
     }
 
     [Fact]
+    public void ToolDescriptorStoresAllFields()
+    {
+        var schema = AiJsonSchema.Object();
+
+        var descriptor = new BasicAiToolDescriptor("roll_dice", "Rolls a dice.", schema);
+
+        Assert.Equal("roll_dice", descriptor.Name);
+        Assert.Equal("Rolls a dice.", descriptor.Description);
+        Assert.Same(schema, descriptor.ParametersSchema);
+    }
+
+    [Fact]
     public void ModelDescriptorRejectsBlankModelIds()
     {
         Assert.ThrowsAny<ArgumentException>(() => new BasicAiModelDescriptor(" "));
@@ -117,7 +129,7 @@ public sealed class RuntimeBasicAiContractTests
     [Fact]
     public void CompletionResultClonesItsJson()
     {
-        using var document = JsonDocument.Parse("""{"answer":42}""");
+        var document = JsonDocument.Parse("""{"answer":42}""");
         var result = new BasicAiCompletionResult(document.RootElement);
         document.Dispose();
 

@@ -10,15 +10,15 @@ namespace ThousandLi.Sdk.Tests;
 
 public sealed class ExpertExecutionTests
 {
-    private static readonly BasicAiRequest s_request =
+    private static readonly BasicAiRequest SRequest =
         new("test-model", [BasicAiMessage.User("test")], AiJsonSchema.Object());
 
-    private static readonly IReadOnlySet<string> s_emptyFields = new HashSet<string>(StringComparer.Ordinal);
+    private static readonly IReadOnlySet<string> SEmptyFields = new HashSet<string>(StringComparer.Ordinal);
 
-    private static readonly IReadOnlySet<string> s_afterThinkingOnly =
+    private static readonly IReadOnlySet<string> SAfterThinkingOnly =
         new HashSet<string>(["afterThinking"], StringComparer.Ordinal);
 
-    private static readonly IReadOnlySet<string> s_afterThinkingAndFormat =
+    private static readonly IReadOnlySet<string> SAfterThinkingAndFormat =
         new HashSet<string>(["afterThinking", "afterFormat"], StringComparer.Ordinal);
 
     [Fact]
@@ -32,9 +32,9 @@ public sealed class ExpertExecutionTests
             new BasicAiJsonStreamEvent(JsonStreamEvent.StringChunk("/content", "world")),
             new BasicAiJsonStreamEvent(JsonStreamEvent.StringCompleted("/content")),
             new BasicAiJsonStreamEvent(JsonStreamEvent.ObjectCompleted("")),
-        ], s_emptyFields);
+        ], SEmptyFields);
 
-        var result = await ExpertExecution.StreamOnceAsync(expert, s_request, sink, TestSupport.CancellationToken);
+        var result = await ExpertExecution.StreamOnceAsync(expert, SRequest, sink, TestSupport.CancellationToken);
 
         Assert.Equal(["hello ", "world"], sink.GetChunks("/content"));
         Assert.Null(result.Metadata);
@@ -45,9 +45,9 @@ public sealed class ExpertExecutionTests
     public async Task StreamOnceAsync_CapturesDeclaredMetadataFields()
     {
         var (expert, sink) = CreateStreamExpertAndSink(MetadataEvents("deep thought", "formatted"),
-            s_afterThinkingAndFormat);
+            SAfterThinkingAndFormat);
 
-        var result = await ExpertExecution.StreamOnceAsync(expert, s_request, sink, TestSupport.CancellationToken);
+        var result = await ExpertExecution.StreamOnceAsync(expert, SRequest, sink, TestSupport.CancellationToken);
 
         Assert.NotNull(result.Metadata);
         Assert.Equal("deep thought", result.Metadata!["afterThinking"]);
@@ -62,14 +62,14 @@ public sealed class ExpertExecutionTests
         [
             new BasicAiReasoningStreamEvent("partial "),
             new BasicAiReasoningStreamEvent("reasoning"),
-        ], s_emptyFields);
+        ], SEmptyFields);
         expert.WithReasoningHandler((delta, _) =>
         {
             received.Add(delta.Delta);
             return ValueTask.CompletedTask;
         });
 
-        var result = await ExpertExecution.StreamOnceAsync(expert, s_request, sink, TestSupport.CancellationToken);
+        var result = await ExpertExecution.StreamOnceAsync(expert, SRequest, sink, TestSupport.CancellationToken);
 
         Assert.Equal(["partial ", "reasoning"], received);
         Assert.Equal("partial reasoning", result.Reasoning);
@@ -81,9 +81,9 @@ public sealed class ExpertExecutionTests
         var (expert, sink) = CreateStreamExpertAndSink(
         [
             new BasicAiReasoningStreamEvent("reasoning"),
-        ], s_emptyFields);
+        ], SEmptyFields);
 
-        var result = await ExpertExecution.StreamOnceAsync(expert, s_request, sink, TestSupport.CancellationToken);
+        var result = await ExpertExecution.StreamOnceAsync(expert, SRequest, sink, TestSupport.CancellationToken);
 
         Assert.Equal("reasoning", result.Reasoning);
     }
@@ -92,9 +92,9 @@ public sealed class ExpertExecutionTests
     public async Task StreamOnceAsync_IgnoresUndeclaredMetadataFields()
     {
         var (expert, sink) = CreateStreamExpertAndSink(MetadataEvents("deep thought", "formatted"),
-            s_afterThinkingOnly);
+            SAfterThinkingOnly);
 
-        var result = await ExpertExecution.StreamOnceAsync(expert, s_request, sink, TestSupport.CancellationToken);
+        var result = await ExpertExecution.StreamOnceAsync(expert, SRequest, sink, TestSupport.CancellationToken);
 
         Assert.NotNull(result.Metadata);
         Assert.Single(result.Metadata!);
@@ -111,9 +111,9 @@ public sealed class ExpertExecutionTests
             new BasicAiJsonStreamEvent(JsonStreamEvent.StringChunk("/afterThinking", "very ")),
             new BasicAiJsonStreamEvent(JsonStreamEvent.StringChunk("/afterThinking", "deeply")),
             new BasicAiJsonStreamEvent(JsonStreamEvent.StringCompleted("/afterThinking")),
-        ], s_afterThinkingOnly);
+        ], SAfterThinkingOnly);
 
-        var result = await ExpertExecution.StreamOnceAsync(expert, s_request, sink, TestSupport.CancellationToken);
+        var result = await ExpertExecution.StreamOnceAsync(expert, SRequest, sink, TestSupport.CancellationToken);
 
         Assert.Equal("thinking very deeply", result.Metadata!["afterThinking"]);
     }
@@ -125,9 +125,9 @@ public sealed class ExpertExecutionTests
         [
             new BasicAiJsonStreamEvent(JsonStreamEvent.StringStarted("/afterThinking")),
             new BasicAiJsonStreamEvent(JsonStreamEvent.StringCompleted("/afterThinking")),
-        ], s_afterThinkingOnly);
+        ], SAfterThinkingOnly);
 
-        var result = await ExpertExecution.StreamOnceAsync(expert, s_request, sink, TestSupport.CancellationToken);
+        var result = await ExpertExecution.StreamOnceAsync(expert, SRequest, sink, TestSupport.CancellationToken);
 
         Assert.Null(result.Metadata);
     }
@@ -142,14 +142,14 @@ public sealed class ExpertExecutionTests
             new BasicAiJsonStreamEvent(JsonStreamEvent.StringChunk("/content", "hello")),
             new BasicAiReasoningStreamEvent("step 2"),
             new BasicAiJsonStreamEvent(JsonStreamEvent.StringCompleted("/content")),
-        ], s_emptyFields);
+        ], SEmptyFields);
         expert.WithReasoningHandler((delta, _) =>
         {
             reasoningDeltas.Add(delta.Delta);
             return ValueTask.CompletedTask;
         });
 
-        var result = await ExpertExecution.StreamOnceAsync(expert, s_request, sink, TestSupport.CancellationToken);
+        var result = await ExpertExecution.StreamOnceAsync(expert, SRequest, sink, TestSupport.CancellationToken);
 
         Assert.Equal(["step 1", "step 2"], reasoningDeltas);
         Assert.Equal(["hello"], sink.GetChunks("/content"));
@@ -162,25 +162,25 @@ public sealed class ExpertExecutionTests
         var (expert, sink) = CreateStreamExpertAndSink(
         [
             new BasicAiJsonStreamEvent(JsonStreamEvent.StringChunk("/content", "hello")),
-        ], s_emptyFields);
+        ], SEmptyFields);
         using var cancelled = new CancellationTokenSource();
         await cancelled.CancelAsync();
 
         await Assert.ThrowsAsync<OperationCanceledException>(
-            () => ExpertExecution.StreamOnceAsync(expert, s_request, sink, cancelled.Token));
+            () => ExpertExecution.StreamOnceAsync(expert, SRequest, sink, cancelled.Token));
     }
 
     [Fact]
     public async Task StreamOnceAsync_NullArguments_ThrowArgumentNullException()
     {
-        var (expert, sink) = CreateStreamExpertAndSink([], s_emptyFields);
+        var (expert, sink) = CreateStreamExpertAndSink([], SEmptyFields);
 
         await Assert.ThrowsAsync<ArgumentNullException>(
-            () => ExpertExecution.StreamOnceAsync(null!, s_request, sink, TestSupport.CancellationToken));
+            () => ExpertExecution.StreamOnceAsync(null!, SRequest, sink, TestSupport.CancellationToken));
         await Assert.ThrowsAsync<ArgumentNullException>(
             () => ExpertExecution.StreamOnceAsync(expert, null!, sink, TestSupport.CancellationToken));
         await Assert.ThrowsAsync<ArgumentNullException>(
-            () => ExpertExecution.StreamOnceAsync(expert, s_request, null!, TestSupport.CancellationToken));
+            () => ExpertExecution.StreamOnceAsync(expert, SRequest, null!, TestSupport.CancellationToken));
     }
 
     [Fact]
@@ -190,10 +190,10 @@ public sealed class ExpertExecutionTests
             new CannedCompletionBasicAi(new BasicAiCompletionResult(
                 TestSupport.Json("""{"content":"hello world"}"""),
                 reasoning: null)),
-            s_emptyFields);
+            SEmptyFields);
         var sink = new RecordingSink();
 
-        var result = await ExpertExecution.CompleteOnceAsync(expert, s_request, sink, TestSupport.CancellationToken);
+        var result = await ExpertExecution.CompleteOnceAsync(expert, SRequest, sink, TestSupport.CancellationToken);
 
         Assert.NotEmpty(sink.GetChunks("/content"));
         Assert.Null(result.Reasoning);
@@ -204,11 +204,11 @@ public sealed class ExpertExecutionTests
     {
         var expert = CreateBoundExpert(
             new CannedCompletionBasicAi(new BasicAiCompletionResult(
-                TestSupport.Json("""{"afterThinking":"deep thought","afterFormat":"formatted"}"""), null)),
-            s_afterThinkingAndFormat);
+                TestSupport.Json("""{"afterThinking":"deep thought","afterFormat":"formatted"}"""))),
+            SAfterThinkingAndFormat);
         var sink = new RecordingSink();
 
-        var result = await ExpertExecution.CompleteOnceAsync(expert, s_request, sink, TestSupport.CancellationToken);
+        var result = await ExpertExecution.CompleteOnceAsync(expert, SRequest, sink, TestSupport.CancellationToken);
 
         Assert.NotNull(result.Metadata);
         Assert.Equal("deep thought", result.Metadata!["afterThinking"]);
@@ -222,7 +222,7 @@ public sealed class ExpertExecutionTests
         var expert = CreateBoundExpert(
             new CannedCompletionBasicAi(new BasicAiCompletionResult(
                 TestSupport.Json("""{"content":"hello"}"""), "full reasoning text")),
-            s_emptyFields);
+            SEmptyFields);
         expert.WithReasoningHandler((delta, _) =>
         {
             reasoningDeltas.Add(delta.Delta);
@@ -230,7 +230,7 @@ public sealed class ExpertExecutionTests
         });
         var sink = new RecordingSink();
 
-        var result = await ExpertExecution.CompleteOnceAsync(expert, s_request, sink, TestSupport.CancellationToken);
+        var result = await ExpertExecution.CompleteOnceAsync(expert, SRequest, sink, TestSupport.CancellationToken);
 
         Assert.Equal(["full reasoning text"], reasoningDeltas);
         Assert.Equal("full reasoning text", result.Reasoning);
@@ -240,16 +240,16 @@ public sealed class ExpertExecutionTests
     public async Task CompleteOnceAsync_NullArguments_ThrowArgumentNullException()
     {
         var expert = CreateBoundExpert(
-            new CannedCompletionBasicAi(new BasicAiCompletionResult(TestSupport.Json("{}"), null)),
-            s_emptyFields);
+            new CannedCompletionBasicAi(new BasicAiCompletionResult(TestSupport.Json("{}"))),
+            SEmptyFields);
         var sink = new RecordingSink();
 
         await Assert.ThrowsAsync<ArgumentNullException>(
-            () => ExpertExecution.CompleteOnceAsync(null!, s_request, sink, TestSupport.CancellationToken));
+            () => ExpertExecution.CompleteOnceAsync(null!, SRequest, sink, TestSupport.CancellationToken));
         await Assert.ThrowsAsync<ArgumentNullException>(
             () => ExpertExecution.CompleteOnceAsync(expert, null!, sink, TestSupport.CancellationToken));
         await Assert.ThrowsAsync<ArgumentNullException>(
-            () => ExpertExecution.CompleteOnceAsync(expert, s_request, null!, TestSupport.CancellationToken));
+            () => ExpertExecution.CompleteOnceAsync(expert, SRequest, null!, TestSupport.CancellationToken));
     }
 
     [Fact]
@@ -257,11 +257,11 @@ public sealed class ExpertExecutionTests
     {
         var completion = new BasicAiCompletionResult(
             TestSupport.Json("""{"afterThinking":"deep thought"}"""), "provider reasoning");
-        var expert = CreateBoundExpert(new CannedCompletionBasicAi(completion), s_afterThinkingOnly);
+        var expert = CreateBoundExpert(new CannedCompletionBasicAi(completion), SAfterThinkingOnly);
         var sink = new RecordingSink();
 
         var (result, returnedCompletion) = await ExpertExecution.CompleteOnceWithCompletionAsync(
-            expert, s_request, sink, TestSupport.CancellationToken);
+            expert, SRequest, sink, TestSupport.CancellationToken);
 
         Assert.Equal("deep thought", result.Metadata!["afterThinking"]);
         Assert.Equal("provider reasoning", result.Reasoning);
@@ -275,7 +275,7 @@ public sealed class ExpertExecutionTests
         [
             new BasicAiJsonStreamEvent(JsonStreamEvent.StringChunk("/content", "hello")),
         ]);
-        var expert = new DelegatingExpert(s_request, s_emptyFields);
+        var expert = new DelegatingExpert(SRequest, SEmptyFields);
         expert.Bind(CreateContext(basicAi));
 
         var result = await expert.StreamAsync(TestSupport.CancellationToken);
@@ -289,13 +289,13 @@ public sealed class ExpertExecutionTests
     public void ExpertExecution_ExposesSingleCallStaticToolContract()
     {
         var type = typeof(ExpertExecution);
-        Assert.True(type.IsAbstract && type.IsSealed);
+        Assert.True(type is { IsAbstract: true, IsSealed: true });
 
         foreach (var methodName in new[] { nameof(ExpertExecution.StreamOnceAsync), nameof(ExpertExecution.CompleteOnceAsync) })
         {
             var method = type.GetMethod(methodName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
             Assert.NotNull(method);
-            var parameters = method!.GetParameters();
+            var parameters = method.GetParameters();
             Assert.Equal(4, parameters.Length);
             Assert.Equal(typeof(IExpertExecutionParticipant), parameters[0].ParameterType);
             Assert.Equal(typeof(BasicAiRequest), parameters[1].ParameterType);
@@ -339,7 +339,7 @@ public sealed class ExpertExecutionTests
 
     private sealed class TestExpert(IReadOnlySet<string> metadataFields) : RuntimeLongTextWritingExpertBase
     {
-        protected internal override IReadOnlySet<string> MetadataFieldNames => metadataFields;
+        protected override IReadOnlySet<string> MetadataFieldNames => metadataFields;
 
         public override Task<ExpertCompletionResult> StreamAsync(CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("The test expert is invoked through ExpertExecution directly.");
@@ -356,7 +356,7 @@ public sealed class ExpertExecutionTests
 
         public RecordingSink Sink { get; } = new();
 
-        protected internal override IReadOnlySet<string> MetadataFieldNames => metadataFields;
+        protected override IReadOnlySet<string> MetadataFieldNames => metadataFields;
 
         public override async Task<ExpertCompletionResult> StreamAsync(CancellationToken cancellationToken = default)
         {

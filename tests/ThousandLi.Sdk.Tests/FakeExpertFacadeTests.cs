@@ -38,7 +38,7 @@ public sealed class FakeExpertFacadeTests
         var facade = new FakeExpertFacade();
 
         var exception = Assert.Throws<InvalidOperationException>(
-            () => facade.Use<AbstractLongTextWritingExpert>());
+            facade.Use<AbstractLongTextWritingExpert>);
 
         Assert.Contains(
             $"No Expert implementation is registered for abstract expert '{typeof(AbstractLongTextWritingExpert).FullName}'",
@@ -53,7 +53,7 @@ public sealed class FakeExpertFacadeTests
         facade.Register<AbstractLongTextWritingExpert>(() => null!);
 
         var exception = Assert.Throws<InvalidOperationException>(
-            () => facade.Use<AbstractLongTextWritingExpert>());
+            facade.Use<AbstractLongTextWritingExpert>);
 
         Assert.Contains("returned null", exception.Message, StringComparison.Ordinal);
     }
@@ -121,10 +121,10 @@ public sealed class FakeExpertFacadeTests
     /// </summary>
     private sealed class StubLongTextWritingExpert : RuntimeLongTextWritingExpertBase
     {
-        private static readonly IReadOnlySet<string> DeclaredMetadataFields =
+        private static readonly IReadOnlySet<string> SDeclaredMetadataFields =
             new HashSet<string>(StringComparer.Ordinal) { "afterFormat" };
 
-        protected internal override IReadOnlySet<string> MetadataFieldNames => DeclaredMetadataFields;
+        protected override IReadOnlySet<string> MetadataFieldNames => SDeclaredMetadataFields;
 
         public override async Task<ExpertCompletionResult> StreamAsync(CancellationToken cancellationToken = default)
         {

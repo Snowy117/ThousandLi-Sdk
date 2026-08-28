@@ -25,8 +25,8 @@ public sealed class PromptInterpolatedStringHandlerTests
     public void AppendSingleIntWritesFormatted()
     {
         var (writer, buffer) = Create();
-        const int N = 42;
-        writer.Append($"answer={N}");
+        const int n = 42;
+        writer.Append($"answer={n}");
         Assert.Equal("answer=42", buffer.ToString());
     }
 
@@ -34,8 +34,8 @@ public sealed class PromptInterpolatedStringHandlerTests
     public void AppendStringInterpolationWritesTheValue()
     {
         var (writer, buffer) = Create();
-        const string Name = "Bob";
-        writer.Append($"Hello, {Name}!");
+        const string name = "Bob";
+        writer.Append($"Hello, {name}!");
         Assert.Equal("Hello, Bob!", buffer.ToString());
     }
 
@@ -43,10 +43,10 @@ public sealed class PromptInterpolatedStringHandlerTests
     public void AppendMultipleHolesWritesAll()
     {
         var (writer, buffer) = Create();
-        const int X = 1;
-        const int Y = 2;
-        const int Z = 3;
-        writer.Append($"{X},{Y},{Z}");
+        const int x = 1;
+        const int y = 2;
+        const int z = 3;
+        writer.Append($"{x},{y},{z}");
         Assert.Equal("1,2,3", buffer.ToString());
     }
 
@@ -54,8 +54,8 @@ public sealed class PromptInterpolatedStringHandlerTests
     public void AppendFormatSpecifierIsRespected()
     {
         var (writer, buffer) = Create();
-        const double Value = 3.14159;
-        writer.Append(string.Create(CultureInfo.InvariantCulture, $"pi={Value:F2}"));
+        const double value = 3.14159;
+        writer.Append(string.Create(CultureInfo.InvariantCulture, $"pi={value:F2}"));
         Assert.Equal("pi=3.14", buffer.ToString());
     }
 
@@ -82,8 +82,8 @@ public sealed class PromptInterpolatedStringHandlerTests
     public void AppendUnicodeContentWritesCorrectly()
     {
         var (writer, buffer) = Create();
-        const string Label = "中文测试";
-        writer.Append($"标签：{Label}");
+        const string label = "中文测试";
+        writer.Append($"标签：{label}");
         Assert.Equal("标签：中文测试", buffer.ToString());
     }
 
@@ -101,11 +101,11 @@ public sealed class PromptInterpolatedStringHandlerTests
     public void InterpolatedAppendsWithInsideBlockScopeWork()
     {
         var (writer, buffer) = Create();
-        const string Name = "Alice";
+        const string name = "Alice";
         using (var blocks = writer.BeginBlocks())
         {
-            blocks.Next().Append($"Hello, {Name}!");
-            blocks.Next().Append($"Goodbye, {Name}!");
+            blocks.Next().Append($"Hello, {name}!");
+            blocks.Next().Append($"Goodbye, {name}!");
         }
 
         Assert.Equal("Hello, Alice!\n\nGoodbye, Alice!", buffer.ToString());

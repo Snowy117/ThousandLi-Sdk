@@ -1,4 +1,3 @@
-using System.Text.Json;
 using ThousandLi.Contracts;
 using JsonElement = System.Text.Json.JsonElement;
 using JsonValueKind = System.Text.Json.JsonValueKind;
@@ -159,13 +158,12 @@ public static class ExpertVariableUpdateExecution
     private sealed class RecordingStreamEventSink(IJsonExpertStreamEventSink inner) : IJsonExpertStreamEventSink
     {
         private readonly IJsonExpertStreamEventSink _inner = inner ?? throw new ArgumentNullException(nameof(inner));
-        private readonly List<JsonStreamEvent> _events = [];
 
-        public List<JsonStreamEvent> Events => _events;
+        public List<JsonStreamEvent> Events { get; } = [];
 
         public async ValueTask OnEventAsync(JsonStreamEvent streamEvent, CancellationToken cancellationToken = default)
         {
-            _events.Add(streamEvent);
+            Events.Add(streamEvent);
             await _inner.OnEventAsync(streamEvent, cancellationToken).ConfigureAwait(false);
         }
     }

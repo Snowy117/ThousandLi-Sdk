@@ -63,8 +63,8 @@ public sealed class PromptWriterTests
     public void AppendInterpolatedWritesContent()
     {
         var (writer, buffer) = Create();
-        const string Name = "Alice";
-        writer.Append($"Hello, {Name}!");
+        const string name = "Alice";
+        writer.Append($"Hello, {name}!");
         Assert.Equal("Hello, Alice!", buffer.ToString());
     }
 
@@ -72,10 +72,10 @@ public sealed class PromptWriterTests
     public void AppendInterpolatedMultipleHolesWriteAll()
     {
         var (writer, buffer) = Create();
-        const int A = 1;
-        const int B = 2;
-        const int C = 3;
-        writer.Append($"{A}+{B}={C}");
+        const int a = 1;
+        const int b = 2;
+        const int c = 3;
+        writer.Append($"{a}+{b}={c}");
         Assert.Equal("1+2=3", buffer.ToString());
     }
 
@@ -83,8 +83,8 @@ public sealed class PromptWriterTests
     public void AppendInterpolatedWithFormatSpecifierRespectsTheFormat()
     {
         var (writer, buffer) = Create();
-        const double Value = 3.14159;
-        writer.Append(string.Create(CultureInfo.InvariantCulture, $"Pi={Value:F2}"));
+        const double value = 3.14159;
+        writer.Append(string.Create(CultureInfo.InvariantCulture, $"Pi={value:F2}"));
         Assert.Equal("Pi=3.14", buffer.ToString());
     }
 
@@ -92,8 +92,8 @@ public sealed class PromptWriterTests
     public void AppendInterpolatedMixedLiteralsAndFormattedWriteAll()
     {
         var (writer, buffer) = Create();
-        const string Mode = "first-person";
-        writer.Append($"Narration: {Mode}, done.");
+        const string mode = "first-person";
+        writer.Append($"Narration: {mode}, done.");
         Assert.Equal("Narration: first-person, done.", buffer.ToString());
     }
 

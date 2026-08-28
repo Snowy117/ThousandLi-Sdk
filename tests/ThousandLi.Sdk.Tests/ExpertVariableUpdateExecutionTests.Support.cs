@@ -54,7 +54,7 @@ public sealed partial class ExpertVariableUpdateExecutionTests
         IRuntimeBasicAi basicAi,
         IReadOnlySet<string>? metadataFieldNames = null)
     {
-        var expert = new TestExpert(metadataFieldNames ?? s_emptyFields);
+        var expert = new TestExpert(metadataFieldNames ?? SEmptyFields);
         expert.Bind(new LocalExpertExecutionContext(
             basicAi,
             new BoundPlayerProfile(TestSupport.PlayerId, "Player", string.Empty),
@@ -64,7 +64,7 @@ public sealed partial class ExpertVariableUpdateExecutionTests
 
     private sealed class TestExpert(IReadOnlySet<string> metadataFieldNames) : RuntimeLongTextWritingExpertBase
     {
-        protected internal override IReadOnlySet<string> MetadataFieldNames => metadataFieldNames;
+        protected override IReadOnlySet<string> MetadataFieldNames => metadataFieldNames;
 
         public override Task<Contracts.ExpertCompletionResult> StreamAsync(
             CancellationToken cancellationToken = default) =>

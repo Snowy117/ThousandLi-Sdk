@@ -6,7 +6,6 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using ThousandLi.Contracts;
-using ThousandLi.GameHelper;
 
 namespace ThousandLi.GameHelper.Tests;
 
@@ -15,7 +14,7 @@ public sealed class VariableUpdatePatchApplierTests
     private const string DefaultStateJson =
         """{"name":"Alice","nullableText":null,"counter":1,"bounded":5,"ratio":1.5,"nested":{"score":2,"note":"old"},"items":[1,2],"map":{"a":1,"b":2}}""";
 
-    private static readonly SessionStateContract s_contract = SessionStateContract.Create(typeof(TestVariables));
+    private static readonly SessionStateContract SContract = SessionStateContract.Create(typeof(TestVariables));
 
     [Fact]
     public void InsertRejectsSchemaOutsideFixedObjectProperty()
@@ -213,7 +212,7 @@ public sealed class VariableUpdatePatchApplierTests
         var state = State();
         var result = VariableUpdatePatchApplier.Apply(
             state,
-            s_contract,
+            SContract,
             [
                 new VariableUpdateReplace("/name", JsonValue.Create("Rejected")),
                 new VariableUpdateReplace("/nested/note", JsonValue.Create("Applied")),
@@ -237,7 +236,7 @@ public sealed class VariableUpdatePatchApplierTests
 
         var result = VariableUpdatePatchApplier.Apply(
             state,
-            s_contract,
+            SContract,
             [new VariableUpdateReplace("/nested", sourceValue)],
             NullLogger.Instance,
             operation =>
@@ -274,7 +273,7 @@ public sealed class VariableUpdatePatchApplierTests
         var state = State();
         var logger = new RecordingLogger();
 
-        var result = VariableUpdatePatchApplier.Apply(state, s_contract, Operations(
+        var result = VariableUpdatePatchApplier.Apply(state, SContract, Operations(
             """
             [
               {"op":"replace","path":"/missing","value":1},
@@ -332,7 +331,7 @@ public sealed class VariableUpdatePatchApplierTests
 
     private static VariableUpdateApplyResult Apply(GameState state, string patchJson)
     {
-        return VariableUpdatePatchApplier.Apply(state, s_contract, Operations(patchJson), NullLogger.Instance);
+        return VariableUpdatePatchApplier.Apply(state, SContract, Operations(patchJson), NullLogger.Instance);
     }
 
     private static IReadOnlyList<VariableUpdateOperation> Operations(string json)

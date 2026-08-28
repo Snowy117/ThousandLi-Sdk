@@ -7,7 +7,7 @@ namespace ThousandLi.GameHelper;
 
 internal static class SessionStateZodSchemaRenderer
 {
-    private static readonly JsonSerializerOptions s_noEscapeOptions = new()
+    private static readonly JsonSerializerOptions SNoEscapeOptions = new()
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
@@ -51,7 +51,7 @@ internal static class SessionStateZodSchemaRenderer
             case SessionStateEnumNode enumNode:
                 builder.Append("z.enum([");
                 builder.AppendJoin(", ",
-                    Enum.GetNames(enumNode.EnumType).Select(name => JsonSerializer.Serialize(name, s_noEscapeOptions)));
+                    Enum.GetNames(enumNode.EnumType).Select(name => JsonSerializer.Serialize(name, SNoEscapeOptions)));
                 builder.Append("])");
                 AppendDescription(builder, member);
                 break;
@@ -170,7 +170,7 @@ internal static class SessionStateZodSchemaRenderer
     {
         return value.ValueKind switch
         {
-            JsonValueKind.String => JsonSerializer.Serialize(value.GetString(), s_noEscapeOptions),
+            JsonValueKind.String => JsonSerializer.Serialize(value.GetString(), SNoEscapeOptions),
             JsonValueKind.Number => value.GetRawText(),
             JsonValueKind.True => "true",
             JsonValueKind.False => "false",
@@ -182,7 +182,7 @@ internal static class SessionStateZodSchemaRenderer
     private static void AppendDescription(StringBuilder builder, SessionStateMemberNode? member)
     {
         if (!string.IsNullOrWhiteSpace(member?.Description))
-            builder.Append(".describe(").Append(JsonSerializer.Serialize(member.Description, s_noEscapeOptions)).Append(')');
+            builder.Append(".describe(").Append(JsonSerializer.Serialize(member.Description, SNoEscapeOptions)).Append(')');
     }
 
     private static void RenderRule(StringBuilder builder, string rule, int indent)

@@ -5,6 +5,8 @@ using ThousandLi.ExpertAuthoring;
 
 namespace ThousandLi.Sdk.Tests;
 
+// ReSharper disable AutoPropertyCanBeMadeGetOnly.Local — 设置 fixture 的 init 访问器由 JSON 反序列化反射调用
+
 public sealed class ExpertExecutionContextTests
 {
     [Fact]
@@ -27,7 +29,7 @@ public sealed class ExpertExecutionContextTests
         var profile = new BoundPlayerProfile(TestSupport.PlayerId, "Tester", "persona");
         var context = new LocalExpertExecutionContext(basicAi, profile, NullLogger.Instance);
 
-        Assert.Same(basicAi, ((IExpertExecutionContext)context).BasicAi);
+        Assert.Same(basicAi, context.BasicAi);
         Assert.Same(profile, context.PlayerProfile);
         Assert.Same(NullLogger.Instance, context.Logger);
     }
@@ -94,9 +96,9 @@ public sealed class ExpertExecutionContextTests
 
     private sealed class SampleSettings
     {
-        public string Style { get; set; } = "balanced";
+        public string Style { get; init; } = "balanced";
 
-        public double Temperature { get; set; } = 0.4;
+        public double Temperature { get; init; } = 0.4;
     }
 
     private sealed class StubBasicAi : IRuntimeBasicAi

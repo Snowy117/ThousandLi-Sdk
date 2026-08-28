@@ -159,28 +159,22 @@ public sealed record BasicAiRequest
         if (tools is null || tools.Count == 0)
             return [];
 
-        var copied = new List<BasicAiToolDescriptor>(tools.Count);
-        foreach (var tool in tools)
-        {
-            copied.Add(tool ?? throw new ArgumentException(
+        return
+        [
+            .. tools.Select(tool => tool ?? throw new ArgumentException(
                 "BasicAi tool descriptors cannot contain null entries.",
-                nameof(tools)));
-        }
-
-        return copied;
+                nameof(tools))),
+        ];
     }
 
     private static List<BasicAiMessage> CopyMessages(IReadOnlyList<BasicAiMessage> messages)
     {
-        var copied = new List<BasicAiMessage>(messages.Count);
-        foreach (var message in messages)
-        {
-            copied.Add(message ?? throw new ArgumentException(
+        return
+        [
+            .. messages.Select(message => message ?? throw new ArgumentException(
                 "BasicAi request messages cannot contain null entries.",
-                nameof(messages)));
-        }
-
-        return copied;
+                nameof(messages))),
+        ];
     }
 }
 

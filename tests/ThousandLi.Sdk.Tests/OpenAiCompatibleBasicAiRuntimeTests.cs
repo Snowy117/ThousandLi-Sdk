@@ -174,13 +174,14 @@ public sealed class OpenAiCompatibleBasicAiRuntimeTests
     [Fact]
     public async Task CompletionSendsJsonObjectResponseFormatAndLowercaseRoles()
     {
-        var handler = CreateHandler(RuntimeCompletionResponse("""{}"""));
+        var handler = CreateHandler(RuntimeCompletionResponse("{}"));
         var adapter = CreateAdapter(handler);
         var sampling = new BasicAiSamplingParameters { Temperature = 0.7f, TopP = 0.9f };
 
         await adapter.CompleteAsync(RuntimeRequest(sampling: sampling), TestSupport.CancellationToken);
 
         var captured = Assert.Single(handler.Requests);
+        Assert.Equal(new Uri(Endpoint), captured.Uri);
         Assert.Equal($"Bearer {ApiKey}", captured.Authorization);
         using var body = JsonDocument.Parse(captured.Body);
         Assert.Equal("deepseek-v4-pro", body.RootElement.GetProperty("model").GetString());
@@ -198,7 +199,7 @@ public sealed class OpenAiCompatibleBasicAiRuntimeTests
     [Fact]
     public async Task CompletionOmitsSamplingKeysWhenUnset()
     {
-        var handler = CreateHandler(RuntimeCompletionResponse("""{}"""));
+        var handler = CreateHandler(RuntimeCompletionResponse("{}"));
         var adapter = CreateAdapter(handler);
 
         await adapter.CompleteAsync(RuntimeRequest(), TestSupport.CancellationToken);
@@ -254,7 +255,7 @@ public sealed class OpenAiCompatibleBasicAiRuntimeTests
     {
         var handler = CreateHandler(RuntimeSseResponse(
             DeltaFrame(content: null, reasoning: "first"),
-            DeltaFrame(content: """{}""", reasoning: null)));
+            DeltaFrame(content: "{}", reasoning: null)));
         var adapter = CreateAdapter(handler);
 
         var events = await CollectAsync(adapter.StreamAsync(RuntimeRequest(), TestSupport.CancellationToken));
@@ -302,7 +303,7 @@ public sealed class OpenAiCompatibleBasicAiRuntimeTests
     [Fact]
     public async Task StreamingCancellationPropagates()
     {
-        var handler = CreateHandler(RuntimeSseResponse(DeltaFrame(content: """{}""", reasoning: null)));
+        var handler = CreateHandler(RuntimeSseResponse(DeltaFrame(content: "{}", reasoning: null)));
         var adapter = CreateAdapter(handler);
         using var cancellationSource = new CancellationTokenSource();
         await cancellationSource.CancelAsync();
@@ -315,7 +316,7 @@ public sealed class OpenAiCompatibleBasicAiRuntimeTests
     public void RuntimeAvailableModelsProjectFromOptions()
     {
         var adapter = CreateAdapter(CreateHandler());
-        var runtime = (IRuntimeBasicAi)adapter;
+        IRuntimeBasicAi runtime = adapter;
 
         Assert.Equal(
             ["deepseek-v4-pro", "deepseek-v4-flash"],
