@@ -127,10 +127,16 @@ public sealed class PlaygroundHttpTests
         await AssertRejectedAsync(client, new
         {
             contractId = SampleContractId,
-            executor = "remote",
+            executor = "cloud",
             scenarioId = "advance",
             input = new { }
-        }, "remote");
+        }, "cloud");
+        await AssertRejectedAsync(client, new
+        {
+            contractId = SampleContractId,
+            executor = "remote",
+            input = new { }
+        }, "--expert-executor remote");
         await AssertRejectedAsync(client, new
         {
             contractId = SampleContractId,
@@ -293,7 +299,11 @@ public sealed class PlaygroundHttpTests
     private static HttpClient CreateClient(WebApplication app) =>
         new() { BaseAddress = new Uri(app.Urls.Single()) };
 
-    private static async Task<WebApplication> StartAppAsync(bool ephemeral, string? dataRoot, string? workspaceId = null)
+    private static async Task<WebApplication> StartAppAsync(
+        bool ephemeral,
+        string? dataRoot,
+        string? workspaceId = null,
+        Func<DevHostOptions, DevHostOptions>? configure = null)
     {
         var port = ReservePort();
         var repositoryRoot = TestSupport.FindRepositoryRoot();
@@ -310,10 +320,112 @@ public sealed class PlaygroundHttpTests
             DataRoot = dataRoot,
             FakeScenariosPath = Path.Combine(repositoryRoot, "samples", "ThousandLi.SampleGame", "fake-scenarios.json")
         };
+        options = configure is null ? options : configure(options);
         var app = await DevHostApplication.BuildAsync(options, webApplicationArgs: [], TestSupport.CancellationToken);
         await app.StartAsync(TestSupport.CancellationToken);
         return app;
     }
+
+    [Fact]
+    public async Task RemoteModeMergesThePlatformCatalogAndStreamsInvocationsToTheTerminalFrame()
+    {
+        const string remotePackageId = "official-longtextwriting@0.1.0";
+        const string remoteInvocationId = "0199cafe-5678-7123-9abc-def012345678";
+        const string tokenVariable = "PLAYGROUND_HTTP_REMOTE_TESTS_TOKEN";
+        Environment.SetEnvironmentVariable(tokenVariable, "remote-http-token");
+        using var platform = RemoteExpertLoopbackTests.LoopbackFakePlatform.Start(request => request switch
+        {
+            { Method: "GET", Path: "/abstract-experts" } =>
+                RemoteExpertLoopbackTests.LoopbackResponse.Json(200, RemoteCatalogJson),
+            { Method: "GET", Path: "/expert-packages" } =>
+                RemoteExpertLoopbackTests.LoopbackResponse.Json(200, RemotePackagesJson),
+            { Method: "POST", Path: "/expert-invocations" } =>
+                RemoteExpertLoopbackTests.LoopbackResponse.Json(202,
+                    "{\"expertInvocationId\":\"" + remoteInvocationId +
+                    "\",\"status\":\"running\",\"replayed\":false,\"contractId\":\"" + SampleContractId +
+                    "\",\"expertPackageId\":\"" + remotePackageId +
+                    "\",\"lastEventOrdinal\":-1,\"createdAt\":\"2026-08-26T10:00:00Z\"}"),
+            { Method: "GET", Path: "/expert-invocations/" + remoteInvocationId + "/events" } =>
+                RemoteExpertLoopbackTests.LoopbackResponse.Sse([
+                    "id: 0\ndata: {\"type\":\"event\",\"eventType\":\"chunk\",\"payload\":{\"text\":\"A remote path opens.\"}}\n\n",
+                    "data: {\"type\":\"completed\",\"output\":{\"text\":\"A remote path opens.\"}}\n\n"
+                ]),
+            _ => throw new InvalidOperationException(
+                $"Unexpected platform request {request.Method} {request.Path}.")
+        });
+        try
+        {
+            await using var app = await StartAppAsync(ephemeral: true, dataRoot: null, configure: options =>
+                options with
+                {
+                    ExpertExecutor = DevHostOptions.RemoteExecutorName,
+                    RemoteEndpoint = platform.BaseUri.ToString(),
+                    RemoteTokenEnvironmentVariable = tokenVariable,
+                    RemoteBindings = new Dictionary<string, string>
+                    {
+                        [SampleContractId] = remotePackageId
+                    }
+                });
+            using var client = CreateClient(app);
+
+            var contracts = await client.GetFromJsonAsync<JsonElement>(
+                "/api/playground/contracts", TestSupport.CancellationToken);
+            var narrator = Assert.Single(contracts.EnumerateArray());
+            Assert.Equal(SampleContractId, narrator.GetProperty("contractId").GetString());
+            Assert.Equal("1.0", narrator.GetProperty("version").GetString());
+            Assert.Equal(SampleContractFingerprint, narrator.GetProperty("fingerprint").GetString());
+            Assert.Equal(
+                ["fake", "remote"],
+                narrator.GetProperty("executors").EnumerateArray().Select(entry => entry.GetString()));
+            Assert.Equal(
+                [remotePackageId],
+                narrator.GetProperty("expertPackageIds").EnumerateArray().Select(entry => entry.GetString()));
+
+            using var response = await client.PostAsJsonAsync(
+                "/api/playground/invoke",
+                new
+                {
+                    contractId = SampleContractId,
+                    executor = "remote",
+                    input = new { }
+                },
+                TestSupport.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var frames = await ReadSseFramesAsync(response);
+            var eventFrame = frames[0];
+            Assert.Equal("event", eventFrame.GetProperty("type").GetString());
+            Assert.Equal("chunk", eventFrame.GetProperty("eventType").GetString());
+            Assert.Equal("A remote path opens.", eventFrame.GetProperty("payload").GetProperty("text").GetString());
+            var terminalFrame = frames[^1];
+            Assert.Equal("invocation", terminalFrame.GetProperty("type").GetString());
+            Assert.Equal(remoteInvocationId, terminalFrame.GetProperty("invocationId").GetString());
+            Assert.Equal("A remote path opens.", terminalFrame.GetProperty("output").GetProperty("text").GetString());
+
+            var history = await client.GetFromJsonAsync<JsonElement>(
+                "/api/playground/history", TestSupport.CancellationToken);
+            var historyEntry = Assert.Single(history.EnumerateArray());
+            Assert.Equal("committed", historyEntry.GetProperty("status").GetString());
+            Assert.Equal("remote", historyEntry.GetProperty("executor").GetString());
+            Assert.Equal(remoteInvocationId, historyEntry.GetProperty("invocationId").GetString());
+
+            var start = platform.Requests.Single(request => request.Method == "POST");
+            Assert.Equal("Bearer remote-http-token", start.Headers["authorization"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(tokenVariable, null);
+        }
+    }
+
+    private static string RemoteCatalogJson =>
+        "[{\"contractId\":\"" + SampleContractId +
+        "\",\"name\":\"Narrator\",\"description\":\"\",\"version\":{\"major\":1,\"minor\":0},\"fingerprint\":\"" +
+        SampleContractFingerprint + "\"}]";
+
+    private static string RemotePackagesJson =>
+        "[{\"expertPackageId\":\"official-longtextwriting@0.1.0\",\"displayName\":\"Official Long Text Writing\"," +
+        "\"openAiModelIds\":[\"deepseek-v4-pro\"],\"hasSettings\":false,\"contractId\":\"" + SampleContractId + "\"}]";
 
     private static int ReservePort()
     {

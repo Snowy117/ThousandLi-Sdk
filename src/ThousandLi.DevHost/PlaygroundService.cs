@@ -2,10 +2,10 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using JetBrains.Annotations;
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using ThousandLi.Contracts;
 using ThousandLi.ExpertContracts;
+using ThousandLi.RemoteExperts;
 using ThousandLi.Testing;
 
 namespace ThousandLi.DevHost;
@@ -72,7 +72,8 @@ public sealed class PlaygroundService(
     LocalExpertExecutor? local,
     ExpertContractRegistry registry,
     IExpertRecordingStore recordings,
-    ILogger? logger = null)
+    ILogger? logger = null,
+    RemoteExpertComposition? remote = null)
 {
     public const string StatusCommitted = "committed";
     public const string StatusAborted = "aborted";
@@ -86,7 +87,17 @@ public sealed class PlaygroundService(
     private readonly ConcurrentQueue<PlaygroundInvocationDiagnostics> _history = new();
     private long _sequence;
 
-    public IReadOnlyList<PlaygroundContractInfo> GetContracts()
+    /// <summary>
+    /// The invocable contract catalog: the Fake scenario contracts, the locally loaded Expert
+    /// Packages, and — when the remote executor is configured — the live platform catalog. The
+    /// remote merge fetches on every call so the Playground refresh reflects platform changes; an
+    /// unreachable platform degrades to the local entries (logged as a warning) instead of failing
+    /// the whole endpoint, and the remote invoke path itself surfaces the real diagnosis.
+    /// Version/fingerprint fields always show the local descriptor; a platform drift is reported
+    /// by the remote executor precheck at invoke time with required/available details.
+    /// </summary>
+    public async Task<IReadOnlyList<PlaygroundContractInfo>> GetContractsAsync(
+        CancellationToken cancellationToken = default)
     {
         var contracts = new Dictionary<string, PlaygroundContractInfo>(StringComparer.Ordinal);
         foreach (var descriptor in _fake.Contracts)
@@ -110,7 +121,65 @@ public sealed class PlaygroundService(
                 local?.PackageIdsForContract(descriptor.Id) ?? []);
         }
 
+        if (remote is not null)
+            await MergeRemoteContractsAsync(remote, contracts, cancellationToken).ConfigureAwait(false);
+
         return [.. contracts.Values.OrderBy(contract => contract.ContractId, StringComparer.Ordinal)];
+    }
+
+    private async Task MergeRemoteContractsAsync(
+        RemoteExpertComposition remoteComposition,
+        Dictionary<string, PlaygroundContractInfo> contracts,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<RemoteExpertContract> remoteContracts;
+        IReadOnlyList<RemoteExpertPackage> remotePackages;
+        try
+        {
+            remoteContracts = await remoteComposition.Client.ListContractsAsync(cancellationToken)
+                .ConfigureAwait(false);
+            remotePackages = await remoteComposition.Client
+                .ListExpertPackagesAsync(cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or RemoteExpertException)
+        {
+            _logger.LogWarning(
+                exception,
+                "The remote expert catalog is unavailable; the Playground serves the local contracts only.");
+            return;
+        }
+
+        var packagesByContract = remotePackages
+            .GroupBy(package => package.ContractId, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<string>)[.. group.Select(package => package.ExpertPackageId)
+                    .Order(StringComparer.Ordinal)],
+                StringComparer.Ordinal);
+        foreach (var contract in remoteContracts)
+        {
+            var executors = new List<string>();
+            IReadOnlyList<string> localPackages = [];
+            var version = contract.Version.ToString();
+            var fingerprint = contract.Fingerprint;
+            if (contracts.TryGetValue(contract.ContractId, out var localEntry))
+            {
+                executors.AddRange(localEntry.Executors);
+                localPackages = localEntry.ExpertPackageIds;
+                version = localEntry.Version;
+                fingerprint = localEntry.Fingerprint;
+            }
+            executors.Add(DevHostOptions.RemoteExecutorName);
+            var remotePackagesForContract = packagesByContract.GetValueOrDefault(contract.ContractId) ?? [];
+            contracts[contract.ContractId] = new PlaygroundContractInfo(
+                contract.ContractId,
+                version,
+                fingerprint,
+                [.. executors.Order(StringComparer.Ordinal)],
+                [.. localPackages.Concat(remotePackagesForContract).Distinct(StringComparer.Ordinal)
+                    .Order(StringComparer.Ordinal)]);
+        }
     }
 
     public IReadOnlyList<PlaygroundInvocationDiagnostics> History
@@ -149,10 +218,15 @@ public sealed class PlaygroundService(
         var collector = command.Record ? new RecordingSemanticEventSink(events) : null;
         try
         {
-            var result = command.Executor == DevHostOptions.LocalExecutorName
-                ? await local!.ExecuteAsync(request, collector ?? events, command.ExpertPackageId, cancellationToken)
-                    .ConfigureAwait(false)
-                : await _fake.ExecuteAsync(request, collector ?? events, cancellationToken).ConfigureAwait(false);
+            var sink = collector ?? events;
+            var result = command.Executor switch
+            {
+                DevHostOptions.LocalExecutorName => await local!.ExecuteAsync(
+                    request, sink, command.ExpertPackageId, cancellationToken).ConfigureAwait(false),
+                DevHostOptions.RemoteExecutorName => await ResolveRemoteExecutor(command).ExecuteAsync(
+                    request, sink, cancellationToken).ConfigureAwait(false),
+                _ => await _fake.ExecuteAsync(request, sink, cancellationToken).ConfigureAwait(false)
+            };
             stopwatch.Stop();
             var (persistRecordingId, persistRecordingError) = await PersistRecordingAsync(
                 descriptor,
@@ -317,10 +391,18 @@ public sealed class PlaygroundService(
                         throw new ArgumentException(
                             "The local expert executor is not configured; start DevHost with " +
                             $"'--expert-executor {DevHostOptions.LocalExecutorName}' and expert artifacts.");
-                    if (!_registry.TryGetContract(command.ContractId, out var registered))
+                    return ResolveRegisteredDescriptor(command.ContractId);
+                }
+
+            case DevHostOptions.RemoteExecutorName:
+                {
+                    if (remote is null)
                         throw new ArgumentException(
-                            $"Contract '{command.ContractId}' is not registered. Registered contracts: {FormatIds(_registry.Contracts.Select(contract => contract.Id))}.");
-                    return registered.ToDescriptor();
+                            "The remote expert executor is not configured; start DevHost with " +
+                            $"'--expert-executor {DevHostOptions.RemoteExecutorName}' and '--remote-endpoint'.");
+                    // The local registration is the invocation-side requirement; the remote executor
+                    // precheck reconciles it against the platform catalog with required/available details.
+                    return ResolveRegisteredDescriptor(command.ContractId);
                 }
 
             case DevHostOptions.FakeExecutorName:
@@ -335,8 +417,38 @@ public sealed class PlaygroundService(
 
             default:
                 throw new ArgumentException(
-                    $"Executor must be '{DevHostOptions.FakeExecutorName}' or '{DevHostOptions.LocalExecutorName}', but was '{command.Executor}'.");
+                    $"Executor must be '{DevHostOptions.FakeExecutorName}', '{DevHostOptions.LocalExecutorName}', or " +
+                    $"'{DevHostOptions.RemoteExecutorName}', but was '{command.Executor}'.");
         }
+    }
+
+    private ExpertContractDescriptor ResolveRegisteredDescriptor(string contractId)
+    {
+        if (!_registry.TryGetContract(contractId, out var registered))
+            throw new ArgumentException(
+                $"Contract '{contractId}' is not registered. Registered contracts: {FormatIds(_registry.Contracts.Select(contract => contract.Id))}.");
+        return registered.ToDescriptor();
+    }
+
+    /// <summary>
+    /// The remote executor honors an explicit Playground package choice by deriving a per-call
+    /// executor whose single binding points at the chosen package; the configured bindings stay
+    /// untouched, mirroring the local executor's per-call override semantics.
+    /// </summary>
+    private RemoteExpertExecutor ResolveRemoteExecutor(PlaygroundInvokeCommand command)
+    {
+        var composition = remote ?? throw new ArgumentException(
+            "The remote expert executor is not configured; start DevHost with " +
+            $"'--expert-executor {DevHostOptions.RemoteExecutorName}' and '--remote-endpoint'.");
+        if (string.IsNullOrWhiteSpace(command.ExpertPackageId))
+            return composition.Executor;
+        return new RemoteExpertExecutor(
+            composition.Client,
+            new RemoteExpertExecutorOptions(
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    [command.ContractId] = command.ExpertPackageId
+                }));
     }
 
     private PlaygroundInvocationOutcome Record(

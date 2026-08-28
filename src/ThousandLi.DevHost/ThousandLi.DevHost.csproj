@@ -14,6 +14,7 @@
     <ProjectReference Include="../ThousandLi.Contracts/ThousandLi.Contracts.csproj" />
     <ProjectReference Include="../ThousandLi.ExpertAuthoring/ThousandLi.ExpertAuthoring.csproj" />
     <ProjectReference Include="../ThousandLi.ExpertContracts/ThousandLi.ExpertContracts.csproj" />
+    <ProjectReference Include="../ThousandLi.RemoteExperts/ThousandLi.RemoteExperts.csproj" />
     <ProjectReference Include="../ThousandLi.Testing/ThousandLi.Testing.csproj" />
   </ItemGroup>
 </Project>

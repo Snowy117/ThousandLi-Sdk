@@ -520,7 +520,7 @@ public sealed class LocalExpertExecutorTests
         Assert.Equal(count, history.Count);
         Assert.Equal(count, history.Select(entry => entry.ChannelKey).Distinct(StringComparer.Ordinal).Count());
 
-        var contracts = playground.GetContracts();
+        var contracts = await playground.GetContractsAsync(TestSupport.CancellationToken);
         var narrator = Assert.Single(contracts, contract => contract.ContractId == "thousandli.expert/narrator");
         Assert.Contains(DevHostOptions.LocalExecutorName, narrator.Executors);
         Assert.Equal([package.Manifest.PackageId], narrator.ExpertPackageIds);
@@ -537,10 +537,15 @@ public sealed class LocalExpertExecutorTests
             new RecordingSemanticSink(), TestSupport.CancellationToken));
         Assert.Contains("--expert-executor local", unavailableLocal.Message, StringComparison.Ordinal);
 
-        var unknownExecutor = await Assert.ThrowsAsync<ArgumentException>(() => playground.InvokeAsync(
-            new PlaygroundInvokeCommand("thousandli.expert/narrator", "remote", Input()),
+        var unavailableRemote = await Assert.ThrowsAsync<ArgumentException>(() => playground.InvokeAsync(
+            new PlaygroundInvokeCommand("thousandli.expert/narrator", DevHostOptions.RemoteExecutorName, Input()),
             new RecordingSemanticSink(), TestSupport.CancellationToken));
-        Assert.Contains("'remote'", unknownExecutor.Message, StringComparison.Ordinal);
+        Assert.Contains("--expert-executor remote", unavailableRemote.Message, StringComparison.Ordinal);
+
+        var unknownExecutor = await Assert.ThrowsAsync<ArgumentException>(() => playground.InvokeAsync(
+            new PlaygroundInvokeCommand("thousandli.expert/narrator", "cloud", Input()),
+            new RecordingSemanticSink(), TestSupport.CancellationToken));
+        Assert.Contains("'cloud'", unknownExecutor.Message, StringComparison.Ordinal);
 
         var scenariolessFake = await Assert.ThrowsAsync<ArgumentException>(() => playground.InvokeAsync(
             new PlaygroundInvokeCommand("anything", DevHostOptions.FakeExecutorName, Input()),

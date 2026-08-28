@@ -285,7 +285,9 @@ public static class CompatibilityValidator
                     string.Equals(candidate.Id, requiredExpert.Id, StringComparison.Ordinal))
                 ?? throw new CompatibilityException(
                     $"Expert contract '{requiredExpert.Id}' is required at version {requiredExpert.Version} " +
-                    $"with fingerprint '{requiredExpert.Fingerprint}', but no Fake binding is available.");
+                    $"with fingerprint '{requiredExpert.Fingerprint}', but no configured executor provides it. " +
+                    "Provide a matching fake scenario (--fake-scenarios), a local expert artifact " +
+                    "(--expert-executor local), or a remote platform binding (--expert-executor remote).");
             ValidateVersion($"Expert contract '{requiredExpert.Id}'", requiredExpert.Version, availableExpert.Version);
             if (!string.Equals(requiredExpert.Fingerprint, availableExpert.Fingerprint, StringComparison.Ordinal))
             {

@@ -2,6 +2,7 @@ using System.Reflection;
 using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
 using ThousandLi.ExpertContracts;
+using ThousandLi.RemoteExperts;
 
 namespace ThousandLi.DevHost;
 
@@ -13,6 +14,13 @@ namespace ThousandLi.DevHost;
 internal sealed record ExpertContractComposition(
     ExpertContractRegistry Registry,
     IReadOnlyDictionary<string, Assembly> ContractAssemblies);
+
+/// <summary>
+/// The remote expert execution pair composed by the DevHost composition root: the raw client (used
+/// by the Playground to list the platform catalog) and the executor (used by the game runtime and
+/// the Playground invoke path through the shared <see cref="IExpertExecutor" /> seam).
+/// </summary>
+public sealed record RemoteExpertComposition(RemoteExpertClient Client, RemoteExpertExecutor Executor);
 
 internal static class ExpertComposition
 {
@@ -68,7 +76,7 @@ internal static class ExpertComposition
         var gatewayOptions = new OpenAiCompatibleBasicAiOptions(
             options.GatewayEndpoint,
             options.GatewayModels,
-            CreateApiKeyProvider(options));
+            CreateEnvironmentTokenProvider(options.GatewayApiKeyEnvironmentVariable));
         var executorOptions = new LocalExpertExecutorOptions(
             new OpenAiCompatibleBasicAi(gatewayClient, gatewayOptions),
             player)
@@ -84,27 +92,66 @@ internal static class ExpertComposition
             executorOptions);
     }
 
+    /// <summary>
+    /// Composes the remote expert execution pair from a DevHost already validated for the remote
+    /// executor. The caller owns the <see cref="HttpClient" /> lifecycle and must disable its
+    /// default request timeout for the long SSE event stream.
+    /// </summary>
+    public static RemoteExpertComposition CreateRemoteExecutor(DevHostOptions options, HttpClient platformClient)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(platformClient);
+        if (string.IsNullOrWhiteSpace(options.RemoteEndpoint))
+            throw new ArgumentException(
+                "Remote expert execution requires '--remote-endpoint <url>' pointing at the ThousandLi platform host.");
+
+        var client = new RemoteExpertClient(
+            platformClient,
+            new RemoteExpertClientOptions(options.RemoteEndpoint, CreateEnvironmentTokenProvider(options.RemoteTokenEnvironmentVariable)));
+        var executor = new RemoteExpertExecutor(
+            client,
+            new RemoteExpertExecutorOptions(options.RemoteBindings));
+        return new RemoteExpertComposition(client, executor);
+    }
+
     public static void ValidateExecutorOptions(DevHostOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        if (options.ExpertExecutor == DevHostOptions.LocalExecutorName)
+
+        if (options.ExpertExecutor != DevHostOptions.LocalExecutorName)
+        {
+            var localOnlyArguments = new List<string>();
+            if (options.ExpertArtifactDirectories.Count > 0)
+                localOnlyArguments.Add("--expert-artifact");
+            if (options.ExpertBindings.Count > 0)
+                localOnlyArguments.Add("--expert-binding");
+            if (!string.IsNullOrWhiteSpace(options.GatewayEndpoint))
+                localOnlyArguments.Add("--gateway-endpoint");
+            if (options.GatewayModels.Count > 0)
+                localOnlyArguments.Add("--gateway-model");
+            if (!string.IsNullOrWhiteSpace(options.GatewayApiKeyEnvironmentVariable) &&
+                options.GatewayApiKeyEnvironmentVariable != DevHostOptions.DefaultGatewayApiKeyEnvironmentVariable)
+                localOnlyArguments.Add("--gateway-api-key-env");
+            if (localOnlyArguments.Count > 0)
+                throw new ArgumentException(
+                    $"Arguments {string.Join(", ", localOnlyArguments.Select(flag => $"'{flag}'"))} require " +
+                    $"'--expert-executor {DevHostOptions.LocalExecutorName}'.");
+        }
+
+        if (options.ExpertExecutor == DevHostOptions.RemoteExecutorName)
             return;
-        var localOnlyArguments = new List<string>();
-        if (options.ExpertArtifactDirectories.Count > 0)
-            localOnlyArguments.Add("--expert-artifact");
-        if (options.ExpertBindings.Count > 0)
-            localOnlyArguments.Add("--expert-binding");
-        if (!string.IsNullOrWhiteSpace(options.GatewayEndpoint))
-            localOnlyArguments.Add("--gateway-endpoint");
-        if (options.GatewayModels.Count > 0)
-            localOnlyArguments.Add("--gateway-model");
-        if (!string.IsNullOrWhiteSpace(options.GatewayApiKeyEnvironmentVariable) &&
-            options.GatewayApiKeyEnvironmentVariable != DevHostOptions.DefaultGatewayApiKeyEnvironmentVariable)
-            localOnlyArguments.Add("--gateway-api-key-env");
-        if (localOnlyArguments.Count > 0)
+        var remoteOnlyArguments = new List<string>();
+        if (!string.IsNullOrWhiteSpace(options.RemoteEndpoint))
+            remoteOnlyArguments.Add("--remote-endpoint");
+        if (options.RemoteBindings.Count > 0)
+            remoteOnlyArguments.Add("--remote-binding");
+        if (!string.IsNullOrWhiteSpace(options.RemoteTokenEnvironmentVariable) &&
+            options.RemoteTokenEnvironmentVariable != DevHostOptions.DefaultRemoteTokenEnvironmentVariable)
+            remoteOnlyArguments.Add("--remote-token-env");
+        if (remoteOnlyArguments.Count > 0)
             throw new ArgumentException(
-                $"Arguments {string.Join(", ", localOnlyArguments.Select(flag => $"'{flag}'"))} require " +
-                $"'--expert-executor {DevHostOptions.LocalExecutorName}'.");
+                $"Arguments {string.Join(", ", remoteOnlyArguments.Select(flag => $"'{flag}'"))} require " +
+                $"'--expert-executor {DevHostOptions.RemoteExecutorName}'.");
     }
 
     /// <summary>
@@ -127,11 +174,11 @@ internal static class ExpertComposition
     }
 
     /// <summary>
-    /// The gateway credential enters only as a delegate over the configured environment variable;
-    /// the resolved key is never stored, logged, or exposed to package code or frontend JS.
+    /// Credentials enter only as delegates over configured environment variables; the resolved
+    /// values are never stored, logged, or exposed to package code or frontend JS.
     /// </summary>
-    private static Func<string?>? CreateApiKeyProvider(DevHostOptions options) =>
-        string.IsNullOrWhiteSpace(options.GatewayApiKeyEnvironmentVariable)
+    private static Func<string?>? CreateEnvironmentTokenProvider(string? environmentVariable) =>
+        string.IsNullOrWhiteSpace(environmentVariable)
             ? null
-            : () => Environment.GetEnvironmentVariable(options.GatewayApiKeyEnvironmentVariable);
+            : () => Environment.GetEnvironmentVariable(environmentVariable);
 }

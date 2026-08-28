@@ -15,6 +15,7 @@
     <ProjectReference Include="../../src/ThousandLi.ExpertAuthoring/ThousandLi.ExpertAuthoring.csproj" />
     <ProjectReference Include="../../src/ThousandLi.ExpertContracts/ThousandLi.ExpertContracts.csproj" />
     <ProjectReference Include="../../src/ThousandLi.GameAuthoring/ThousandLi.GameAuthoring.csproj" />
+    <ProjectReference Include="../../src/ThousandLi.RemoteExperts/ThousandLi.RemoteExperts.csproj" />
     <ProjectReference Include="../../src/ThousandLi.Testing/ThousandLi.Testing.csproj" />
     <ProjectReference Include="../../samples/ThousandLi.SampleGame/ThousandLi.SampleGame.csproj" />
     <ProjectReference Include="../ThousandLi.BrokenContractFixtures/ThousandLi.BrokenContractFixtures.csproj" />

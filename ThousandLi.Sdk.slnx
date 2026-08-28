@@ -5,6 +5,7 @@
     <Project Path="src/ThousandLi.ExpertAuthoring/ThousandLi.ExpertAuthoring.csproj" />
     <Project Path="src/ThousandLi.ExpertContracts/ThousandLi.ExpertContracts.csproj" />
     <Project Path="src/ThousandLi.GameAuthoring/ThousandLi.GameAuthoring.csproj" />
+    <Project Path="src/ThousandLi.RemoteExperts/ThousandLi.RemoteExperts.csproj" />
     <Project Path="src/ThousandLi.Testing/ThousandLi.Testing.csproj" />
   </Folder>
   <Folder Name="/samples/">

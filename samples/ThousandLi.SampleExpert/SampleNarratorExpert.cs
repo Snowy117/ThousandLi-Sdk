@@ -67,5 +67,5 @@ public sealed class SampleNarratorExpert : AbstractNarratorExpert
             ? value
             : throw new ArgumentException(
                 $"The invocation input is missing the required property '{name}' for contract " +
-                $"'{AbstractNarratorExpert.Descriptor.Id}'. Required input shape: turn:int, player:string, action:*.");
+                $"'{Descriptor.Id}'. Required input shape: turn:int, player:string, action:*.");
 }

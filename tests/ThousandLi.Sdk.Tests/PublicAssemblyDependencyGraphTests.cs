@@ -12,7 +12,8 @@ public sealed class PublicAssemblyDependencyGraphTests
         "ThousandLi.Testing",
         "ThousandLi.DevHost",
         "ThousandLi.ExpertContracts",
-        "ThousandLi.ExpertAuthoring"
+        "ThousandLi.ExpertAuthoring",
+        "ThousandLi.RemoteExperts"
     ];
 
     private static readonly string[] ForbiddenAssemblyPrefixes =

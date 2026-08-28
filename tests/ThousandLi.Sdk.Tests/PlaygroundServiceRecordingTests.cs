@@ -265,7 +265,7 @@ public sealed class PlaygroundServiceRecordingTests
                 Registry(),
                 new InMemoryExpertRecordingStore());
 
-            var contracts = playground.GetContracts();
+            var contracts = await playground.GetContractsAsync(TestSupport.CancellationToken);
             var entry = Assert.Single(contracts);
             Assert.Equal(narrator.Id, entry.ContractId);
             Assert.Equal(

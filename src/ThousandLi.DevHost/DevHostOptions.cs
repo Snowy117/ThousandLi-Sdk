@@ -7,7 +7,9 @@ public sealed record DevHostOptions
 {
     public const string FakeExecutorName = "fake";
     public const string LocalExecutorName = "local";
+    public const string RemoteExecutorName = "remote";
     public const string DefaultGatewayApiKeyEnvironmentVariable = "THOUSANDLI_GATEWAY_API_KEY";
+    public const string DefaultRemoteTokenEnvironmentVariable = "THOUSANDLI_PLATFORM_TOKEN";
 
     private static readonly IReadOnlyDictionary<string, string> EmptyBindings =
         new ReadOnlyDictionary<string, string>(new Dictionary<string, string>(StringComparer.Ordinal));
@@ -22,7 +24,7 @@ public sealed record DevHostOptions
     public string? DataRoot { get; init; }
     public string? FakeScenariosPath { get; init; }
 
-    /// <summary>Expert executor selection: 'fake' (default) or 'local' (explicit opt-in).</summary>
+    /// <summary>Expert executor selection: 'fake' (default), 'local', or 'remote' (explicit opt-in).</summary>
     public string ExpertExecutor { get; init; } = FakeExecutorName;
 
     /// <summary>Artifact directories of trusted local Expert Packages to load with the local executor.</summary>
@@ -46,6 +48,18 @@ public sealed record DevHostOptions
     /// </summary>
     public string GatewayApiKeyEnvironmentVariable { get; init; } = DefaultGatewayApiKeyEnvironmentVariable;
 
+    /// <summary>The platform Host base address the remote expert executor calls.</summary>
+    public string? RemoteEndpoint { get; init; }
+
+    /// <summary>
+    /// The environment variable the composition root reads the platform bearer token from. The
+    /// token value itself never enters options; it is resolved per request through a delegate.
+    /// </summary>
+    public string RemoteTokenEnvironmentVariable { get; init; } = DefaultRemoteTokenEnvironmentVariable;
+
+    /// <summary>Explicit contractId → expertPackageId bindings for the remote executor.</summary>
+    public IReadOnlyDictionary<string, string> RemoteBindings { get; init; } = EmptyBindings;
+
     public static DevHostOptions Parse(string[] args)
     {
         ArgumentNullException.ThrowIfNull(args);
@@ -63,16 +77,18 @@ public sealed record DevHostOptions
             if (!argument.StartsWith("--", StringComparison.Ordinal) || index + 1 >= args.Length)
                 throw new ArgumentException($"Unknown or incomplete argument '{argument}'.");
             var value = args[++index];
-            if (argument is "--expert-artifact" or "--contract-assembly" or "--gateway-model" or "--expert-binding")
+            if (argument is "--expert-artifact" or "--contract-assembly" or "--gateway-model" or
+                "--expert-binding" or "--remote-binding")
                 CollectRepeated(repeated, argument, value);
             else
                 values[argument] = value;
         }
 
         var expertExecutor = values.GetValueOrDefault("--expert-executor", FakeExecutorName);
-        if (expertExecutor is not (FakeExecutorName or LocalExecutorName))
+        if (expertExecutor is not (FakeExecutorName or LocalExecutorName or RemoteExecutorName))
             throw new ArgumentException(
-                $"Argument '--expert-executor' must be '{FakeExecutorName}' or '{LocalExecutorName}', but was '{expertExecutor}'.");
+                $"Argument '--expert-executor' must be '{FakeExecutorName}', '{LocalExecutorName}', or " +
+                $"'{RemoteExecutorName}', but was '{expertExecutor}'.");
 
         return new DevHostOptions
         {
@@ -88,11 +104,15 @@ public sealed record DevHostOptions
             ExpertExecutor = expertExecutor,
             ExpertArtifactDirectories = [.. repeated.GetValueOrDefault("--expert-artifact", [])],
             ContractAssemblies = [.. repeated.GetValueOrDefault("--contract-assembly", [])],
-            ExpertBindings = ParseBindings(repeated.GetValueOrDefault("--expert-binding", [])),
+            ExpertBindings = ParseBindings(repeated.GetValueOrDefault("--expert-binding", []), "--expert-binding"),
             GatewayEndpoint = values.GetValueOrDefault("--gateway-endpoint"),
             GatewayModels = [.. repeated.GetValueOrDefault("--gateway-model", [])],
             GatewayApiKeyEnvironmentVariable = values.GetValueOrDefault(
-                "--gateway-api-key-env", DefaultGatewayApiKeyEnvironmentVariable)
+                "--gateway-api-key-env", DefaultGatewayApiKeyEnvironmentVariable),
+            RemoteEndpoint = values.GetValueOrDefault("--remote-endpoint"),
+            RemoteTokenEnvironmentVariable = values.GetValueOrDefault(
+                "--remote-token-env", DefaultRemoteTokenEnvironmentVariable),
+            RemoteBindings = ParseBindings(repeated.GetValueOrDefault("--remote-binding", []), "--remote-binding")
         };
     }
 
@@ -105,7 +125,7 @@ public sealed record DevHostOptions
         list.Add(value);
     }
 
-    private static Dictionary<string, string> ParseBindings(List<string> entries)
+    private static Dictionary<string, string> ParseBindings(List<string> entries, string argumentName)
     {
         var bindings = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var entry in entries)
@@ -113,11 +133,11 @@ public sealed record DevHostOptions
             var separator = entry.IndexOf('=', StringComparison.Ordinal);
             if (separator <= 0 || separator == entry.Length - 1)
                 throw new ArgumentException(
-                    $"Argument '--expert-binding' expects '<contractId>=<expertPackageId>', but was '{entry}'.");
+                    $"Argument '{argumentName}' expects '<contractId>=<expertPackageId>', but was '{entry}'.");
             var contractId = entry[..separator];
             var packageId = entry[(separator + 1)..];
             if (!bindings.TryAdd(contractId, packageId))
-                throw new ArgumentException($"Duplicate '--expert-binding' for contract '{contractId}'.");
+                throw new ArgumentException($"Duplicate '{argumentName}' for contract '{contractId}'.");
         }
         return bindings;
     }

@@ -2,7 +2,6 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Logging;
 using JetBrains.Annotations;
 using ThousandLi.Contracts;
 
@@ -12,14 +11,14 @@ namespace ThousandLi.DevHost;
 public sealed class DevHostApplicationState : IDisposable
 {
     private readonly List<LoadedExpertPackage> _expertPackages;
-    private readonly HttpClient? _gatewayClient;
+    private readonly HttpClient? _httpClient;
 
     internal DevHostApplicationState(
         LoadedGamePackage package,
         LocalGameRuntime runtime,
         BoundPlayerProfile player,
         List<LoadedExpertPackage> expertPackages,
-        HttpClient? gatewayClient,
+        HttpClient? httpClient,
         PlaygroundService playground)
     {
         Package = package;
@@ -27,7 +26,7 @@ public sealed class DevHostApplicationState : IDisposable
         Player = player;
         Playground = playground;
         _expertPackages = expertPackages;
-        _gatewayClient = gatewayClient;
+        _httpClient = httpClient;
     }
 
     public LoadedGamePackage Package { get; }
@@ -39,7 +38,7 @@ public sealed class DevHostApplicationState : IDisposable
     {
         foreach (var expertPackage in _expertPackages)
             expertPackage.Dispose();
-        _gatewayClient?.Dispose();
+        _httpClient?.Dispose();
         Package.Dispose();
     }
 }
@@ -56,10 +55,11 @@ public static class DevHostApplication
         var fakeExperts = ScriptedFakeExpertExecutor.Load(options.FakeScenariosPath);
         var contracts = ExpertComposition.BuildContractRegistry(options.ContractAssemblies);
         var useLocalExperts = options.ExpertExecutor == DevHostOptions.LocalExecutorName;
+        var useRemoteExperts = options.ExpertExecutor == DevHostOptions.RemoteExecutorName;
 
         var gamePackage = GamePackageLoader.Load(
             options.ArtifactDirectory,
-            useLocalExperts
+            useLocalExperts || useRemoteExperts
                 ? [.. fakeExperts.Contracts, .. contracts.Registry.Contracts
                     .Select(contract => contract.ToDescriptor())
                     .Where(descriptor => fakeExperts.Contracts.All(
@@ -77,22 +77,35 @@ public static class DevHostApplication
                 "Local Creator",
                 "Local development player");
             var expertPackages = new List<LoadedExpertPackage>();
-            HttpClient? gatewayClient = null;
+            HttpClient? httpClient = null;
             LocalExpertExecutor? localExperts = null;
+            RemoteExpertComposition? remoteExperts = null;
             try
             {
                 if (useLocalExperts)
                 {
-                    gatewayClient = new HttpClient();
+                    httpClient = new HttpClient();
                     localExperts = ExpertComposition.CreateLocalExecutor(
-                        options, contracts, player, gatewayClient, expertPackages);
+                        options, contracts, player, httpClient, expertPackages);
                 }
+                else if (useRemoteExperts)
+                {
+                    // Long SSE event streams must outlive HttpClient's default 100-second timeout.
+                    httpClient = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+                    remoteExperts = ExpertComposition.CreateRemoteExecutor(options, httpClient);
+                }
+
+                IExpertExecutor experts = fakeExperts;
+                if (localExperts is not null)
+                    experts = localExperts;
+                else if (remoteExperts is not null)
+                    experts = remoteExperts.Executor;
 
                 var runtime = await LocalGameRuntime.CreateAsync(
                     gamePackage.Manifest.PackageId,
                     gamePackage.Backend,
                     player,
-                    localExperts is not null ? localExperts : fakeExperts,
+                    experts,
                     store,
                     sessionId,
                     cancellationToken).ConfigureAwait(false);
@@ -103,23 +116,24 @@ public static class DevHostApplication
                 builder.WebHost.UseUrls($"http://127.0.0.1:{options.Port}");
                 builder.Services.Configure<JsonOptions>(json =>
                     json.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase);
-                // The playground logger comes from the host's own logging pipeline; the factories
-                // keep PlaygroundService and DevHostApplicationState eagerly resolvable singletons.
-                builder.Services.AddSingleton(serviceProvider => new PlaygroundService(
+                var app = builder.Build();
+                // The playground logger comes from the host's own logging pipeline. Both state
+                // objects are plain locals: the web host only maps routes against them, and the
+                // application-stopped callback owns their disposal.
+                var playground = new PlaygroundService(
                     fakeExperts,
                     localExperts,
                     contracts.Registry,
                     recordingStore,
-                    serviceProvider.GetRequiredService<ILoggerFactory>().CreateLogger<PlaygroundService>()));
-                builder.Services.AddSingleton(serviceProvider => new DevHostApplicationState(
+                    app.Services.GetRequiredService<ILoggerFactory>().CreateLogger<PlaygroundService>(),
+                    remoteExperts);
+                var state = new DevHostApplicationState(
                     gamePackage,
                     runtime,
                     player,
                     expertPackages,
-                    gatewayClient,
-                    serviceProvider.GetRequiredService<PlaygroundService>()));
-                var app = builder.Build();
-                var state = app.Services.GetRequiredService<DevHostApplicationState>();
+                    httpClient,
+                    playground);
                 app.Lifetime.ApplicationStopped.Register(state.Dispose);
                 MapRoutes(app, options, state);
                 return app;
@@ -128,7 +142,7 @@ public static class DevHostApplication
             {
                 foreach (var expertPackage in expertPackages)
                     expertPackage.Dispose();
-                gatewayClient?.Dispose();
+                httpClient?.Dispose();
                 throw;
             }
         }
@@ -199,7 +213,12 @@ public static class DevHostApplication
     {
         app.MapGet("/playground", () => Results.Content(PlaygroundPage(), "text/html", Encoding.UTF8));
 
-        app.MapGet("/api/playground/contracts", () => Results.Json(state.Playground.GetContracts()));
+        app.MapGet("/api/playground/contracts", async (HttpContext httpContext) =>
+        {
+            var contracts = await state.Playground.GetContractsAsync(httpContext.RequestAborted)
+                .ConfigureAwait(false);
+            return Results.Json(contracts);
+        });
 
         app.MapGet("/api/playground/history", () => Results.Json(state.Playground.History));
 
