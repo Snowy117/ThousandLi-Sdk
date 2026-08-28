@@ -235,11 +235,11 @@ public sealed class OpenAiCompatibleBasicAi(HttpClient httpClient, OpenAiCompati
             if (frame.Content is not { } content)
                 continue;
             foreach (var streamEvent in parser.Feed(content.AsSpan()))
-                yield return new BasicAiJsonStreamEvent(ToContractsEvent(streamEvent));
+                yield return new BasicAiJsonStreamEvent(ExpertJsonStreamEventMapper.ToContractsEvent(streamEvent));
         }
 
         foreach (var streamEvent in parser.Complete())
-            yield return new BasicAiJsonStreamEvent(ToContractsEvent(streamEvent));
+            yield return new BasicAiJsonStreamEvent(ExpertJsonStreamEventMapper.ToContractsEvent(streamEvent));
     }
 
     private HttpRequestMessage CreateHttpRequest(LocalBasicAiRequest request, bool stream, out string? apiKey)
@@ -395,23 +395,6 @@ public sealed class OpenAiCompatibleBasicAi(HttpClient httpClient, OpenAiCompati
 
         return NonEmpty(ReadStringProperty(message, "reasoning_content"));
     }
-
-    private static JsonStreamEvent ToContractsEvent(ExpertJsonStreamEvent streamEvent) =>
-        streamEvent switch
-        {
-            ExpertJsonObjectStartedEvent started => JsonStreamEvent.ObjectStarted(started.Path),
-            ExpertJsonObjectCompletedEvent completed => JsonStreamEvent.ObjectCompleted(completed.Path),
-            ExpertJsonArrayStartedEvent started => JsonStreamEvent.ArrayStarted(started.Path),
-            ExpertJsonArrayCompletedEvent completed => JsonStreamEvent.ArrayCompleted(completed.Path),
-            ExpertJsonPropertyNameEvent propertyName => JsonStreamEvent.PropertyName(propertyName.Path, propertyName.Name),
-            ExpertJsonStringStartedEvent started => JsonStreamEvent.StringStarted(started.Path),
-            ExpertJsonStringChunkEvent chunk => JsonStreamEvent.StringChunk(chunk.Path, chunk.Value),
-            ExpertJsonStringCompletedEvent completed => JsonStreamEvent.StringCompleted(completed.Path),
-            ExpertJsonNumberValueEvent number => JsonStreamEvent.NumberValue(number.Path, number.RawValue),
-            ExpertJsonBooleanValueEvent boolean => JsonStreamEvent.BooleanValue(boolean.Path, boolean.Value),
-            ExpertJsonNullValueEvent @null => JsonStreamEvent.NullValue(@null.Path),
-            _ => throw new InvalidOperationException($"Unknown stream event type '{streamEvent.GetType().FullName}'.")
-        };
 
     private static void EnsureToolsSupported(BasicAiRequest request)
     {
