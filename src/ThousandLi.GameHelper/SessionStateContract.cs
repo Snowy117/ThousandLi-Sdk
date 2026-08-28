@@ -42,6 +42,7 @@ public sealed class SessionStateContract
         Types = [.. nodes.Values
             .Select(node => new SessionStateTypeDescriptor(node.Type,
                 [.. node.Members.Select(member => member.ToDescriptor())]))];
+        StateSchema = SessionStateZodSchemaRenderer.Render(this);
     }
 
     /// <summary>合同根类型。</summary>
@@ -49,6 +50,20 @@ public sealed class SessionStateContract
 
     /// <summary>合同覆盖的所有对象类型描述符。</summary>
     public IReadOnlyList<SessionStateTypeDescriptor> Types { get; }
+
+    /// <summary>AI 可见成员的 Zod 风格 schema 渲染结果，供变量更新第二遍调用的 StateSchema 输入。</summary>
+    public string StateSchema { get; }
+
+    /// <summary>将已提交状态渲染为 AI 可见的 YAML 摘要（递归仅含 AI-facing 成员）。</summary>
+    public string RenderStateYaml(JsonElement state)
+    {
+        return SessionStateZodSchemaRenderer.RenderStateYaml(this, state);
+    }
+
+    internal JsonElement ProjectAiFacingState(JsonElement state)
+    {
+        return SessionStateAiProjection.Project(this, state);
+    }
 
     /// <summary>从根类型反射创建合同，并校验根类型标注与成员规则。</summary>
     public static SessionStateContract Create(Type rootType, Func<string, Exception>? errorFactory = null)
@@ -108,6 +123,28 @@ public sealed class SessionStateContract
 
         member = null!;
         return false;
+    }
+
+    internal SessionStateSchemaNode GetSchemaNode(Type type, bool aiFacingOnly = false)
+    {
+        type = ResolveKnownType(type);
+        if (_nodes.TryGetValue(type, out var node))
+            return aiFacingOnly ? node.ForAiProjection() : node;
+        return type switch
+        {
+            _ when type.IsGenericType && type.GetGenericTypeDefinition() == typeof(TrackedList<>) =>
+                new SessionStateListNode(GetSchemaNode(type.GetGenericArguments()[0], aiFacingOnly)),
+            _ when type.IsGenericType && type.GetGenericTypeDefinition() == typeof(TrackedDictionary<>) =>
+                new SessionStateDictionaryNode(GetSchemaNode(type.GetGenericArguments()[0], aiFacingOnly)),
+            _ when type.IsEnum => new SessionStateEnumNode(type),
+            _ when type == typeof(string) || type == typeof(char) => SessionStatePrimitiveNode.String,
+            _ when type == typeof(bool) => SessionStatePrimitiveNode.Boolean,
+            _ when type == typeof(int) || type == typeof(long) => new SessionStateNumberNode(Integer: true, type),
+            _ when type == typeof(double) || type == typeof(decimal) =>
+                new SessionStateNumberNode(Integer: false, type),
+            _ => throw new SessionStateContractException(
+                $"SessionState member type '{type.FullName}' is not supported."),
+        };
     }
 
     private static Type NormalizeType(Type type)
@@ -273,7 +310,18 @@ public sealed class SessionStateContract
     }
 }
 
-internal sealed record SessionStateTypeNode(Type Type, IReadOnlyList<SessionStateMemberNode> Members);
+internal sealed record SessionStateTypeNode(Type Type, IReadOnlyList<SessionStateMemberNode> Members)
+    : SessionStateSchemaNode
+{
+    /// <summary>仅保留 AI-facing 成员并按 Order 排序的投影视图（AI 投影 / schema 渲染 / patch 应用共用）。</summary>
+    public SessionStateTypeNode ForAiProjection()
+    {
+        return this with
+        {
+            Members = [.. Members.Where(member => member.AiFacing).OrderBy(member => member.Order)],
+        };
+    }
+}
 
 internal sealed record SessionStateMemberNode(
     PropertyInfo Property,

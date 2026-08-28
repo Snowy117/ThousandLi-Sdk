@@ -53,3 +53,26 @@ public sealed class SessionStateContractException : InvalidOperationException
     {
     }
 }
+
+/// <summary>VariableUpdate 模型 patch proposal 无法通过验证。</summary>
+public sealed class VariableUpdateValidationException : InvalidOperationException
+{
+    /// <summary>创建 VariableUpdate 验证异常。</summary>
+    public VariableUpdateValidationException(string message)
+        : base(message)
+    {
+    }
+
+    /// <summary>创建带内部异常的 VariableUpdate 验证异常。</summary>
+    // ReSharper disable once UnusedMember.Global
+    public VariableUpdateValidationException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+
+    /// <summary>创建无消息的 VariableUpdate 验证异常（满足标准异常构造器约定）。</summary>
+    // ReSharper disable once UnusedMember.Global
+    public VariableUpdateValidationException()
+    {
+    }
+}

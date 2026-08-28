@@ -125,6 +125,40 @@ public sealed class SessionStateContractTests
             () => SessionStateContract.Create(typeof(NonVirtualMemberRoot)));
     }
 
+    [Fact]
+    public void StateSchemaRendersOnlyAiFacingMembersWithRulesAndBounds()
+    {
+        var contract = SessionStateContract.Create(typeof(VisibilityState));
+
+        var schema = contract.StateSchema;
+
+        Assert.Contains("score", schema, StringComparison.Ordinal);
+        Assert.Contains("Keep within range", schema, StringComparison.Ordinal);
+        Assert.Contains(".min(0)", schema, StringComparison.Ordinal);
+        Assert.Contains(".max(10)", schema, StringComparison.Ordinal);
+        Assert.DoesNotContain("internalFlag", schema, StringComparison.Ordinal);
+        Assert.DoesNotContain("notPersisted", schema, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RenderStateYamlOnlyIncludesAiFacingRecursiveMembers()
+    {
+        var contract = SessionStateContract.Create(typeof(RecursiveState));
+        var state = Support.Json(
+            """
+            {"publicNested":{"visible":3,"secret":"hidden"},"persistedNested":{"visible":4,"secret":"stored"},"items":[{"visible":5,"secret":"item"}],"map":{"k":{"visible":6,"secret":"map"}}}
+            """);
+
+        var yaml = contract.RenderStateYaml(state);
+
+        Assert.Contains("publicNested:", yaml, StringComparison.Ordinal);
+        Assert.Contains("visible: 3", yaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret", yaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("persistedNested", yaml, StringComparison.Ordinal);
+        Assert.Contains("items:", yaml, StringComparison.Ordinal);
+        Assert.Contains("map:", yaml, StringComparison.Ordinal);
+    }
+
     [SessionStateRoot]
     private sealed class SealedRoot;
 
@@ -136,5 +170,41 @@ public sealed class SessionStateContractTests
         [SessionStateMember]
         // ReSharper disable once UnusedMember.Global — 仅用于触发非 virtual 成员的契约拒绝
         public string? Value { get; set; }
+    }
+
+    [SessionStateRoot]
+    public class VisibilityState
+    {
+        // ReSharper disable UnusedAutoPropertyAccessor.Global — 契约投影测试固定形状
+        [SessionStateMember] public virtual bool InternalFlag { get; set; }
+
+        [AiStateMember(0, "AI visible score", UpdateRule = "Keep within range", Min = "0", Max = "10")]
+        public virtual int Score { get; set; }
+        // ReSharper restore UnusedAutoPropertyAccessor.Global
+
+        public virtual string NotPersisted { get; set; } = string.Empty;
+    }
+
+    [SessionStateRoot]
+    public class RecursiveState
+    {
+        // ReSharper disable UnusedAutoPropertyAccessor.Global — 契约渲染测试固定形状
+        [AiStateMember(0, "Nested")] public virtual NestedState PublicNested { get; set; } = new();
+
+        [SessionStateMember] public virtual NestedState PersistedNested { get; set; } = new();
+
+        [AiStateMember(1, "Items")] public virtual TrackedList<NestedState> Items { get; set; } = [];
+
+        [AiStateMember(2, "Map")] public virtual TrackedDictionary<NestedState> Map { get; set; } = [];
+        // ReSharper restore UnusedAutoPropertyAccessor.Global
+    }
+
+    public class NestedState
+    {
+        // ReSharper disable UnusedAutoPropertyAccessor.Global — 契约渲染测试固定形状
+        [AiStateMember(0, "Visible")] public virtual int Visible { get; set; }
+
+        [SessionStateMember] public virtual string Secret { get; set; } = string.Empty;
+        // ReSharper restore UnusedAutoPropertyAccessor.Global
     }
 }
