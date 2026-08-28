@@ -25,5 +25,6 @@
     <ProjectReference Include="../ThousandLi.LocalExpertNoContractFixture/ThousandLi.LocalExpertNoContractFixture.csproj" />
     <ProjectReference Include="../ThousandLi.LocalExpertWrongShapeFixture/ThousandLi.LocalExpertWrongShapeFixture.csproj" />
     <ProjectReference Include="../ThousandLi.UnregisteredContractFixture/ThousandLi.UnregisteredContractFixture.csproj" />
+    <ProjectReference Include="../ThousandLi.UserConfigurableSettingsFixture/ThousandLi.UserConfigurableSettingsFixture.csproj" />
   </ItemGroup>
 </Project>
