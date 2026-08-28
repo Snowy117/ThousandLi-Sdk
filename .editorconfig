@@ -9,5 +9,22 @@ insert_final_newline = true
 [*.{cs,csx}]
 indent_size = 4
 
+# Roslyn IDE1006 与 R# InconsistentNaming 是两套独立检查。本仓库 static 字段命名
+# （s_ / SPascal / Pascal 混杂）是既有事实，统一化另行处理；命名裁决以 jb inspectcode
+# （R# InconsistentNaming）为准，故关闭 Roslyn 侧 IDE1006，避免 dotnet format 对存量
+# 代码产生与本 slice 无关的改名要求。
+dotnet_diagnostic.IDE1006.severity = none
+
+# jb/R# ArrangeTrailingCommaInMultilineLists/SinglelineLists：代码库 de facto 使用多行尾逗号
+# （enums / multiline initializers / method calls），dotnet format 对尾逗号静默=允许，
+# 但 jb 默认偏好"不要尾逗号"与之冲突。与父平台仓库采用同一裁决：直接用 _highlighting
+# 键禁用这两条检查，使其与代码库 de facto 风格一致。
+# 注意：不在此声明 dotnet_naming 规则。实测在父仓库内以 submodule 形式运行 jb 时，
+# R# 解析父仓库 .editorconfig 的命名规则（忽略本文件 root=true）；独立 clone 时读本文件。
+# 两个环境的规则集不同，任何 dotnet_naming 声明都会在其中一边产生大量误报，因此本文件
+# 保持命名规则静默，交由 R# 内置默认（static readonly 字段接受 SPascal/PascalCase）裁决。
+resharper_arrange_trailing_comma_in_multiline_lists_highlighting = none
+resharper_arrange_trailing_comma_in_singleline_lists_highlighting = none
+
 [*.{csproj,props,targets,json,jsonc,yml,yaml}]
 indent_size = 2
