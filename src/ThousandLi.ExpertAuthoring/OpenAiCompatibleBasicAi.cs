@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using ThousandLi.Contracts;
 
 namespace ThousandLi.ExpertAuthoring;
 
@@ -52,12 +53,16 @@ public sealed class OpenAiCompatibleBasicAiOptions
 /// <see cref="ILocalBasicAi"/>. SSE framing follows the chat-completions streaming protocol:
 /// <c>data:</c> JSON frames with <c>choices[0].delta.content</c>, terminated by <c>[DONE]</c>.
 /// </summary>
-public sealed class OpenAiCompatibleBasicAi(HttpClient httpClient, OpenAiCompatibleBasicAiOptions options) : ILocalBasicAi
+public sealed class OpenAiCompatibleBasicAi(HttpClient httpClient, OpenAiCompatibleBasicAiOptions options)
+    : ILocalBasicAi, IRuntimeBasicAi
 {
     private readonly HttpClient _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
     private readonly OpenAiCompatibleBasicAiOptions _options = options ?? throw new ArgumentNullException(nameof(options));
 
     public IReadOnlyList<string> AvailableModels => _options.Models;
+
+    IReadOnlyList<BasicAiModelDescriptor> IRuntimeBasicAi.AvailableModels =>
+        [.. _options.Models.Select(model => new BasicAiModelDescriptor(model))];
 
     public async Task<LocalBasicAiCompletionResult> CompleteAsync(
         LocalBasicAiRequest request,
@@ -101,6 +106,63 @@ public sealed class OpenAiCompatibleBasicAi(HttpClient httpClient, OpenAiCompati
         }
     }
 
+    public async Task<BasicAiCompletionResult> CompleteAsync(
+        BasicAiRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        EnsureConfiguredModel(request.ModelId);
+        EnsureToolsSupported(request);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        using var httpRequest = CreateRuntimeHttpRequest(request, stream: false, out var apiKey);
+        using var response = await _httpClient
+            .SendAsync(httpRequest, HttpCompletionOption.ResponseContentRead, cancellationToken)
+            .ConfigureAwait(false);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        EnsureSuccessStatus(response, body, request.ModelId, apiKey);
+
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(body);
+        }
+        catch (JsonException exception)
+        {
+            throw new LocalBasicAiException(
+                $"The gateway response for model '{request.ModelId}' is not valid JSON.",
+                innerException: exception);
+        }
+
+        using (document)
+        {
+            var content = ExtractMessageContent(document.RootElement, request.ModelId);
+            var reasoning = ExtractMessageReasoning(document.RootElement);
+            JsonDocument contentDocument;
+            try
+            {
+                contentDocument = JsonDocument.Parse(content);
+            }
+            catch (JsonException exception)
+            {
+                throw new LocalBasicAiException(
+                    $"The completion for model '{request.ModelId}' is not valid JSON.",
+                    innerException: exception);
+            }
+
+            using (contentDocument)
+            {
+                if (contentDocument.RootElement.ValueKind is not (JsonValueKind.Object or JsonValueKind.Array))
+                {
+                    throw new LocalBasicAiException(
+                        $"The completion for model '{request.ModelId}' does not contain a JSON object or array root.");
+                }
+
+                return new BasicAiCompletionResult(contentDocument.RootElement.Clone(), reasoning);
+            }
+        }
+    }
+
     public async IAsyncEnumerable<ExpertStreamEvent> StreamAsync(
         LocalBasicAiRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -122,21 +184,62 @@ public sealed class OpenAiCompatibleBasicAi(HttpClient httpClient, OpenAiCompati
         var parser = request.ResponseMode == LocalBasicAiResponseMode.Json ? new ExpertJsonStreamParser() : null;
         if (parser is null)
         {
-            await foreach (var delta in ReadContentDeltasAsync(response.Content, request.ModelId, cancellationToken)
+            await foreach (var frame in ReadContentFramesAsync(response.Content, request.ModelId, cancellationToken)
                                .ConfigureAwait(false))
-                yield return new ExpertTextDeltaEvent(delta);
+            {
+                if (frame.Content is { } delta)
+                    yield return new ExpertTextDeltaEvent(delta);
+            }
+
             yield break;
         }
 
-        await foreach (var delta in ReadContentDeltasAsync(response.Content, request.ModelId, cancellationToken)
+        await foreach (var frame in ReadContentFramesAsync(response.Content, request.ModelId, cancellationToken)
                            .ConfigureAwait(false))
         {
-            foreach (var streamEvent in parser.Feed(delta.AsSpan()))
+            if (frame.Content is not { } content)
+                continue;
+            foreach (var streamEvent in parser.Feed(content.AsSpan()))
                 yield return streamEvent;
         }
 
         foreach (var streamEvent in parser.Complete())
             yield return streamEvent;
+    }
+
+    public async IAsyncEnumerable<BasicAiStreamEvent> StreamAsync(
+        BasicAiRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        EnsureConfiguredModel(request.ModelId);
+        EnsureToolsSupported(request);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        using var httpRequest = CreateRuntimeHttpRequest(request, stream: true, out var apiKey);
+        using var response = await _httpClient
+            .SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            throw CreateStatusException(response, body, request.ModelId, apiKey);
+        }
+
+        var parser = new ExpertJsonStreamParser();
+        await foreach (var frame in ReadContentFramesAsync(response.Content, request.ModelId, cancellationToken)
+                           .ConfigureAwait(false))
+        {
+            if (frame.Reasoning is { } reasoning)
+                yield return new BasicAiReasoningStreamEvent(reasoning);
+            if (frame.Content is not { } content)
+                continue;
+            foreach (var streamEvent in parser.Feed(content.AsSpan()))
+                yield return new BasicAiJsonStreamEvent(ToContractsEvent(streamEvent));
+        }
+
+        foreach (var streamEvent in parser.Complete())
+            yield return new BasicAiJsonStreamEvent(ToContractsEvent(streamEvent));
     }
 
     private HttpRequestMessage CreateHttpRequest(LocalBasicAiRequest request, bool stream, out string? apiKey)
@@ -156,7 +259,46 @@ public sealed class OpenAiCompatibleBasicAi(HttpClient httpClient, OpenAiCompati
         return httpRequest;
     }
 
-    private static async IAsyncEnumerable<string> ReadContentDeltasAsync(
+    private HttpRequestMessage CreateRuntimeHttpRequest(BasicAiRequest request, bool stream, out string? apiKey)
+    {
+        apiKey = _options.ApiKeyProvider?.Invoke();
+        var httpRequest = new HttpRequestMessage(HttpMethod.Post, _options.Endpoint);
+        if (!string.IsNullOrWhiteSpace(apiKey))
+            httpRequest.Headers.TryAddWithoutValidation("Authorization", $"Bearer {apiKey}");
+        httpRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(stream ? "text/event-stream" : "application/json"));
+        var payload = new Dictionary<string, object?>
+        {
+            ["model"] = request.ModelId,
+            ["stream"] = stream,
+            ["messages"] = request.Messages.Select(message => new Dictionary<string, object?>
+            {
+                ["role"] = ToWireRole(message.Role),
+                ["content"] = message.Content
+            }),
+            ["response_format"] = new Dictionary<string, object?> { ["type"] = "json_object" }
+        };
+        if (request.Sampling?.Temperature is { } temperature)
+            payload["temperature"] = temperature;
+        if (request.Sampling?.TopP is { } topP)
+            payload["top_p"] = topP;
+        httpRequest.Content = new StringContent(
+            JsonSerializer.Serialize(payload),
+            Encoding.UTF8,
+            "application/json");
+        return httpRequest;
+    }
+
+    private static string ToWireRole(BasicAiMessageRole role) => role switch
+    {
+        BasicAiMessageRole.System => "system",
+        BasicAiMessageRole.User => "user",
+        BasicAiMessageRole.Assistant => "assistant",
+        _ => throw new ArgumentOutOfRangeException(nameof(role), role, "Unknown message role.")
+    };
+
+    private readonly record struct ContentFrame(string? Content, string? Reasoning);
+
+    private static async IAsyncEnumerable<ContentFrame> ReadContentFramesAsync(
         HttpContent content,
         string modelId,
         [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -172,13 +314,12 @@ public sealed class OpenAiCompatibleBasicAi(HttpClient httpClient, OpenAiCompati
             var payload = line["data:".Length..].Trim();
             if (payload == "[DONE]")
                 yield break;
-            var delta = ExtractDeltaContent(payload, modelId);
-            if (delta.Length > 0)
-                yield return delta;
+            if (ExtractDeltaFrame(payload, modelId) is { } frame)
+                yield return frame;
         }
     }
 
-    private static string ExtractDeltaContent(string payload, string modelId)
+    private static ContentFrame? ExtractDeltaFrame(string payload, string modelId)
     {
         JsonDocument document;
         try
@@ -202,16 +343,23 @@ public sealed class OpenAiCompatibleBasicAi(HttpClient httpClient, OpenAiCompati
             var firstChoice = choices[0];
             if (firstChoice.ValueKind != JsonValueKind.Object ||
                 !firstChoice.TryGetProperty("delta", out var delta) ||
-                delta.ValueKind != JsonValueKind.Object ||
-                !delta.TryGetProperty("content", out var content) ||
-                content.ValueKind != JsonValueKind.String)
+                delta.ValueKind != JsonValueKind.Object)
             {
-                return string.Empty;
+                return null;
             }
 
-            return content.GetString() ?? string.Empty;
+            return new ContentFrame(
+                NonEmpty(ReadStringProperty(delta, "content")),
+                NonEmpty(ReadStringProperty(delta, "reasoning_content")));
         }
     }
+
+    private static string? ReadStringProperty(JsonElement parent, string name) =>
+        parent.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
+    private static string? NonEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
 
     private static string ExtractMessageContent(JsonElement root, string modelId)
     {
@@ -231,6 +379,47 @@ public sealed class OpenAiCompatibleBasicAi(HttpClient httpClient, OpenAiCompati
         }
 
         return content.GetString() ?? string.Empty;
+    }
+
+    private static string? ExtractMessageReasoning(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("choices", out var choices))
+            return null;
+        if (choices.ValueKind != JsonValueKind.Array || choices.GetArrayLength() == 0)
+            return null;
+        var firstChoice = choices[0];
+        if (firstChoice.ValueKind != JsonValueKind.Object ||
+            !firstChoice.TryGetProperty("message", out var message) ||
+            message.ValueKind != JsonValueKind.Object)
+            return null;
+
+        return NonEmpty(ReadStringProperty(message, "reasoning_content"));
+    }
+
+    private static JsonStreamEvent ToContractsEvent(ExpertJsonStreamEvent streamEvent) =>
+        streamEvent switch
+        {
+            ExpertJsonObjectStartedEvent started => JsonStreamEvent.ObjectStarted(started.Path),
+            ExpertJsonObjectCompletedEvent completed => JsonStreamEvent.ObjectCompleted(completed.Path),
+            ExpertJsonArrayStartedEvent started => JsonStreamEvent.ArrayStarted(started.Path),
+            ExpertJsonArrayCompletedEvent completed => JsonStreamEvent.ArrayCompleted(completed.Path),
+            ExpertJsonPropertyNameEvent propertyName => JsonStreamEvent.PropertyName(propertyName.Path, propertyName.Name),
+            ExpertJsonStringStartedEvent started => JsonStreamEvent.StringStarted(started.Path),
+            ExpertJsonStringChunkEvent chunk => JsonStreamEvent.StringChunk(chunk.Path, chunk.Value),
+            ExpertJsonStringCompletedEvent completed => JsonStreamEvent.StringCompleted(completed.Path),
+            ExpertJsonNumberValueEvent number => JsonStreamEvent.NumberValue(number.Path, number.RawValue),
+            ExpertJsonBooleanValueEvent boolean => JsonStreamEvent.BooleanValue(boolean.Path, boolean.Value),
+            ExpertJsonNullValueEvent @null => JsonStreamEvent.NullValue(@null.Path),
+            _ => throw new InvalidOperationException($"Unknown stream event type '{streamEvent.GetType().FullName}'.")
+        };
+
+    private static void EnsureToolsSupported(BasicAiRequest request)
+    {
+        if (request.Tools.Count > 0)
+        {
+            throw new NotSupportedException(
+                "The OpenAI-compatible local gateway adapter does not forward tool declarations; tools are reserved for platform-hosted bridges.");
+        }
     }
 
     private static void EnsureSuccessStatus(HttpResponseMessage response, string body, string modelId, string? apiKey)
