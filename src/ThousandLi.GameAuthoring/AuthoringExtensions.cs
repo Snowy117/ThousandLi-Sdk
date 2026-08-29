@@ -30,16 +30,3 @@ public static class AuthoringExtensions
         }
     }
 }
-
-public sealed class DelegateExpertSemanticEventSink(
-    Func<ExpertSemanticEvent, CancellationToken, ValueTask> handler) : IExpertSemanticEventSink
-{
-    private readonly Func<ExpertSemanticEvent, CancellationToken, ValueTask> _handler =
-        handler ?? throw new ArgumentNullException(nameof(handler));
-
-    public ValueTask WriteAsync(ExpertSemanticEvent semanticEvent, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(semanticEvent);
-        return _handler(semanticEvent, cancellationToken);
-    }
-}

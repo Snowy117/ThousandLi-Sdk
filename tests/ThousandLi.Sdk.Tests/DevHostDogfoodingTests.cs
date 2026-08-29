@@ -3,7 +3,6 @@ using System.Text.Json;
 using ThousandLi.Contracts;
 using ThousandLi.DevHost;
 using ThousandLi.GameHelper;
-using ThousandLi.Testing;
 using InMemoryGameSettingsStore = ThousandLi.DevHost.InMemoryGameSettingsStore;
 using InMemoryHistoryBucketSet = ThousandLi.DevHost.InMemoryHistoryBucketSet;
 
@@ -165,7 +164,6 @@ public sealed class DevHostDogfoodingTests
             "tests_game@1.0.0",
             backend,
             Player,
-            new ThrowingExpertExecutor(),
             new InMemoryLocalSessionStore(),
             new SessionId("dogfood-1"),
             expertFacade: facade,

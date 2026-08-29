@@ -1,6 +1,5 @@
 using ThousandLi.Contracts;
 using ThousandLi.DevHost;
-using ThousandLi.ExpertContracts.Narration;
 
 namespace ThousandLi.Sdk.Tests;
 
@@ -13,7 +12,7 @@ public sealed class CompatibilityAndPackageLoaderTests
         var available = new DevHostCompatibility(
             SdkContracts.Runtime,
             SdkContracts.Frontend,
-            [AbstractNarratorExpert.Descriptor]);
+            [AbstractLongTextWritingExpert.Descriptor]);
 
         CompatibilityValidator.Validate(manifest, available);
 
@@ -40,7 +39,7 @@ public sealed class CompatibilityAndPackageLoaderTests
 
         var exception = Assert.Throws<CompatibilityException>(() =>
             CompatibilityValidator.Validate(manifest, new DevHostCompatibility(
-                SdkContracts.Runtime, SdkContracts.Frontend, [AbstractNarratorExpert.Descriptor])));
+                SdkContracts.Runtime, SdkContracts.Frontend, [AbstractLongTextWritingExpert.Descriptor])));
 
         Assert.Contains("2.0", exception.Message, StringComparison.Ordinal);
         Assert.Contains(SdkContracts.Runtime.ToString(), exception.Message, StringComparison.Ordinal);
@@ -51,8 +50,8 @@ public sealed class CompatibilityAndPackageLoaderTests
     {
         var manifest = GamePackageManifest.Parse(ManifestJson());
         var incompatible = new ExpertContractDescriptor(
-            AbstractNarratorExpert.Descriptor.Id,
-            AbstractNarratorExpert.Descriptor.Version,
+            AbstractLongTextWritingExpert.Descriptor.Id,
+            AbstractLongTextWritingExpert.Descriptor.Version,
             "wrong");
 
         var exception = Assert.Throws<CompatibilityException>(() =>
@@ -73,7 +72,7 @@ public sealed class CompatibilityAndPackageLoaderTests
         Assert.True(File.Exists(Path.Combine(artifact, "frontend", "index.html")));
         Assert.True(File.Exists(Path.Combine(artifact, "bin", "ThousandLi.SampleGame.dll")));
 
-        using var loaded = GamePackageLoader.Load(artifact, [AbstractNarratorExpert.Descriptor]);
+        using var loaded = GamePackageLoader.Load(artifact, [AbstractLongTextWritingExpert.Descriptor]);
 
         Assert.IsType<IGameBackend>(loaded.Backend, exactMatch: false);
         Assert.Same(typeof(IGameBackend).Assembly, loaded.Backend.GetType().Assembly
@@ -155,9 +154,9 @@ public sealed class CompatibilityAndPackageLoaderTests
             "frontend": { "major": 1, "minor": 0 },
             "expertContracts": [
               {
-                "id": "thousandli.expert/narrator",
+                "id": "thousandli.expert/long-text-writing",
                 "version": { "major": 1, "minor": 0 },
-                "fingerprint": "c514466424e626a6f24dfb5b53894c493351fb2466d30f1ba6e00e5153264b10"
+                "fingerprint": "573299a67800f57dead23e7fc320857b8725440df2260e9050afb70cfe247488"
               }
             ]
           }

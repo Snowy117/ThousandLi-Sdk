@@ -4,7 +4,6 @@ using JetBrains.Annotations;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using ThousandLi.Contracts;
-using ThousandLi.ExpertContracts;
 using ThousandLi.RemoteExperts;
 using ThousandLi.Testing;
 
@@ -390,7 +389,7 @@ public sealed class PlaygroundService(
                     if (local is null)
                         throw new ArgumentException(
                             "The local expert executor is not configured; start DevHost with " +
-                            $"'--expert-executor {DevHostOptions.LocalExecutorName}' and expert artifacts.");
+                            $"'--experts {DevHostOptions.LocalExecutorName}' and expert artifacts.");
                     return ResolveRegisteredDescriptor(command.ContractId);
                 }
 
@@ -399,7 +398,7 @@ public sealed class PlaygroundService(
                     if (remote is null)
                         throw new ArgumentException(
                             "The remote expert executor is not configured; start DevHost with " +
-                            $"'--expert-executor {DevHostOptions.RemoteExecutorName}' and '--remote-endpoint'.");
+                            $"'--experts {DevHostOptions.RemoteExecutorName}' and '--remote-endpoint'.");
                     // The local registration is the invocation-side requirement; the remote executor
                     // precheck reconciles it against the platform catalog with required/available details.
                     return ResolveRegisteredDescriptor(command.ContractId);
@@ -439,7 +438,7 @@ public sealed class PlaygroundService(
     {
         var composition = remote ?? throw new ArgumentException(
             "The remote expert executor is not configured; start DevHost with " +
-            $"'--expert-executor {DevHostOptions.RemoteExecutorName}' and '--remote-endpoint'.");
+            $"'--experts {DevHostOptions.RemoteExecutorName}' and '--remote-endpoint'.");
         if (string.IsNullOrWhiteSpace(command.ExpertPackageId))
             return composition.Executor;
         return new RemoteExpertExecutor(

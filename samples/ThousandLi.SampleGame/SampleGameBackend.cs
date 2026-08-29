@@ -1,16 +1,14 @@
 using System.Text;
 using System.Text.Json;
 using ThousandLi.Contracts;
-using ThousandLi.ExpertContracts.Narration;
 using ThousandLi.GameAuthoring;
 using ThousandLi.GameHelper;
 
 namespace ThousandLi.SampleGame;
 
 /// <summary>
-/// Sample 游戏 backend。<c>advance</c> 演示结构化 <see cref="IExpertExecutor" /> 端口
-/// （ExpertContracts 场景），<c>reflect</c> 演示类型化 <see cref="AbstractLongTextWritingExpert" />
-/// 门面加 GameHelper 托管变量更新管线。
+/// Sample 游戏 backend。两条路径都用类型化 <see cref="AbstractLongTextWritingExpert" /> 门面：
+/// <c>advance</c> 是最小门面调用，<c>reflect</c> 额外演示 GameHelper 托管变量更新管线。
 /// </summary>
 public sealed class SampleGameBackend : IGameBackend
 {
@@ -74,23 +72,22 @@ public sealed class SampleGameBackend : IGameBackend
         CancellationToken cancellationToken)
     {
         var currentTurn = context.State.Get(new JsonPointer("/turn")).GetInt32();
-        var input = JsonSerializer.SerializeToElement(new
-        {
-            turn = currentTurn + 1,
-            player = context.PlayerProfile.PlayerName,
-            action = action.Payload
-        });
-        var semanticEvents = new DelegateExpertSemanticEventSink(async (semanticEvent, token) =>
-            await context.Frontend.WriteAsync(
-                semanticEvent.EventType,
-                semanticEvent.Payload,
-                token).ConfigureAwait(false));
-        var result = await context.ExpertExecutor.ExecuteAsync(
-            new ExpertInvocationRequest(AbstractNarratorExpert.Descriptor, "advance", input),
-            semanticEvents,
-            cancellationToken).ConfigureAwait(false);
+        var narrative = new StringBuilder();
+        await context.Experts
+            .Use<AbstractLongTextWritingExpert>()
+            .WithWorldSettings(WorldSettings)
+            .WithPlayerInput($"turn {currentTurn + 1} for {context.PlayerProfile.PlayerName}: " +
+                             action.Payload.GetRawText())
+            .WithPlayerPersona(context.PlayerProfile.Persona)
+            .WithPrimaryOutput(new TextPrimaryOutput((delta, token) =>
+            {
+                narrative.Append(delta.Delta);
+                return context.Frontend.WriteAsync("narrativeDelta", new { text = delta.Delta }, token);
+            }))
+            .StreamAsync(cancellationToken)
+            .ConfigureAwait(false);
         context.State.Replace("/turn", currentTurn + 1);
-        context.State.Replace("/lastNarrative", result.Output.GetProperty("text").GetString());
+        context.State.Replace("/lastNarrative", narrative.ToString());
     }
 
     private static async ValueTask HandleReflectAsync(

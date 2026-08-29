@@ -1,8 +1,7 @@
 using System.Text.Json;
 using JetBrains.Annotations;
-using ThousandLi.Contracts;
 
-namespace ThousandLi.ExpertAuthoring;
+namespace ThousandLi.Contracts;
 
 /// <summary>
 /// The schema-driven BasicAi capability used by expert execution flows. Callers supply messages,

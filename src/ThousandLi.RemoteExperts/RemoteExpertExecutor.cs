@@ -49,14 +49,13 @@ public sealed record RemoteExpertExecutorOptions
 }
 
 /// <summary>
-/// Executes expert invocations on the remote platform through the <see cref="IExpertExecutor" />
-/// seam: binding resolution, catalog precheck, idempotent start, SSE streaming with deduplicating
-/// reconnect, cancellation propagation (DELETE), and timeout. The idempotency key is the request
+/// Executes expert invocations on the remote platform: binding resolution, catalog precheck,
+/// idempotent start, SSE streaming with deduplicating reconnect, cancellation propagation
+/// (DELETE), and timeout. The idempotency key is the request
 /// <see cref="ExpertInvocationRequest.ChannelKey" /> when present, so replaying a channel key
 /// resumes the same remote invocation instead of executing twice.
 /// </summary>
 public sealed class RemoteExpertExecutor(RemoteExpertClient client, RemoteExpertExecutorOptions options)
-    : IExpertExecutor
 {
     private static readonly JsonElement NullOutput = CreateNullElement();
 
@@ -64,7 +63,7 @@ public sealed class RemoteExpertExecutor(RemoteExpertClient client, RemoteExpert
     private readonly RemoteExpertExecutorOptions _options =
         options ?? throw new ArgumentNullException(nameof(options));
 
-    /// <inheritdoc />
+    /// <summary>Starts, streams, and completes one remote expert invocation.</summary>
     public async ValueTask<ExpertInvocationResult> ExecuteAsync(
         ExpertInvocationRequest request,
         IExpertSemanticEventSink events,

@@ -27,7 +27,7 @@ public sealed record FakeExpertScenario
     public JsonElement Result { get; }
 }
 
-public sealed class FakeExpertExecutor : IExpertExecutor
+public sealed class FakeExpertExecutor
 {
     private readonly Dictionary<string, FakeExpertScenario> _scenarios;
     private readonly ConcurrentQueue<ExpertInvocationRecord> _invocations = new();
@@ -85,25 +85,6 @@ public sealed class FakeExpertExecutor : IExpertExecutor
     }
 
     private static string CreateKey(string contractId, string scenarioId) => $"{contractId}\n{scenarioId}";
-}
-
-[JetBrains.Annotations.PublicAPI]
-public sealed class ThrowingExpertExecutor : IExpertExecutor
-{
-    /// <summary>共享实例（无状态）。</summary>
-    public static ThrowingExpertExecutor Instance { get; } = new();
-
-    /// <inheritdoc />
-    public ValueTask<ExpertInvocationResult> ExecuteAsync(
-        ExpertInvocationRequest request,
-        IExpertSemanticEventSink events,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(events);
-        cancellationToken.ThrowIfCancellationRequested();
-        throw new InvalidOperationException("No Expert executor is configured for this local runtime.");
-    }
 }
 
 internal static class JsonContractGuardForTesting

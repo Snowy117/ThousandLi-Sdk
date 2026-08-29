@@ -3,8 +3,9 @@ using ThousandLi.Contracts;
 namespace ThousandLi.DevHost;
 
 /// <summary>
-/// DevHost 未配置脚本化类型化专家时的禁用 facade：任何 <c>Use&lt;T&gt;</c> 都抛
-/// <see cref="InvalidOperationException" />，避免静默返回 null 或空实现。
+/// DevHost remote 模式下的游戏面禁用 facade：游戏代码调用 <c>Use&lt;T&gt;</c> 立即抛
+/// <see cref="InvalidOperationException" /> 并指路 Playground，绝不静默兜底（片1 的 remote
+/// 游戏 facade 于 0.4.0-preview.2 交付）。
 /// </summary>
 public sealed class DisabledExpertFacade : IExpertFacade
 {
@@ -15,6 +16,8 @@ public sealed class DisabledExpertFacade : IExpertFacade
     public TAbstract Use<TAbstract>() where TAbstract : AbstractLongTextWritingExpert
     {
         throw new InvalidOperationException(
-            $"Typed expert facade '{typeof(TAbstract).FullName}' is not configured in the local DevHost yet.");
+            $"The game-facing expert facade for '{typeof(TAbstract).FullName}' is not available in this DevHost " +
+            "mode: the remote game-facing facade arrives in 0.4.0-preview.2. Use the Playground " +
+            "(/playground) to debug remote experts in the meantime.");
     }
 }

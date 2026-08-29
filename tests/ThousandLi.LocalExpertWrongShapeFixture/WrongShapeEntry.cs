@@ -1,8 +1,7 @@
 using ThousandLi.Contracts;
-using ThousandLi.ExpertContracts.Narration;
 
 [assembly: ExpertPackageEntryPoint(
-    typeof(AbstractNarratorExpert),
+    typeof(AbstractLongTextWritingExpert),
     typeof(ThousandLi.LocalExpertWrongShapeFixture.NotAnExpert))]
 
 namespace ThousandLi.LocalExpertWrongShapeFixture;

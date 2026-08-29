@@ -1,19 +1,19 @@
 using System.Text.Json;
 using ThousandLi.Contracts;
-using ThousandLi.ExpertContracts.Narration;
+using ThousandLi.ExpertAuthoring;
 
 [assembly: ExpertPackageEntryPoint(
-    typeof(AbstractNarratorExpert),
-    typeof(ThousandLi.LocalExpertMultiEntryFixture.FirstNarratorExpert))]
+    typeof(AbstractLongTextWritingExpert),
+    typeof(ThousandLi.LocalExpertMultiEntryFixture.FirstLongTextWritingExpert))]
 [assembly: ExpertPackageEntryPoint(
-    typeof(AbstractNarratorExpert),
-    typeof(ThousandLi.LocalExpertMultiEntryFixture.SecondNarratorExpert))]
+    typeof(AbstractLongTextWritingExpert),
+    typeof(ThousandLi.LocalExpertMultiEntryFixture.SecondLongTextWritingExpert))]
 
 namespace ThousandLi.LocalExpertMultiEntryFixture;
 
-public sealed class FirstNarratorExpert : AbstractNarratorExpert
+public sealed class FirstLongTextWritingExpert : AbstractLongTextWritingExpert, IInvocableExpert
 {
-    public override Task<JsonElement> InvokeAsync(
+    public Task<JsonElement> InvokeAsync(
         JsonElement input,
         IExpertSemanticEventSink events,
         CancellationToken cancellationToken = default) =>
@@ -26,9 +26,9 @@ public sealed class FirstNarratorExpert : AbstractNarratorExpert
         throw new NotImplementedException();
 }
 
-public sealed class SecondNarratorExpert : AbstractNarratorExpert
+public sealed class SecondLongTextWritingExpert : AbstractLongTextWritingExpert, IInvocableExpert
 {
-    public override Task<JsonElement> InvokeAsync(
+    public Task<JsonElement> InvokeAsync(
         JsonElement input,
         IExpertSemanticEventSink events,
         CancellationToken cancellationToken = default) =>

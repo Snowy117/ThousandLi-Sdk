@@ -12,9 +12,9 @@ public static class Slice1CompatDriver
     public static string[] RunSlice1CompatScenario()
     {
         var contract = new ExpertContractDescriptor(
-            "thousandli.fixture/narrator",
+            "thousandli.fixture/long-text-writing",
             new ContractVersion(1, 0),
-            "fixture-narrator-v1");
+            "fixture-long-text-writing-v1");
         var request = new ExpertInvocationRequest(contract, "default", Json("{\"value\":42}"));
         var executor = new FakeExpertExecutor([
             new FakeExpertScenario(

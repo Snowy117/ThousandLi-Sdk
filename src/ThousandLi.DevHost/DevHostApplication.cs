@@ -53,11 +53,10 @@ public static class DevHostApplication
         ArgumentNullException.ThrowIfNull(options);
         ExpertComposition.ValidateExecutorOptions(options);
         var fakeExperts = ScriptedFakeExpertExecutor.Load(options.FakeScenariosPath);
-        var expertFacade = ScriptedLongTextWritingExpertFacade.Load(options.FakeScenariosPath);
         var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
         var contracts = ExpertComposition.BuildContractRegistry(options.ContractAssemblies);
-        var useLocalExperts = options.ExpertExecutor == DevHostOptions.LocalExecutorName;
-        var useRemoteExperts = options.ExpertExecutor == DevHostOptions.RemoteExecutorName;
+        var useLocalExperts = options.Experts == DevHostOptions.LocalExecutorName;
+        var useRemoteExperts = options.Experts == DevHostOptions.RemoteExecutorName;
 
         var gamePackage = GamePackageLoader.Load(
             options.ArtifactDirectory,
@@ -97,17 +96,21 @@ public static class DevHostApplication
                     remoteExperts = ExpertComposition.CreateRemoteExecutor(options, httpClient);
                 }
 
-                IExpertExecutor experts = fakeExperts;
+                // The game-facing facade follows the selected expert mode: scripted doubles for
+                // fake, the same create-and-bind flow as the production Host for local, and a
+                // fail-fast placeholder for remote (arriving with the remote fidelity slice).
+                IExpertFacade expertFacade;
                 if (localExperts is not null)
-                    experts = localExperts;
-                else if (remoteExperts is not null)
-                    experts = remoteExperts.Executor;
+                    expertFacade = new LocalExpertFacade(localExperts);
+                else if (useRemoteExperts)
+                    expertFacade = DisabledExpertFacade.Instance;
+                else
+                    expertFacade = ScriptedLongTextWritingExpertFacade.Load(options.FakeScenariosPath);
 
                 var runtime = await LocalGameRuntime.CreateAsync(
                     gamePackage.Manifest.PackageId,
                     gamePackage.Backend,
                     player,
-                    experts,
                     store,
                     sessionId,
                     expertFacade,
@@ -170,8 +173,8 @@ public static class DevHostApplication
             playerId = state.Player.PlayerId.Value,
             playerName = state.Player.PlayerName,
             persona = state.Player.Persona,
-            expertExecutor = options.ExpertExecutor,
-            expertPackageId = options.ExpertExecutor,
+            expertExecutor = options.Experts,
+            expertPackageId = options.Experts,
             committedState = state.Runtime.CommittedState
         }));
 
@@ -441,7 +444,7 @@ public static class DevHostApplication
         <label for="package">Expert package <span class="hint">(local override, optional)</span></label>
         <select id="package"><option value="">— configured binding —</option></select>
         <label for="input">Input JSON</label>
-        <textarea id="input">{"turn":1,"player":"traveler","action":"look around"}</textarea>
+        <textarea id="input">{"worldSettings":"A quiet valley under autumn rain.","playerInput":"look around"}</textarea>
         <div class="check"><input type="checkbox" id="record"><label for="record">Record invocation</label></div>
         <div class="row" style="margin-top:12px">
           <button id="invoke" disabled>Invoke</button>

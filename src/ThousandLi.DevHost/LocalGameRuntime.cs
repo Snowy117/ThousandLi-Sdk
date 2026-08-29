@@ -13,7 +13,6 @@ public sealed class LocalGameRuntime
     private readonly SemaphoreSlim _actionGate = new(1, 1);
     private readonly IGameBackend _backend;
     private readonly BoundPlayerProfile _playerProfile;
-    private readonly IExpertExecutor _experts;
     private readonly IExpertFacade _expertFacade;
     private readonly IHistoryBucketSet _buckets;
     private readonly IHistoryBucketSetHost _bucketHost;
@@ -25,7 +24,6 @@ public sealed class LocalGameRuntime
     private LocalGameRuntime(
         IGameBackend backend,
         BoundPlayerProfile playerProfile,
-        IExpertExecutor experts,
         IExpertFacade expertFacade,
         IHistoryBucketSet buckets,
         ILocalSessionStore store,
@@ -35,7 +33,6 @@ public sealed class LocalGameRuntime
     {
         _backend = backend;
         _playerProfile = playerProfile;
-        _experts = experts;
         _expertFacade = expertFacade;
         _buckets = buckets;
         _bucketHost = buckets as IHistoryBucketSetHost ?? new NoopHistoryBucketSetHost(buckets);
@@ -53,7 +50,6 @@ public sealed class LocalGameRuntime
         string packageId,
         IGameBackend backend,
         BoundPlayerProfile playerProfile,
-        IExpertExecutor experts,
         ILocalSessionStore store,
         SessionId sessionId,
         IExpertFacade? expertFacade = null,
@@ -65,7 +61,6 @@ public sealed class LocalGameRuntime
         ArgumentException.ThrowIfNullOrWhiteSpace(packageId);
         ArgumentNullException.ThrowIfNull(backend);
         ArgumentNullException.ThrowIfNull(playerProfile);
-        ArgumentNullException.ThrowIfNull(experts);
         ArgumentNullException.ThrowIfNull(store);
 
         var bucketSet = buckets ?? new InMemoryHistoryBucketSet();
@@ -80,7 +75,7 @@ public sealed class LocalGameRuntime
                     $"Session '{sessionId}' belongs to package '{existing.PackageId}', not '{packageId}'.");
             }
             return new LocalGameRuntime(
-                backend, playerProfile, experts, expertFacade ?? DisabledExpertFacade.Instance,
+                backend, playerProfile, expertFacade ?? DisabledExpertFacade.Instance,
                 bucketSet, store, existing, settingsStore, executionLogger);
         }
 
@@ -96,7 +91,7 @@ public sealed class LocalGameRuntime
             committedActions: []);
         await store.SaveAsync(session, cancellationToken).ConfigureAwait(false);
         return new LocalGameRuntime(
-            backend, playerProfile, experts, expertFacade ?? DisabledExpertFacade.Instance,
+            backend, playerProfile, expertFacade ?? DisabledExpertFacade.Instance,
             bucketSet, store, session, settingsStore, executionLogger);
     }
 
@@ -175,7 +170,6 @@ public sealed class LocalGameRuntime
                 frontend,
                 new LocalActionHistory(baseSession.CommittedActions),
                 _expertFacade,
-                _experts,
                 _buckets,
                 getGameSettings: null,
                 _gameSettingsStore,

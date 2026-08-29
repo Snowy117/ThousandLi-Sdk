@@ -1,4 +1,5 @@
 using ThousandLi.Contracts;
+using ThousandLi.Testing;
 
 namespace ThousandLi.Sdk.Tests;
 
@@ -139,7 +140,11 @@ public sealed class ExpertFacadeContractTests
     private sealed class ContextSupportFakeFacade : IExpertFacade
     {
         public TAbstract Use<TAbstract>() where TAbstract : AbstractLongTextWritingExpert
-            => (TAbstract)(AbstractLongTextWritingExpert)new RecordingLongTextWritingExpert();
+        {
+            var expert = new RecordingLongTextWritingExpert();
+            expert.Bind(FakeExpertExecutionContext.Instance);
+            return (TAbstract)(AbstractLongTextWritingExpert)expert;
+        }
     }
 
     private sealed class InMemoryBucketStub : IHistoryBucket

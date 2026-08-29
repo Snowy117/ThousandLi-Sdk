@@ -67,7 +67,7 @@ public sealed record ExpertRecordingTerminal
 /// One semantic expert invocation recording: the contract descriptor, the structured input, the
 /// ordered semantic event stream, the terminal result, and deterministic correlation metadata.
 ///
-/// Recordings live at the <c>IExpertExecutor</c> seam (contract-level expert behavior). They are
+/// Recordings live at the expert invocation seam (contract-level expert behavior). They are
 /// deliberately separate from <c>RecordedBasicAi</c> (ThousandLi.ExpertAuthoring), which replays
 /// model-level gateway interactions below the expert seam: one expert invocation maps to zero or
 /// many model calls, so the two formats have no one-to-one correspondence. Both share the same

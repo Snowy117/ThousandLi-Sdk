@@ -4,8 +4,12 @@ using ThousandLi.Contracts;
 
 namespace ThousandLi.DevHost;
 
+/// <summary>
+/// Deterministic scripted executor for the expert invocation protocol (Playground / tests). This
+/// is a tool surface, not a game-authoring API; game code reaches experts through the typed facade.
+/// </summary>
 [JetBrains.Annotations.PublicAPI]
-public sealed class ScriptedFakeExpertExecutor : IExpertExecutor
+public sealed class ScriptedFakeExpertExecutor
 {
     private readonly IReadOnlyDictionary<string, ScriptedScenario> _scenarios;
     private readonly ConcurrentQueue<ExpertInvocationRecord> _invocations = new();
@@ -34,12 +38,27 @@ public sealed class ScriptedFakeExpertExecutor : IExpertExecutor
                 throw new InvalidOperationException("Each Fake scenario must be a JSON object.");
             var contractElement = item.GetProperty("contract");
             var versionElement = contractElement.GetProperty("version");
+            var contractId = contractElement.GetProperty("id").GetString()!;
+            var fingerprintElement = contractElement.TryGetProperty("fingerprint", out var explicitFingerprint)
+                ? explicitFingerprint.GetString()
+                : null;
+            if (string.IsNullOrWhiteSpace(fingerprintElement))
+            {
+                // Official category contracts resolve their fingerprint from the anchor type so
+                // scenario files never hand-copy a value that silently drifts from the assembly.
+                if (contractId != AbstractLongTextWritingExpert.Descriptor.Id)
+                    throw new InvalidOperationException(
+                        $"Fake scenario contract '{contractId}' must declare an explicit fingerprint; " +
+                        "only official category contracts may omit it.");
+                fingerprintElement = AbstractLongTextWritingExpert.Descriptor.Fingerprint;
+            }
+
             var contract = new ExpertContractDescriptor(
-                contractElement.GetProperty("id").GetString()!,
+                contractId,
                 new ContractVersion(
                     versionElement.GetProperty("major").GetInt32(),
                     versionElement.GetProperty("minor").GetInt32()),
-                contractElement.GetProperty("fingerprint").GetString()!);
+                fingerprintElement);
             var scenarioId = item.GetProperty("scenarioId").GetString()!;
             var events = item.TryGetProperty("events", out var eventsElement)
                 ? eventsElement.EnumerateArray().Select(value => new ExpertSemanticEvent(

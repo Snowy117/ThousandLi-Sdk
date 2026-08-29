@@ -1,8 +1,6 @@
 using ThousandLi.Contracts;
 using ThousandLi.DevHost;
 using ThousandLi.ExpertAuthoring;
-using ThousandLi.ExpertContracts;
-using ThousandLi.ExpertContracts.Narration;
 using ThousandLi.Testing;
 
 namespace ThousandLi.Sdk.Tests;
@@ -29,7 +27,7 @@ public sealed class PlaygroundServiceRecordingTests
         """;
 
     private static ExpertContractRegistry Registry() =>
-        new([typeof(AbstractNarratorExpert).Assembly]);
+        new([typeof(AbstractLongTextWritingExpert).Assembly]);
 
     private static ScriptedFakeExpertExecutor MultiEventFake(DirectoryInfo root)
     {
@@ -227,18 +225,18 @@ public sealed class PlaygroundServiceRecordingTests
         var root = Directory.CreateTempSubdirectory("thousandli-playground-tests-");
         try
         {
-            var narrator = AbstractNarratorExpert.Descriptor;
+            var descriptor = AbstractLongTextWritingExpert.Descriptor;
             var scenarioPath = Path.Combine(root.FullName, "scenarios.json");
             await File.WriteAllTextAsync(scenarioPath, $$"""
                 [
                   {
                     "contract": {
-                      "id": "{{narrator.Id}}",
+                      "id": "{{descriptor.Id}}",
                       "version": {
-                        "major": {{narrator.Version.Major}},
-                        "minor": {{narrator.Version.Minor}}
+                        "major": {{descriptor.Version.Major}},
+                        "minor": {{descriptor.Version.Minor}}
                       },
-                      "fingerprint": "{{narrator.Fingerprint}}"
+                      "fingerprint": "{{descriptor.Fingerprint}}"
                     },
                     "scenarioId": "narrate",
                     "events": [],
@@ -269,7 +267,7 @@ public sealed class PlaygroundServiceRecordingTests
 
             var contracts = await playground.GetContractsAsync(TestSupport.CancellationToken);
             var entry = Assert.Single(contracts);
-            Assert.Equal(narrator.Id, entry.ContractId);
+            Assert.Equal(descriptor.Id, entry.ContractId);
             Assert.Equal(
                 [DevHostOptions.FakeExecutorName, DevHostOptions.LocalExecutorName],
                 entry.Executors);
@@ -277,9 +275,9 @@ public sealed class PlaygroundServiceRecordingTests
 
             var outcome = await playground.InvokeAsync(
                 new PlaygroundInvokeCommand(
-                    narrator.Id,
+                    descriptor.Id,
                     DevHostOptions.LocalExecutorName,
-                    TestSupport.Json("""{"turn":1,"player":"Creator","action":{"choice":"advance"}}""")),
+                    TestSupport.Json("""{"worldSettings":"A quiet valley.","playerInput":"advance"}""")),
                 new RecordingSemanticSink(),
                 TestSupport.CancellationToken);
 

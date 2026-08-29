@@ -6,7 +6,7 @@ namespace ThousandLi.Sdk.Tests;
 public sealed class ExpertRecordingComparisonTests
 {
     private static readonly ExpertContractDescriptor NewerContract =
-        new("tests/narrator", new ContractVersion(1, 1), "tests-narrator-v1");
+        new("tests/story", new ContractVersion(1, 1), "tests-story-v1");
 
     private static readonly ExpertContractDescriptor OtherContract =
         new("tests/other", new ContractVersion(1, 0), "tests-other-v1");

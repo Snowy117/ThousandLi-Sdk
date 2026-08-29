@@ -6,6 +6,6 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/ThousandLi.ExpertContracts/ThousandLi.ExpertContracts.csproj" />
+    <ProjectReference Include="../../src/ThousandLi.Contracts/ThousandLi.Contracts.csproj" />
   </ItemGroup>
 </Project>

@@ -1,6 +1,5 @@
 using ThousandLi.Contracts;
 using ThousandLi.DevHost;
-using ThousandLi.Testing;
 using InMemoryHistoryBucketSet = ThousandLi.DevHost.InMemoryHistoryBucketSet;
 
 namespace ThousandLi.Sdk.Tests;
@@ -136,7 +135,6 @@ public sealed class LocalHistoryBucketRuntimeTests
             "tests_game@1.0.0",
             backend,
             Player,
-            new ThrowingExpertExecutor(),
             new InMemoryLocalSessionStore(),
             sessionId ?? new SessionId($"session-{Guid.NewGuid():N}"),
             buckets: buckets,

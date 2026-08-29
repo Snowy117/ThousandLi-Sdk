@@ -11,9 +11,9 @@ namespace ThousandLi.Sdk.Tests;
 /// </summary>
 public sealed class RemoteExecutorCompositionTests
 {
-    private const string NarratorContractId = "thousandli.expert/narrator";
-    private const string NarratorFingerprint =
-        "c514466424e626a6f24dfb5b53894c493351fb2466d30f1ba6e00e5153264b10";
+    private const string LongTextWritingContractId = "thousandli.expert/long-text-writing";
+    private const string LongTextWritingFingerprint =
+        "573299a67800f57dead23e7fc320857b8725440df2260e9050afb70cfe247488";
     private const string RemotePackageId = "official-longtextwriting@0.1.0";
     private const string RemoteInvocationId = "0199beef-1234-7556-8777-88889999aaaa";
 
@@ -23,20 +23,20 @@ public sealed class RemoteExecutorCompositionTests
         WorkspaceId = "default",
         FrontendUrl = "/game/",
         SessionId = "session",
-        ExpertExecutor = executor
+        Experts = executor
     };
 
-    private static string CatalogJson(string fingerprint = NarratorFingerprint) =>
-        "[{\"contractId\":\"" + NarratorContractId + "\",\"name\":\"Narrator\",\"description\":\"long text\"," +
+    private static string CatalogJson(string fingerprint = LongTextWritingFingerprint) =>
+        "[{\"contractId\":\"" + LongTextWritingContractId + "\",\"name\":\"LongTextWriting\",\"description\":\"long text\"," +
         "\"version\":{\"major\":1,\"minor\":0},\"fingerprint\":\"" + fingerprint + "\"}]";
 
     private static string PackagesJson() =>
         "[{\"expertPackageId\":\"" + RemotePackageId + "\",\"displayName\":\"Official Long Text Writing\"," +
-        "\"openAiModelIds\":[\"deepseek-v4-pro\"],\"hasSettings\":false,\"contractId\":\"" + NarratorContractId + "\"}]";
+        "\"openAiModelIds\":[\"deepseek-v4-pro\"],\"hasSettings\":false,\"contractId\":\"" + LongTextWritingContractId + "\"}]";
 
     private static string SnapshotJson() =>
         "{\"expertInvocationId\":\"" + RemoteInvocationId + "\",\"status\":\"running\",\"replayed\":false," +
-        "\"contractId\":\"" + NarratorContractId + "\",\"expertPackageId\":\"" + RemotePackageId +
+        "\"contractId\":\"" + LongTextWritingContractId + "\",\"expertPackageId\":\"" + RemotePackageId +
         "\",\"lastEventOrdinal\":-1,\"createdAt\":\"2026-08-26T10:00:00Z\"}";
 
     private static string EventSse(long ordinal, string text) =>
@@ -48,7 +48,7 @@ public sealed class RemoteExecutorCompositionTests
             BaseOptions(DevHostOptions.RemoteExecutorName) with
             {
                 RemoteEndpoint = "http://platform.test",
-                RemoteBindings = new Dictionary<string, string> { [NarratorContractId] = RemotePackageId }
+                RemoteBindings = new Dictionary<string, string> { [LongTextWritingContractId] = RemotePackageId }
             },
             new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan });
 
@@ -65,20 +65,20 @@ public sealed class RemoteExecutorCompositionTests
         var options = DevHostOptions.Parse(
         [
             "--artifact", ".",
-            "--expert-executor", "remote",
+            "--experts", "remote",
             "--remote-endpoint", "http://localhost:5200",
             "--remote-token-env", "MY_PLATFORM_TOKEN",
-            "--remote-binding", "thousandli.expert/narrator=official-longtextwriting@0.1.0",
+            "--remote-binding", "thousandli.expert/long-text-writing=official-longtextwriting@0.1.0",
             "--remote-binding", "tests/other=tests/other-package"
         ]);
 
-        Assert.Equal(DevHostOptions.RemoteExecutorName, options.ExpertExecutor);
+        Assert.Equal(DevHostOptions.RemoteExecutorName, options.Experts);
         Assert.Equal("http://localhost:5200", options.RemoteEndpoint);
         Assert.Equal("MY_PLATFORM_TOKEN", options.RemoteTokenEnvironmentVariable);
         Assert.Equal(
             new Dictionary<string, string>
             {
-                ["thousandli.expert/narrator"] = "official-longtextwriting@0.1.0",
+                ["thousandli.expert/long-text-writing"] = "official-longtextwriting@0.1.0",
                 ["tests/other"] = "tests/other-package"
             },
             options.RemoteBindings);
@@ -87,7 +87,7 @@ public sealed class RemoteExecutorCompositionTests
     [Fact]
     public void ParseDefaultsTheRemoteTokenEnvironmentVariable()
     {
-        var options = DevHostOptions.Parse(["--artifact", ".", "--expert-executor", "remote"]);
+        var options = DevHostOptions.Parse(["--artifact", ".", "--experts", "remote"]);
 
         Assert.Equal(DevHostOptions.DefaultRemoteTokenEnvironmentVariable, options.RemoteTokenEnvironmentVariable);
         Assert.Null(options.RemoteEndpoint);
@@ -110,7 +110,7 @@ public sealed class RemoteExecutorCompositionTests
             "--remote-binding", "a.b/c=p2"
         ]));
         Assert.Throws<ArgumentException>(() => DevHostOptions.Parse(
-            ["--artifact", ".", "--expert-executor", "cloud"]));
+            ["--artifact", ".", "--experts", "cloud"]));
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public sealed class RemoteExecutorCompositionTests
         var exception = Assert.Throws<ArgumentException>(
             () => ExpertComposition.ValidateExecutorOptions(options));
         Assert.Contains($"'--{expectedFlag}'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains($"--expert-executor {DevHostOptions.LocalExecutorName}", exception.Message,
+        Assert.Contains($"--experts {DevHostOptions.LocalExecutorName}", exception.Message,
             StringComparison.Ordinal);
     }
 
@@ -179,7 +179,7 @@ public sealed class RemoteExecutorCompositionTests
         Assert.Contains("'--remote-endpoint'", exception.Message, StringComparison.Ordinal);
         Assert.Contains("'--remote-binding'", exception.Message, StringComparison.Ordinal);
         Assert.Contains("'--remote-token-env'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains($"--expert-executor {DevHostOptions.RemoteExecutorName}", exception.Message,
+        Assert.Contains($"--experts {DevHostOptions.RemoteExecutorName}", exception.Message,
             StringComparison.Ordinal);
     }
 
@@ -243,11 +243,11 @@ public sealed class RemoteExecutorCompositionTests
 
         var contracts = await playground.GetContractsAsync(TestSupport.CancellationToken);
 
-        var narrator = Assert.Single(contracts, contract => contract.ContractId == NarratorContractId);
-        Assert.Equal("1.0", narrator.Version);
-        Assert.Equal(NarratorFingerprint, narrator.Fingerprint);
-        Assert.Equal([DevHostOptions.RemoteExecutorName], narrator.Executors);
-        Assert.Equal([RemotePackageId], narrator.ExpertPackageIds);
+        var contract = Assert.Single(contracts, entry => entry.ContractId == LongTextWritingContractId);
+        Assert.Equal("1.0", contract.Version);
+        Assert.Equal(LongTextWritingFingerprint, contract.Fingerprint);
+        Assert.Equal([DevHostOptions.RemoteExecutorName], contract.Executors);
+        Assert.Equal([RemotePackageId], contract.ExpertPackageIds);
     }
 
     [Fact]
@@ -278,7 +278,7 @@ public sealed class RemoteExecutorCompositionTests
         var sink = new RecordingSemanticSink();
 
         var outcome = await playground.InvokeAsync(
-            new PlaygroundInvokeCommand(NarratorContractId, DevHostOptions.RemoteExecutorName, TestSupport.Json("{}")),
+            new PlaygroundInvokeCommand(LongTextWritingContractId, DevHostOptions.RemoteExecutorName, TestSupport.Json("{}")),
             sink,
             TestSupport.CancellationToken);
 
@@ -311,7 +311,7 @@ public sealed class RemoteExecutorCompositionTests
 
         var outcome = await playground.InvokeAsync(
             new PlaygroundInvokeCommand(
-                NarratorContractId,
+                LongTextWritingContractId,
                 DevHostOptions.RemoteExecutorName,
                 TestSupport.Json("{}"),
                 ExpertPackageId: "official-longtextwriting-plus@0.1.0"),
@@ -334,7 +334,7 @@ public sealed class RemoteExecutorCompositionTests
         var playground = CreatePlayground(CreateComposition(handler));
 
         var outcome = await playground.InvokeAsync(
-            new PlaygroundInvokeCommand(NarratorContractId, DevHostOptions.RemoteExecutorName, TestSupport.Json("{}")),
+            new PlaygroundInvokeCommand(LongTextWritingContractId, DevHostOptions.RemoteExecutorName, TestSupport.Json("{}")),
             new RecordingSemanticSink(),
             TestSupport.CancellationToken);
 

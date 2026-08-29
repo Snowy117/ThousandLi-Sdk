@@ -3,14 +3,14 @@ using ThousandLi.Contracts;
 namespace ThousandLi.Testing;
 
 /// <summary>
-/// Deterministic <see cref="IExpertExecutor"/> backed by semantic recordings: recordings are
+/// Deterministic recording-replay executor backed by semantic recordings: recordings are
 /// consumed in registration order (mirroring <c>RecordedBasicAi</c>), each invocation's contract
 /// must match the next recording's contract, and exhaustion fails fast. Committed recordings
 /// re-emit their recorded events and result; aborted and error recordings reproduce the recorded
 /// failure. Use <see cref="ExpertRecordingComparison"/> to compare a fresh live invocation
 /// against a recording with layered determinism.
 /// </summary>
-public sealed class RecordingReplayExpertExecutor : IExpertExecutor
+public sealed class RecordingReplayExpertExecutor
 {
     private readonly Queue<ExpertInvocationRecording> _recordings;
     private readonly List<ExpertInvocationRequest> _invocations = [];

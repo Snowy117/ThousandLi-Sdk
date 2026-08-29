@@ -1,21 +1,20 @@
 [
   {
     "contract": {
-      "id": "thousandli.expert/narrator",
-      "version": { "major": 1, "minor": 0 },
-      "fingerprint": "c514466424e626a6f24dfb5b53894c493351fb2466d30f1ba6e00e5153264b10"
+      "id": "thousandli.expert/long-text-writing",
+      "version": { "major": 1, "minor": 0 }
     },
     "scenarioId": "advance",
     "events": [
       { "eventType": "chunk", "payload": { "text": "A new path opens." } }
     ],
-    "result": { "text": "A new path opens." }
+    "result": { "text": "A new path opens." },
+    "output": { "narrative": "A new path opens." }
   },
   {
     "contract": {
-      "id": "thousandli.expert/narrator",
-      "version": { "major": 1, "minor": 0 },
-      "fingerprint": "c514466424e626a6f24dfb5b53894c493351fb2466d30f1ba6e00e5153264b10"
+      "id": "thousandli.expert/long-text-writing",
+      "version": { "major": 1, "minor": 0 }
     },
     "scenarioId": "reflect",
     "result": { "text": "You pause and consider how far you have come." },

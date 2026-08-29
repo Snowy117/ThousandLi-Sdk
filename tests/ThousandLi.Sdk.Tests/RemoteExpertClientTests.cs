@@ -20,8 +20,8 @@ public sealed class RemoteExpertClientTests
             """
             [
               {
-                "contractId": "official/narrator",
-                "name": "Narrator",
+                "contractId": "official/long-text-writing",
+                "name": "Long Text Writing",
                 "description": "Narrates stories",
                 "version": { "major": 1, "minor": 2 },
                 "fingerprint": "abc123",
@@ -45,7 +45,7 @@ public sealed class RemoteExpertClientTests
         Assert.Equal("http://platform.test/abstract-experts", request.Uri);
         Assert.Equal($"Bearer {Token}", request.Authorization);
         Assert.Equal(2, contracts.Count);
-        Assert.Equal("official/narrator", contracts[0].ContractId);
+        Assert.Equal("official/long-text-writing", contracts[0].ContractId);
         Assert.Equal(new ContractVersion(1, 2), contracts[0].Version);
         Assert.Equal("abc123", contracts[0].Fingerprint);
         Assert.NotNull(contracts[0].InputSchema);
@@ -60,22 +60,22 @@ public sealed class RemoteExpertClientTests
             """
             [
               {
-                "expertPackageId": "official/narrator-pro@1",
-                "displayName": "Narrator Pro",
+                "expertPackageId": "official/long-text-writing-pro@1",
+                "displayName": "Long Text Writing Pro",
                 "openAiModelIds": ["deepseek-v4-pro"],
                 "hasSettings": true,
-                "contractId": "official/narrator"
+                "contractId": "official/long-text-writing"
               }
             ]
             """);
         var client = CreateClient(handler);
 
-        var packages = await client.ListExpertPackagesAsync("official/narrator", TestSupport.CancellationToken);
+        var packages = await client.ListExpertPackagesAsync("official/long-text-writing", TestSupport.CancellationToken);
 
         var request = Assert.Single(handler.CapturedRequests);
-        Assert.Equal("http://platform.test/expert-packages?contractId=official%2Fnarrator", request.Uri);
+        Assert.Equal("http://platform.test/expert-packages?contractId=official%2Flong-text-writing", request.Uri);
         var package = Assert.Single(packages);
-        Assert.Equal("official/narrator-pro@1", package.ExpertPackageId);
+        Assert.Equal("official/long-text-writing-pro@1", package.ExpertPackageId);
         Assert.Equal(["deepseek-v4-pro"], package.OpenAiModelIds);
         Assert.True(package.HasSettings);
     }
@@ -90,8 +90,8 @@ public sealed class RemoteExpertClientTests
               "expertInvocationId": "0199abc0-1111-7222-8333-444455556666",
               "status": "running",
               "replayed": false,
-              "contractId": "official/narrator",
-              "expertPackageId": "official/narrator-pro@1",
+              "contractId": "official/long-text-writing",
+              "expertPackageId": "official/long-text-writing-pro@1",
               "lastEventOrdinal": -1,
               "createdAt": "2026-08-26T10:00:00Z"
             }
@@ -101,8 +101,8 @@ public sealed class RemoteExpertClientTests
 
         var snapshot = await client.StartInvocationAsync(
             new RemoteInvocationStartRequest(
-                new ExpertContractDescriptor("official/narrator", new ContractVersion(1, 2), "abc123"),
-                "official/narrator-pro@1",
+                new ExpertContractDescriptor("official/long-text-writing", new ContractVersion(1, 2), "abc123"),
+                "official/long-text-writing-pro@1",
                 TestSupport.Json("""{"prompt":"hi"}"""),
                 idempotencyKey: "channel-key-1",
                 timeoutSeconds: 120,
@@ -115,11 +115,11 @@ public sealed class RemoteExpertClientTests
         Assert.NotNull(request.Body);
         using var body = JsonDocument.Parse(request.Body!);
         var root = body.RootElement;
-        Assert.Equal("official/narrator", root.GetProperty("contractId").GetString());
+        Assert.Equal("official/long-text-writing", root.GetProperty("contractId").GetString());
         Assert.Equal(1, root.GetProperty("version").GetProperty("major").GetInt32());
         Assert.Equal(2, root.GetProperty("version").GetProperty("minor").GetInt32());
         Assert.Equal("abc123", root.GetProperty("fingerprint").GetString());
-        Assert.Equal("official/narrator-pro@1", root.GetProperty("expertPackageId").GetString());
+        Assert.Equal("official/long-text-writing-pro@1", root.GetProperty("expertPackageId").GetString());
         Assert.Equal("hi", root.GetProperty("input").GetProperty("prompt").GetString());
         Assert.Equal("channel-key-1", root.GetProperty("idempotencyKey").GetString());
         Assert.Equal(120, root.GetProperty("timeoutSeconds").GetInt32());
@@ -142,8 +142,8 @@ public sealed class RemoteExpertClientTests
               "expertInvocationId": "id-2",
               "status": "completed",
               "replayed": true,
-              "contractId": "official/narrator",
-              "expertPackageId": "official/narrator-pro@1",
+              "contractId": "official/long-text-writing",
+              "expertPackageId": "official/long-text-writing-pro@1",
               "lastEventOrdinal": 4,
               "output": "{\"text\":\"done\"}",
               "errorCode": null,
@@ -157,8 +157,8 @@ public sealed class RemoteExpertClientTests
 
         var snapshot = await client.StartInvocationAsync(
             new RemoteInvocationStartRequest(
-                new ExpertContractDescriptor("official/narrator", new ContractVersion(1, 2), "abc123"),
-                "official/narrator-pro@1",
+                new ExpertContractDescriptor("official/long-text-writing", new ContractVersion(1, 2), "abc123"),
+                "official/long-text-writing-pro@1",
                 TestSupport.Json("{}")),
             TestSupport.CancellationToken);
 

@@ -22,7 +22,6 @@ internal static class ContextSupport
             new NoopFrontendEventSink(),
             new EmptyActionHistory(),
             new FakeExpertFacade(),
-            new ThrowingExpertExecutor(),
             buckets ?? new InMemoryHistoryBucketSet(),
             getGameSettings);
 
@@ -43,13 +42,17 @@ internal static class ContextSupport
     private sealed class FakeExpertFacade : IExpertFacade
     {
         public TAbstract Use<TAbstract>() where TAbstract : AbstractLongTextWritingExpert
-            => (TAbstract)(AbstractLongTextWritingExpert)new RecordingLongTextWritingExpert();
+        {
+            var expert = new RecordingLongTextWritingExpert();
+            expert.Bind(FakeExpertExecutionContext.Instance);
+            return (TAbstract)(AbstractLongTextWritingExpert)expert;
+        }
     }
 }
 
 internal sealed class RecordingLongTextWritingExpert : AbstractLongTextWritingExpert
 {
-    public override Task<ExpertCompletionResult> StreamAsync(CancellationToken cancellationToken = default)
+    protected override Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken)
     {
         ValidateCategoryInputs();
         return Task.FromResult(new ExpertCompletionResult(
@@ -57,6 +60,6 @@ internal sealed class RecordingLongTextWritingExpert : AbstractLongTextWritingEx
             reasoning: "reasoned"));
     }
 
-    public override Task<ExpertCompletionResult> CompleteAsync(CancellationToken cancellationToken = default)
-        => StreamAsync(cancellationToken);
+    protected override Task<ExpertCompletionResult> CompleteAsyncCore(CancellationToken cancellationToken)
+        => StreamAsyncCore(cancellationToken);
 }

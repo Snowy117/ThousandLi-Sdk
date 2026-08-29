@@ -1,19 +1,18 @@
 using System.Text.Json;
 using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
-using ThousandLi.ExpertContracts;
 
 [assembly: ExpertPackageEntryPoint(
-    typeof(ThousandLi.UnregisteredContractFixture.UnregisteredNarratorExpert),
-    typeof(ThousandLi.UnregisteredContractFixture.UnregisteredNarratorImplementation))]
+    typeof(ThousandLi.UnregisteredContractFixture.UnregisteredLongTextWritingExpert),
+    typeof(ThousandLi.UnregisteredContractFixture.UnregisteredLongTextWritingImplementation))]
 
 namespace ThousandLi.UnregisteredContractFixture;
 
-[ExpertContract("tests.unregistered/narrator", 1, 0, "0fb414108c05b181387ae936fa3eebe3f07fb8a8ea5b7c102f7308a61e39a362")]
-public abstract class UnregisteredNarratorExpert
-    : RuntimeLongTextWritingExpertBase, IExpertContract, IInvocableExpert
+[ExpertContract("tests.unregistered/story", 1, 0, "966023b5ce250c29dbaacd38653d8529b48815060152f8fff4e454cca441eed1")]
+public abstract class UnregisteredLongTextWritingExpert
+    : AbstractLongTextWritingExpert, IExpertContract, IInvocableExpert
 {
-    public static ExpertContractDefinition Definition { get; } = new(semanticEventTypes: ["tick"]);
+    public new static ExpertContractDefinition Definition { get; } = new(semanticEventTypes: ["tick"]);
 
     public abstract Task<JsonElement> InvokeAsync(
         JsonElement input,
@@ -27,7 +26,7 @@ public abstract class UnregisteredNarratorExpert
         throw new NotImplementedException();
 }
 
-public sealed class UnregisteredNarratorImplementation : UnregisteredNarratorExpert
+public sealed class UnregisteredLongTextWritingImplementation : UnregisteredLongTextWritingExpert
 {
     public override Task<JsonElement> InvokeAsync(
         JsonElement input,

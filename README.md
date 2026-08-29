@@ -15,10 +15,10 @@ dotnet run --project src/ThousandLi.DevHost -- \
 Open `http://127.0.0.1:5180`. Omit `--ephemeral` to persist local development state. Use
 `--reset` to clear only the selected local session before startup.
 
-Both the sample game and the game template require the official narrator contract
-`thousandli.expert/narrator` (1.0, fingerprint `c5144664…`) from the `ThousandLi.ExpertContracts`
-package. Games reference the official descriptor (`AbstractNarratorExpert.Descriptor`) instead of
-declaring a private copy of the contract.
+Both the sample game and the game template require the official long-text-writing category
+contract `thousandli.expert/long-text-writing` (1.0, fingerprint `573299a6…`) declared on the
+category anchor in the `ThousandLi.Contracts` package. Games consume the category through the
+typed expert facade (`context.Experts.Use<AbstractLongTextWritingExpert>()`).
 
 ## Create a game
 
@@ -34,16 +34,16 @@ directory and ZIP containing `package.json`, backend binaries, and the frontend 
 
 ## Create an expert package
 
-The same `ThousandLi.Templates` package also ships an expert template. Generate a concrete narrator
-expert skeleton next to a generated game:
+The same `ThousandLi.Templates` package also ships an expert template. Generate a concrete
+long-text-writing expert skeleton next to a generated game:
 
 ```bash
 dotnet new thousandli-expert -n MyExpert --authorId my-studio --packageName my-expert
 ```
 
-The generated project derives from `AbstractNarratorExpert`, declares
-`[assembly: ExpertPackageEntryPoint(typeof(AbstractNarratorExpert), typeof(MyExpert.NarratorExpert))]`,
-references the released `ThousandLi.Contracts` / `ThousandLi.ExpertContracts` NuGet packages, and builds
+The generated project derives from `AbstractLongTextWritingExpert`, declares
+`[assembly: ExpertPackageEntryPoint(typeof(AbstractLongTextWritingExpert), typeof(MyExpert.LongTextWritingExpert))]`,
+references the released `ThousandLi.Contracts` / `ThousandLi.ExpertAuthoring` NuGet packages, and builds
 straight into a loadable Expert Package Artifact (`IsThousandLiExpertPackageArtifact`). Build both sides
 and run them together in the DevHost:
 
@@ -54,7 +54,7 @@ export THOUSANDLI_GATEWAY_API_KEY=<your key>
 dotnet run --project src/ThousandLi.DevHost -- \
   --artifact MyGame/bin/Debug/net10.0/PackageArtifact \
   --fake-scenarios MyGame/fake-scenarios.json \
-  --expert-executor local \
+  --experts local \
   --expert-artifact MyExpert/bin/Debug/net10.0/PackageArtifact \
   --gateway-endpoint https://your-openai-compatible-endpoint/v1/chat/completions \
   --gateway-model your-model-id \
@@ -67,15 +67,15 @@ See "Run an expert locally with a real gateway" below for the full flag referenc
 ## Author a concrete expert
 
 A concrete expert derives from the abstract base shipped with its contract package. For the official
-narrator contract, derive from `AbstractNarratorExpert` (`ThousandLi.ExpertContracts.Narration`) and
+long-text-writing category contract, derive from `AbstractLongTextWritingExpert` (`ThousandLi.Contracts`) and
 implement `InvokeAsync`:
 
 ```csharp
-[assembly: ExpertPackageEntryPoint(typeof(AbstractNarratorExpert), typeof(MyNarratorExpert))]
+[assembly: ExpertPackageEntryPoint(typeof(AbstractLongTextWritingExpert), typeof(MyExpert))]
 
-public sealed class MyNarratorExpert : AbstractNarratorExpert
+public sealed class MyExpert : AbstractLongTextWritingExpert, IInvocableExpert
 {
-    public override async Task<JsonElement> InvokeAsync(
+    public async Task<JsonElement> InvokeAsync(
         JsonElement input, IExpertSemanticEventSink events, CancellationToken cancellationToken = default)
     {
         // Bind the structured input, call RuntimeContext.BasicAi, forward semantic events through
@@ -86,7 +86,7 @@ public sealed class MyNarratorExpert : AbstractNarratorExpert
 
 Key points:
 
-- **Contract identity lives in the base class.** `AbstractNarratorExpert.Descriptor` carries the stable
+- **Contract identity lives in the category anchor.** `AbstractLongTextWritingExpert.Descriptor` carries the stable
   id, `ContractVersion`, and deterministic fingerprint; a package never re-declares them.
 - **`RuntimeContext` exposes exactly four capabilities**: `BasicAi`, `GetExpertSettingsAsync<TSettings>()`
   (local policy: schema defaults plus an optional `expert-settings.json` override file), `PlayerProfile`,
@@ -108,7 +108,7 @@ dotnet build samples/ThousandLi.SampleExpert/ThousandLi.SampleExpert.csproj
 export THOUSANDLI_GATEWAY_API_KEY=<your key>
 dotnet run --project src/ThousandLi.DevHost -- \
   --artifact samples/ThousandLi.SampleGame/bin/Debug/net10.0/PackageArtifact \
-  --expert-executor local \
+  --experts local \
   --expert-artifact samples/ThousandLi.SampleExpert/bin/Debug/net10.0/PackageArtifact \
   --gateway-endpoint https://your-openai-compatible-endpoint/v1/chat/completions \
   --gateway-model your-model-id \
@@ -116,9 +116,9 @@ dotnet run --project src/ThousandLi.DevHost -- \
 ```
 
 `--expert-artifact`, `--expert-binding contractId=expertPackageId`, `--contract-assembly`,
-`--gateway-endpoint`, `--gateway-model`, and `--gateway-api-key-env` require `--expert-executor local`.
+`--gateway-endpoint`, `--gateway-model`, and `--gateway-api-key-env` require `--experts local`.
 When several loaded expert packages serve the same contract, add an explicit
-`--expert-binding thousandli.expert/narrator=<packageId>` (multiple candidates without a binding is a
+`--expert-binding thousandli.expert/long-text-writing=<packageId>` (multiple candidates without a binding is a
 deterministic startup error).
 
 ## Playground

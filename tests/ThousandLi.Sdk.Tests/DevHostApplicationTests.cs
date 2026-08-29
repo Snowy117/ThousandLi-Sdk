@@ -55,10 +55,13 @@ public sealed class DevHostApplicationTests
                 .ToArray();
             try
             {
-                Assert.Equal(["started", "frontendEvent", "committed"],
-                    lines.Select(line => line.RootElement.GetProperty("type").GetString()));
-                Assert.Single(lines, line =>
-                    line.RootElement.GetProperty("type").GetString() is "committed" or "aborted");
+                // The scripted fake facade streams the narrative in multiple deltas, so the
+                // exact count of frontend events is intentionally not pinned here.
+                var types = lines.Select(line => line.RootElement.GetProperty("type").GetString()).ToArray();
+                Assert.Equal("started", types[0]);
+                Assert.Equal("committed", types[^1]);
+                Assert.Contains("frontendEvent", types);
+                Assert.Single(types, lineType => lineType is "committed" or "aborted");
             }
             finally
             {
@@ -174,7 +177,7 @@ public sealed class DevHostApplicationTests
             SessionId = $"session-{Guid.NewGuid():N}",
             Port = port,
             Ephemeral = true,
-            ExpertExecutor = DevHostOptions.RemoteExecutorName,
+            Experts = DevHostOptions.RemoteExecutorName,
             RemoteEndpoint = "http://127.0.0.1:9/"
         };
         await using var app = await DevHostApplication.BuildAsync(

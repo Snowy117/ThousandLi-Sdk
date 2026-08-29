@@ -14,9 +14,9 @@ namespace ThousandLi.Sdk.Tests;
 /// </summary>
 public sealed class RemoteExpertLoopbackTests
 {
-    private const string ContractId = "tests/narrator";
-    private const string Fingerprint = "tests-narrator-v1";
-    private const string PackageId = "tests/narrator-pro@1";
+    private const string ContractId = "tests/story";
+    private const string Fingerprint = "tests-story-v1";
+    private const string PackageId = "tests/story-pro@1";
     private const string InvocationId = "0199def0-aaaa-7bbb-8ccc-dddd00001111";
     private const string Token = "loopback-token";
 
@@ -166,7 +166,7 @@ public sealed class RemoteExpertLoopbackTests
     }
 
     private static string CatalogJson =>
-        "[{\"contractId\":\"" + ContractId + "\",\"name\":\"Narrator\",\"description\":\"\",\"version\":{\"major\":1,\"minor\":0},\"fingerprint\":\"" +
+        "[{\"contractId\":\"" + ContractId + "\",\"name\":\"LongTextWriting\",\"description\":\"\",\"version\":{\"major\":1,\"minor\":0},\"fingerprint\":\"" +
         Fingerprint + "\"}]";
 
     private static string SnapshotJson =>

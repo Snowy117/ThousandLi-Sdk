@@ -1,5 +1,4 @@
 using ThousandLi.Contracts;
-using ThousandLi.ExpertContracts;
 
 namespace ThousandLi.Sdk.Tests;
 
@@ -15,7 +14,7 @@ public sealed class ExpertContractFingerprintTests
             inputSchema: TestSupport.Json("""{"type":"object","properties":{"turn":{"type":"integer"}}}"""),
             semanticEventTypes: ["chunk", "completed"]);
 
-        const string id = "tests.acme/narrator";
+        const string id = "tests.acme/story";
         var version = new ContractVersion(1, 0);
 
         Assert.Equal(
@@ -63,7 +62,7 @@ public sealed class ExpertContractFingerprintTests
     [Fact]
     public void DifferentDefinitionsProduceDifferentFingerprints()
     {
-        const string id = "tests.acme/narrator";
+        const string id = "tests.acme/story";
         var version = new ContractVersion(1, 0);
         var minimal = new ExpertContractDefinition();
         var withEvents = new ExpertContractDefinition(semanticEventTypes: ["chunk"]);
@@ -90,7 +89,7 @@ public sealed class ExpertContractFingerprintTests
     public void FingerprintIsSixtyFourLowercaseHexCharacters()
     {
         var fingerprint = ExpertContractFingerprint.Compute(
-            "tests.acme/narrator", new ContractVersion(1, 0), new ExpertContractDefinition());
+            "tests.acme/story", new ContractVersion(1, 0), new ExpertContractDefinition());
 
         Assert.Equal(64, fingerprint.Length);
         Assert.All(fingerprint, static c => Assert.True(c is >= '0' and <= '9' or >= 'a' and <= 'f'));
@@ -116,7 +115,7 @@ public sealed class ExpertContractFingerprintTests
     public void ComputeRejectsMissingDefinition()
     {
         Assert.Throws<ArgumentNullException>(
-            () => ExpertContractFingerprint.Compute("tests.acme/narrator", new ContractVersion(1, 0), null!));
+            () => ExpertContractFingerprint.Compute("tests.acme/story", new ContractVersion(1, 0), null!));
     }
 
     [Fact]

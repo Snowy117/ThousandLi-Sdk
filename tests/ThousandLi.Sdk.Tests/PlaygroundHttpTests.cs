@@ -9,9 +9,9 @@ namespace ThousandLi.Sdk.Tests;
 
 public sealed class PlaygroundHttpTests
 {
-    private const string SampleContractId = "thousandli.expert/narrator";
+    private const string SampleContractId = "thousandli.expert/long-text-writing";
     private const string SampleContractFingerprint =
-        "c514466424e626a6f24dfb5b53894c493351fb2466d30f1ba6e00e5153264b10";
+        "573299a67800f57dead23e7fc320857b8725440df2260e9050afb70cfe247488";
 
     [Fact]
     public async Task PlaygroundPageAndReadRoutesServe()
@@ -28,11 +28,11 @@ public sealed class PlaygroundHttpTests
             StringComparison.Ordinal);
 
         var contracts = await client.GetFromJsonAsync<JsonElement>("/api/playground/contracts", TestSupport.CancellationToken);
-        var narrator = Assert.Single(contracts.EnumerateArray());
-        Assert.Equal(SampleContractId, narrator.GetProperty("contractId").GetString());
-        Assert.Equal("1.0", narrator.GetProperty("version").GetString());
-        Assert.Equal(SampleContractFingerprint, narrator.GetProperty("fingerprint").GetString());
-        Assert.Equal(["fake"], narrator.GetProperty("executors").EnumerateArray().Select(entry => entry.GetString()));
+        var contract = Assert.Single(contracts.EnumerateArray());
+        Assert.Equal(SampleContractId, contract.GetProperty("contractId").GetString());
+        Assert.Equal("1.0", contract.GetProperty("version").GetString());
+        Assert.Equal(SampleContractFingerprint, contract.GetProperty("fingerprint").GetString());
+        Assert.Equal(["fake"], contract.GetProperty("executors").EnumerateArray().Select(entry => entry.GetString()));
 
         var history = await client.GetFromJsonAsync<JsonElement>("/api/playground/history", TestSupport.CancellationToken);
         Assert.Equal(JsonValueKind.Array, history.ValueKind);
@@ -136,7 +136,7 @@ public sealed class PlaygroundHttpTests
             contractId = SampleContractId,
             executor = "remote",
             input = new { }
-        }, "--expert-executor remote");
+        }, "--experts remote");
         await AssertRejectedAsync(client, new
         {
             contractId = SampleContractId,
@@ -155,7 +155,7 @@ public sealed class PlaygroundHttpTests
             contractId = SampleContractId,
             executor = "local",
             input = new { }
-        }, "--expert-executor local");
+        }, "--experts local");
 
         using var malformed = await client.PostAsync(
             "/api/playground/invoke",
@@ -358,7 +358,7 @@ public sealed class PlaygroundHttpTests
             await using var app = await StartAppAsync(ephemeral: true, dataRoot: null, configure: options =>
                 options with
                 {
-                    ExpertExecutor = DevHostOptions.RemoteExecutorName,
+                    Experts = DevHostOptions.RemoteExecutorName,
                     RemoteEndpoint = platform.BaseUri.ToString(),
                     RemoteTokenEnvironmentVariable = tokenVariable,
                     RemoteBindings = new Dictionary<string, string>
@@ -370,16 +370,16 @@ public sealed class PlaygroundHttpTests
 
             var contracts = await client.GetFromJsonAsync<JsonElement>(
                 "/api/playground/contracts", TestSupport.CancellationToken);
-            var narrator = Assert.Single(contracts.EnumerateArray());
-            Assert.Equal(SampleContractId, narrator.GetProperty("contractId").GetString());
-            Assert.Equal("1.0", narrator.GetProperty("version").GetString());
-            Assert.Equal(SampleContractFingerprint, narrator.GetProperty("fingerprint").GetString());
+            var contract = Assert.Single(contracts.EnumerateArray());
+            Assert.Equal(SampleContractId, contract.GetProperty("contractId").GetString());
+            Assert.Equal("1.0", contract.GetProperty("version").GetString());
+            Assert.Equal(SampleContractFingerprint, contract.GetProperty("fingerprint").GetString());
             Assert.Equal(
                 ["fake", "remote"],
-                narrator.GetProperty("executors").EnumerateArray().Select(entry => entry.GetString()));
+                contract.GetProperty("executors").EnumerateArray().Select(entry => entry.GetString()));
             Assert.Equal(
                 [remotePackageId],
-                narrator.GetProperty("expertPackageIds").EnumerateArray().Select(entry => entry.GetString()));
+                contract.GetProperty("expertPackageIds").EnumerateArray().Select(entry => entry.GetString()));
 
             using var response = await client.PostAsJsonAsync(
                 "/api/playground/invoke",
@@ -420,7 +420,7 @@ public sealed class PlaygroundHttpTests
 
     private static string RemoteCatalogJson =>
         "[{\"contractId\":\"" + SampleContractId +
-        "\",\"name\":\"Narrator\",\"description\":\"\",\"version\":{\"major\":1,\"minor\":0},\"fingerprint\":\"" +
+        "\",\"name\":\"LongTextWriting\",\"description\":\"\",\"version\":{\"major\":1,\"minor\":0},\"fingerprint\":\"" +
         SampleContractFingerprint + "\"}]";
 
     private static string RemotePackagesJson =>

@@ -1,9 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
-using ThousandLi.Contracts;
+using JetBrains.Annotations;
 
-namespace ThousandLi.ExpertContracts;
+namespace ThousandLi.Contracts;
 
 public sealed record ExpertContractRegistration
 {
@@ -52,9 +52,17 @@ public sealed record RegisteredExpertContract
 
 public sealed class ExpertContractRegistryException(string message) : Exception(message);
 
+/// <summary>
+/// Discovers and validates expert category contracts. Contracts are declared by
+/// <see cref="ExpertContractAttribute"/> on abstract expert category types inside the provided
+/// assemblies, or supplied as explicit registrations without a type binding. The registry
+/// self-validates declared fingerprints against <see cref="ExpertContractFingerprint"/> so a
+/// definition change without a fingerprint update fails fast at composition time.
+/// </summary>
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 public sealed class ExpertContractRegistry
 {
-    private const string OfficialAssemblyName = "ThousandLi.ExpertContracts";
+    private const string OfficialAssemblyName = "ThousandLi.Contracts";
     private const string OfficialNamespacePrefix = "thousandli.expert/";
     private const string DefinitionPropertyName = "Definition";
 

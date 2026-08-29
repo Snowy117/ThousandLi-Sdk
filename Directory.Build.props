@@ -4,7 +4,7 @@
     <LangVersion>14.0</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.3.0-preview.2</Version>
+    <Version>0.4.0-preview.1</Version>
     <Authors>ThousandLi</Authors>
     <RepositoryUrl>https://github.com/thousandli/thousandli-sdk</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>

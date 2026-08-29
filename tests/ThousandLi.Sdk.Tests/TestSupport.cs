@@ -11,7 +11,7 @@ internal static class TestSupport
     public static SessionId SessionId { get; } = new("session-1");
     private static BoundPlayerProfile Player { get; } = new(PlayerId, "Creator", "Curious explorer");
     public static ExpertContractDescriptor Contract { get; } =
-        new("tests/narrator", new ContractVersion(1, 0), "tests-narrator-v1");
+        new("tests/story", new ContractVersion(1, 0), "tests-story-v1");
     public static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
 
     public static string FindRepositoryRoot()
@@ -70,15 +70,15 @@ internal static class TestSupport
     public static ValueTask<LocalGameRuntime> CreateRuntimeAsync(
         IGameBackend backend,
         ILocalSessionStore? store = null,
-        IExpertExecutor? experts = null,
+        IExpertFacade? experts = null,
         SessionId? sessionId = null) =>
         LocalGameRuntime.CreateAsync(
             "tests_game@1.0.0",
             backend,
             Player,
-            experts ?? FakeExpert(),
             store ?? new InMemoryLocalSessionStore(),
             sessionId ?? SessionId,
+            expertFacade: experts,
             cancellationToken: CancellationToken);
 
     public static async Task<IReadOnlyList<ActionRuntimeEvent>> CollectAsync(

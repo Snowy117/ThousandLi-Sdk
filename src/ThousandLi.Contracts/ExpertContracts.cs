@@ -121,13 +121,10 @@ public interface IExpertSemanticEventSink
     ValueTask WriteAsync(ExpertSemanticEvent semanticEvent, CancellationToken cancellationToken = default);
 }
 
-public interface IExpertExecutor
-{
-    ValueTask<ExpertInvocationResult> ExecuteAsync(
-        ExpertInvocationRequest request,
-        IExpertSemanticEventSink events,
-        CancellationToken cancellationToken = default);
-}
+// The expert invocation protocol types above (request / semantic events / sink / result) are the
+// Playground, recording, and remote-wire tool surface. Game authors use the typed expert facade
+// (IExpertFacade.Use<TAbstract>()) instead; there is deliberately no polymorphic executor port on
+// the game-facing ActionContext.
 
 public sealed record GamePackageCompatibility
 {

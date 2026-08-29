@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageId>ThousandLi.RemoteExperts</PackageId>
-    <Description>Remote expert invocation client, SSE semantic-event decoder, and IExpertExecutor implementation for the ThousandLi platform.</Description>
+    <Description>Remote expert invocation client and SSE semantic-event decoder for the ThousandLi platform.</Description>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
   <ItemGroup>

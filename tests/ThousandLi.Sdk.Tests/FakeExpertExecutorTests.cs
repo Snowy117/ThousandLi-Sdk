@@ -53,12 +53,12 @@ public sealed class FakeExpertExecutorTests
     }
 
     [Theory]
-    [InlineData(2, 0, "tests-narrator-v1")]
+    [InlineData(2, 0, "tests-story-v1")]
     [InlineData(1, 0, "different")]
     public async Task IncompatibleContractIsRejected(int major, int minor, string fingerprint)
     {
         var executor = TestSupport.FakeExpert();
-        var required = new ExpertContractDescriptor("tests/narrator", new ContractVersion(major, minor), fingerprint);
+        var required = new ExpertContractDescriptor("tests/story", new ContractVersion(major, minor), fingerprint);
         var request = new ExpertInvocationRequest(required, "default", TestSupport.Json("{}"));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>

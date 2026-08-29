@@ -44,23 +44,13 @@ public sealed class GameContextTestFactoryTests
     }
 
     [Fact]
-    public async Task DefaultExpertsAndExecutorFailWithClearMessages()
+    public void DefaultExpertsFailWithClearMessages()
     {
         var context = ActionContextTestFactory.Create();
 
         var facadeError = Assert.Throws<InvalidOperationException>(
             () => context.Experts.Use<AbstractLongTextWritingExpert>());
-        var executorError = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await context.ExpertExecutor.ExecuteAsync(
-                new ExpertInvocationRequest(
-                    new ExpertContractDescriptor("tests/facade", new ContractVersion(1, 0), "fp"),
-                    "scenario",
-                JsonSerializer.SerializeToElement(new { })),
-                new RecordingSemanticSink(),
-                TestSupport.CancellationToken));
-
         Assert.Contains("not configured for this test context", facadeError.Message, StringComparison.Ordinal);
-        Assert.Contains("No Expert executor is configured", executorError.Message, StringComparison.Ordinal);
     }
 
     [Fact]

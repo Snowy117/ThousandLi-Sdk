@@ -12,7 +12,6 @@ public sealed class PublicAssemblyDependencyGraphTests
         "ThousandLi.GameHelper",
         "ThousandLi.Testing",
         "ThousandLi.DevHost",
-        "ThousandLi.ExpertContracts",
         "ThousandLi.ExpertAuthoring",
         "ThousandLi.RemoteExperts"
     ];

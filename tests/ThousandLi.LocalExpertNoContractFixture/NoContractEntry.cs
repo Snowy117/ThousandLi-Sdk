@@ -9,7 +9,7 @@ using ThousandLi.ExpertAuthoring;
 namespace ThousandLi.LocalExpertNoContractFixture;
 
 public abstract class LocalAbstractExpert
-    : RuntimeLongTextWritingExpertBase, IInvocableExpert
+    : AbstractLongTextWritingExpert, IInvocableExpert
 {
     public abstract Task<JsonElement> InvokeAsync(
         JsonElement input,

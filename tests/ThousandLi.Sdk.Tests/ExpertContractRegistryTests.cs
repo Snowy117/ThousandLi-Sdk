@@ -1,8 +1,5 @@
-using System.Text.Json;
 using ThousandLi.BrokenContractFixtures;
 using ThousandLi.Contracts;
-using ThousandLi.ExpertContracts;
-using ThousandLi.ExpertContracts.Narration;
 using JetBrains.Annotations;
 
 namespace ThousandLi.Sdk.Tests;
@@ -26,19 +23,19 @@ public sealed class ExpertContractRegistryTests
     }
 
     [Fact]
-    public void OfficialNarratorContractResolvesFromTheOfficialAssembly()
+    public void OfficialLongTextWritingContractResolvesFromTheOfficialAssembly()
     {
-        var registry = new ExpertContractRegistry([typeof(AbstractNarratorExpert).Assembly]);
+        var registry = new ExpertContractRegistry([typeof(AbstractLongTextWritingExpert).Assembly]);
 
-        Assert.True(registry.TryGetContract("thousandli.expert/narrator", out var contract));
-        Assert.Equal("thousandli.expert/narrator", contract.Id);
+        Assert.True(registry.TryGetContract("thousandli.expert/long-text-writing", out var contract));
+        Assert.Equal("thousandli.expert/long-text-writing", contract.Id);
         Assert.Equal(new ContractVersion(1, 0), contract.Version);
-        Assert.Equal(typeof(AbstractNarratorExpert), contract.AbstractType);
-        Assert.Equal("ThousandLi.ExpertContracts", contract.Source);
+        Assert.Equal(typeof(AbstractLongTextWritingExpert), contract.AbstractType);
+        Assert.Equal("ThousandLi.Contracts", contract.Source);
         Assert.Equal(
-            ExpertContractFingerprint.Compute("thousandli.expert/narrator", new ContractVersion(1, 0), AbstractNarratorExpert.Definition),
+            ExpertContractFingerprint.Compute("thousandli.expert/long-text-writing", new ContractVersion(1, 0), AbstractLongTextWritingExpert.Definition),
             contract.Fingerprint);
-        Assert.Equal(AbstractNarratorExpert.Descriptor, contract.ToDescriptor());
+        Assert.Equal(AbstractLongTextWritingExpert.Descriptor, contract.ToDescriptor());
         Assert.Contains("chunk", contract.Definition.SemanticEventTypes);
     }
 
@@ -46,10 +43,10 @@ public sealed class ExpertContractRegistryTests
     public void MultipleAssembliesAndExplicitRegistrationsCoexist()
     {
         var registry = new ExpertContractRegistry(
-            [typeof(AbstractNarratorExpert).Assembly, typeof(ExpertContractRegistryTests).Assembly],
+            [typeof(AbstractLongTextWritingExpert).Assembly, typeof(ExpertContractRegistryTests).Assembly],
             [Registration("tests/explicit-contract", V(1, 0))]);
 
-        Assert.NotNull(registry.GetRequiredContract("thousandli.expert/narrator"));
+        Assert.NotNull(registry.GetRequiredContract("thousandli.expert/long-text-writing"));
         Assert.NotNull(registry.GetRequiredContract("tests/good-contract"));
         Assert.NotNull(registry.GetRequiredContract("tests/explicit-contract"));
         Assert.Equal(3, registry.Contracts.Count);
@@ -162,7 +159,7 @@ public sealed class ExpertContractRegistryTests
     [Fact]
     public void LookupRejectsNullId()
     {
-        var registry = new ExpertContractRegistry([typeof(AbstractNarratorExpert).Assembly]);
+        var registry = new ExpertContractRegistry([typeof(AbstractLongTextWritingExpert).Assembly]);
 
         Assert.Throws<ArgumentNullException>(() => registry.TryGetContract(null!, out _));
         Assert.Throws<ArgumentNullException>(() => registry.GetRequiredContract(null!));
@@ -173,7 +170,7 @@ public sealed class ExpertContractRegistryTests
     [InlineData("  ")]
     public void LookupRejectsBlankId(string id)
     {
-        var registry = new ExpertContractRegistry([typeof(AbstractNarratorExpert).Assembly]);
+        var registry = new ExpertContractRegistry([typeof(AbstractLongTextWritingExpert).Assembly]);
 
         Assert.Throws<ArgumentException>(() => registry.TryGetContract(id, out _));
         Assert.Throws<ArgumentException>(() => registry.GetRequiredContract(id));
@@ -182,7 +179,7 @@ public sealed class ExpertContractRegistryTests
     [Fact]
     public void GetRequiredContractThrowsForUnknownId()
     {
-        var registry = new ExpertContractRegistry([typeof(AbstractNarratorExpert).Assembly]);
+        var registry = new ExpertContractRegistry([typeof(AbstractLongTextWritingExpert).Assembly]);
 
         var exception = Assert.Throws<KeyNotFoundException>(
             () => registry.GetRequiredContract("tests.acme/unknown"));
@@ -194,11 +191,11 @@ public sealed class ExpertContractRegistryTests
     [Fact]
     public void ValidateGameRequirementsPassesForSatisfiedRequirements()
     {
-        var registry = new ExpertContractRegistry([typeof(AbstractNarratorExpert).Assembly]);
+        var registry = new ExpertContractRegistry([typeof(AbstractLongTextWritingExpert).Assembly]);
         var compatibility = new GamePackageCompatibility(
             SdkContracts.Runtime,
             frontend: null,
-            expertContracts: [AbstractNarratorExpert.Descriptor]);
+            expertContracts: [AbstractLongTextWritingExpert.Descriptor]);
 
         registry.ValidateGameRequirements(compatibility);
     }
@@ -206,7 +203,7 @@ public sealed class ExpertContractRegistryTests
     [Fact]
     public void ValidateGameRequirementsListsMissingAndAvailableContracts()
     {
-        var registry = new ExpertContractRegistry([typeof(AbstractNarratorExpert).Assembly]);
+        var registry = new ExpertContractRegistry([typeof(AbstractLongTextWritingExpert).Assembly]);
         var compatibility = new GamePackageCompatibility(
             SdkContracts.Runtime,
             frontend: null,
@@ -216,22 +213,22 @@ public sealed class ExpertContractRegistryTests
             () => registry.ValidateGameRequirements(compatibility));
 
         Assert.Contains("tests.acme/missing", exception.Message);
-        Assert.Contains("thousandli.expert/narrator", exception.Message);
+        Assert.Contains("thousandli.expert/long-text-writing", exception.Message);
     }
 
     [Fact]
     public void ValidateGameRequirementsRejectsUnsupportedVersions()
     {
-        var registry = new ExpertContractRegistry([typeof(AbstractNarratorExpert).Assembly]);
+        var registry = new ExpertContractRegistry([typeof(AbstractLongTextWritingExpert).Assembly]);
         var compatibility = new GamePackageCompatibility(
             SdkContracts.Runtime,
             frontend: null,
-            expertContracts: [new ExpertContractDescriptor("thousandli.expert/narrator", V(1, 2), "any")]);
+            expertContracts: [new ExpertContractDescriptor("thousandli.expert/long-text-writing", V(1, 2), "any")]);
 
         var exception = Assert.Throws<ExpertContractRegistryException>(
             () => registry.ValidateGameRequirements(compatibility));
 
-        Assert.Contains("thousandli.expert/narrator", exception.Message);
+        Assert.Contains("thousandli.expert/long-text-writing", exception.Message);
         Assert.Contains("1.0", exception.Message);
         Assert.Contains("1.2", exception.Message);
     }
@@ -254,10 +251,10 @@ public sealed class ExpertContractRegistryTests
     [Fact]
     public void PassingTheSameAssemblyTwiceRegistersItsContractsOnce()
     {
-        var official = typeof(AbstractNarratorExpert).Assembly;
+        var official = typeof(AbstractLongTextWritingExpert).Assembly;
         var registry = new ExpertContractRegistry([official, official]);
 
-        Assert.True(registry.TryGetContract("thousandli.expert/narrator", out _));
+        Assert.True(registry.TryGetContract("thousandli.expert/long-text-writing", out _));
         Assert.Single(registry.Contracts);
     }
 
@@ -275,20 +272,20 @@ public sealed class ExpertContractRegistryTests
     public void RegistryContractsAreSortedById()
     {
         var registry = new ExpertContractRegistry(
-            [typeof(AbstractNarratorExpert).Assembly],
+            [typeof(AbstractLongTextWritingExpert).Assembly],
             [
                 Registration("tests/zulu", V(1, 0)),
                 Registration("tests/alpha", V(1, 0))
             ]);
 
         var registeredIds = registry.Contracts.Select(contract => contract.Id).ToArray();
-        Assert.Equal(["tests/alpha", "tests/zulu", "thousandli.expert/narrator"], registeredIds);
+        Assert.Equal(["tests/alpha", "tests/zulu", "thousandli.expert/long-text-writing"], registeredIds);
     }
 
     [Fact]
     public void RegistryContractsCollectionIsReadOnly()
     {
-        var registry = new ExpertContractRegistry([typeof(AbstractNarratorExpert).Assembly]);
+        var registry = new ExpertContractRegistry([typeof(AbstractLongTextWritingExpert).Assembly]);
 
         Assert.True(((ICollection<RegisteredExpertContract>)registry.Contracts).IsReadOnly);
     }
@@ -306,11 +303,11 @@ public sealed class ExpertContractRegistryTests
     [Fact]
     public void DerivedContractClassesDoNotInheritTheContractAttribute()
     {
-        var registry = new ExpertContractRegistry([typeof(DerivedNarratorExpert).Assembly]);
+        var registry = new ExpertContractRegistry([typeof(DerivedLongTextExpert).Assembly]);
 
-        Assert.True(typeof(AbstractNarratorExpert).IsAssignableFrom(typeof(DerivedNarratorExpert)));
+        Assert.True(typeof(AbstractLongTextWritingExpert).IsAssignableFrom(typeof(DerivedLongTextExpert)));
         Assert.True(registry.TryGetContract("tests/good-contract", out _));
-        Assert.False(registry.TryGetContract("thousandli.expert/narrator", out _));
+        Assert.False(registry.TryGetContract("thousandli.expert/long-text-writing", out _));
     }
 
     [Fact]
@@ -359,14 +356,8 @@ internal abstract class TestAssemblyGoodContract : IExpertContract
     public static ExpertContractDefinition Definition { get; } = new(semanticEventTypes: ["tick"]);
 }
 
-internal sealed class DerivedNarratorExpert : AbstractNarratorExpert
+internal sealed class DerivedLongTextExpert : AbstractLongTextWritingExpert
 {
-    public override Task<JsonElement> InvokeAsync(
-        JsonElement input,
-        IExpertSemanticEventSink events,
-        CancellationToken cancellationToken = default) =>
-        throw new NotImplementedException();
-
     protected override Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken) =>
         throw new NotImplementedException();
 

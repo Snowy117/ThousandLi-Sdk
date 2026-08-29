@@ -1,17 +1,29 @@
+using System.Text.Json;
 using JetBrains.Annotations;
 
 namespace ThousandLi.Contracts;
 
 /// <summary>
-/// 长文本写作专家类别的 game-facing builder 契约。
+/// 长文本写作专家类别的唯一锚类型（类型即契约）。
 /// Game 通过 <c>context.Experts.Use&lt;AbstractLongTextWritingExpert&gt;()</c> 获取平台注入的具体实例，
 /// 用 fluent API 填充类别输入与通用配置（主输出 / Feature / 历史桶 / reasoning handler），
 /// 再调用 <see cref="StreamAsync" /> / <see cref="CompleteAsync" /> 执行。
-/// 具体执行流程（prompt/schema 构建、LLM 调用、事件到 callback 的映射）由平台侧的具体专家实现拥有。
+/// 具体执行流程（prompt/schema 构建、LLM 调用、事件到 callback 的映射）由具体专家在
+/// <see cref="StreamAsyncCore" /> / <see cref="CompleteAsyncCore" /> override 中拥有。
+/// 实例由工厂/facade 创建后未经绑定（unbound）；执行前由 facade/executor 调用
+/// <see cref="Bind" /> 恰好绑定一次。实例与 sink 均为单次调用对象：每个实例至多执行一次。
+/// 契约身份（<c>thousandli.expert/long-text-writing</c>）直接挂在本类型上；类别 fluent 类型
+/// 本身是编译期 IDL，<see cref="Definition" /> 只是第一版校验文档（允许随 preview 演进）。
 /// </summary>
+[ExpertContract(LongTextWritingContract.Id, 1, 0, LongTextWritingContract.Fingerprint)]
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
-public abstract class AbstractLongTextWritingExpert
+public abstract class AbstractLongTextWritingExpert : IExpertContract, IExpertExecutionParticipant
 {
+    private static readonly IReadOnlySet<string> SEmptyMetadataFields = new HashSet<string>(StringComparer.Ordinal);
+
+    private IExpertExecutionContext? _executionContext;
+    private int _executed;
+
     /// <summary>世界设定。</summary>
     protected string? WorldSettings { get; private set; }
 
@@ -38,6 +50,18 @@ public abstract class AbstractLongTextWritingExpert
 
     /// <summary>已注册的 reasoning handler；为 null 时不转发推理增量。</summary>
     protected Func<ReasoningDeltaEvent, CancellationToken, ValueTask>? ReasoningHandler { get; private set; }
+
+    /// <summary>类别的契约描述符（id、版本、指纹）。</summary>
+    public static ExpertContractDescriptor Descriptor => new(
+        LongTextWritingContract.Id, new ContractVersion(1, 0), LongTextWritingContract.Fingerprint);
+
+    /// <summary>类别契约的第一版校验文档；类型面（fluent 签名）才是权威契约。</summary>
+    public static ExpertContractDefinition Definition => LongTextWritingContract.CreateDefinition();
+
+    /// <summary>The bound execution context; throws when the instance has not been bound yet.</summary>
+    protected IExpertExecutionContext RuntimeContext =>
+        _executionContext ?? throw new InvalidOperationException(
+            "The expert instance has not been bound to an execution context. Expert instances must be created through a factory or facade that binds an IExpertExecutionContext before execution.");
 
     /// <summary>设置世界设定。</summary>
     public AbstractLongTextWritingExpert WithWorldSettings(string worldSettings)
@@ -116,18 +140,55 @@ public abstract class AbstractLongTextWritingExpert
     }
 
     /// <summary>
-    /// 流式执行一次专家请求。具体专家拥有完整执行流程（构建 request+sink、调用 LLM、映射事件到 callback）。
+    /// Binds the execution context to this instance, exactly once, before invocation. Callers are the
+    /// facades/executors that hand experts to game code: the production Host facade, local
+    /// composition roots, and test doubles (for example the <c>ThousandLi.Testing</c> fake facade
+    /// pattern where the registered factory creates, binds, and returns the expert).
     /// </summary>
-    public abstract Task<ExpertCompletionResult> StreamAsync([UsedImplicitly] CancellationToken cancellationToken = default);
+    public void Bind(IExpertExecutionContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (_executionContext is not null)
+            throw new InvalidOperationException(
+                "This expert instance is already bound to an execution context; expert instances must not be rebound.");
+        _executionContext = context;
+    }
 
     /// <summary>
-    /// 非流式完成一次专家请求。具体专家拥有完整执行流程。
+    /// Root property names captured as turn metadata; concrete experts override to declare their
+    /// intrinsic metadata fields (for example <c>afterThinking</c>/<c>afterFormat</c>).
     /// </summary>
-    public abstract Task<ExpertCompletionResult> CompleteAsync([UsedImplicitly] CancellationToken cancellationToken = default);
+    protected virtual IReadOnlySet<string> MetadataFieldNames => SEmptyMetadataFields;
+
+    /// <summary>
+    /// 流式执行入口；每个实例至多执行一次。验证绑定与单次执行生命周期后委托给具体专家的
+    /// <see cref="StreamAsyncCore" /> override。
+    /// </summary>
+    public Task<ExpertCompletionResult> StreamAsync(CancellationToken cancellationToken = default) =>
+        ExecuteOnce(static (self, token) => self.StreamAsyncCore(token), cancellationToken);
+
+    /// <summary>
+    /// 非流式执行入口；每个实例至多执行一次。验证绑定与单次执行生命周期后委托给具体专家的
+    /// <see cref="CompleteAsyncCore" /> override。
+    /// </summary>
+    public Task<ExpertCompletionResult> CompleteAsync(CancellationToken cancellationToken = default) =>
+        ExecuteOnce(static (self, token) => self.CompleteAsyncCore(token), cancellationToken);
+
+    /// <summary>
+    /// 流式执行契约，由具体专家拥有：构建 request+sink，然后调用
+    /// <c>ExpertExecution</c>（或自行编排多次 BasicAi 调用）。
+    /// </summary>
+    protected abstract Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 非流式执行契约，由具体专家拥有：构建 request+sink，然后调用
+    /// <c>ExpertExecution</c>（或自行编排多次 BasicAi 调用）。
+    /// </summary>
+    protected abstract Task<ExpertCompletionResult> CompleteAsyncCore(CancellationToken cancellationToken);
 
     /// <summary>
     /// 校验世界设定/玩家输入非空，缺失时抛 <see cref="InvalidOperationException"/>。
-    /// 由具体专家在构建 request+sink 时（<c>StreamAsync</c>/<c>CompleteAsync</c> override 内）调用。
+    /// 由具体专家在构建 request+sink 时（<c>StreamAsyncCore</c>/<c>CompleteAsyncCore</c> override 内）调用。
     /// </summary>
     protected void ValidateCategoryInputs()
     {
@@ -136,4 +197,86 @@ public abstract class AbstractLongTextWritingExpert
         if (string.IsNullOrWhiteSpace(PlayerInput))
             throw new InvalidOperationException("Long text writing expert requires player input.");
     }
+
+    private Task<ExpertCompletionResult> ExecuteOnce(
+        Func<AbstractLongTextWritingExpert, CancellationToken, Task<ExpertCompletionResult>> core,
+        CancellationToken cancellationToken)
+    {
+        _ = RuntimeContext;
+        if (Interlocked.Exchange(ref _executed, 1) != 0)
+            throw new InvalidOperationException(
+                "This expert invocation instance has already been executed. Expert instances and sinks are per-invocation; create a fresh instance for every invocation.");
+        return core(this, cancellationToken);
+    }
+
+    IRuntimeBasicAi IExpertExecutionParticipant.BasicAi => RuntimeContext.BasicAi;
+
+    IReadOnlySet<string> IExpertExecutionParticipant.MetadataFieldNames => MetadataFieldNames;
+
+    Func<ReasoningDeltaEvent, CancellationToken, ValueTask>? IExpertExecutionParticipant.ReasoningHandler =>
+        ReasoningHandler;
+}
+
+/// <summary>
+/// The contract identity constants and first-version definition of the long-text-writing expert
+/// category. The fingerprint pins the current <see cref="AbstractLongTextWritingExpert.Definition"/>
+/// for drift detection; recompute it whenever the definition evolves during the preview line.
+/// </summary>
+internal static class LongTextWritingContract
+{
+    public const string Id = "thousandli.expert/long-text-writing";
+    public const string Fingerprint = "573299a67800f57dead23e7fc320857b8725440df2260e9050afb70cfe247488";
+
+    public static ExpertContractDefinition CreateDefinition() => new(
+        inputSchema: ParseSchema("""
+            {
+              "type": "object",
+              "properties": {
+                "worldSettings": {
+                  "type": "string",
+                  "description": "World settings text governing the whole session."
+                },
+                "playerInput": {
+                  "type": "string",
+                  "description": "The acting player's input for this turn."
+                },
+                "playerPersona": {
+                  "type": "string",
+                  "description": "Optional persona of the acting player."
+                },
+                "currentState": {
+                  "type": "string",
+                  "description": "Optional summary of the current game state."
+                },
+                "stateSchema": {
+                  "type": "string",
+                  "description": "Optional AI-facing schema of the current state, consumed by the variable-update pass."
+                },
+                "primaryOutput": {
+                  "type": "object",
+                  "description": "Primary output declaration: the root property name and whether it streams text or JSON."
+                },
+                "features": {
+                  "type": "array",
+                  "description": "Feature declarations enabled for this invocation: time tags, action options, variable update.",
+                  "items": { "type": "object" }
+                },
+                "historyBuckets": {
+                  "type": "array",
+                  "description": "Read-only history bucket projections the expert may consume.",
+                  "items": { "type": "object" }
+                }
+              },
+              "required": ["worldSettings", "playerInput"]
+            }
+            """),
+        semanticEventTypes: ["actionOption", "chunk", "jsonStream", "timetag"],
+        outputSchema: ParseSchema("""
+            {
+              "type": "object",
+              "description": "Completion frame aggregating every expert-to-game channel: the primary output value, feature results, turn metadata, and provider reasoning. The exact wire shape is finalized with the remote invocation payload."
+            }
+            """));
+
+    private static JsonElement ParseSchema(string json) => JsonDocument.Parse(json).RootElement.Clone();
 }

@@ -8,7 +8,7 @@ namespace ThousandLi.Sdk.Tests;
 /// <summary>
 /// FakeExpertFacade 契约测试 + 官方包测试迁移的标准 stub 模式样例：
 /// fake facade 注册「new + Bind + return」工厂闭包，stub 专家派生
-/// RuntimeLongTextWritingExpertBase 并经 ExpertExecution 重放 RecordedBasicAi 的录制流。
+/// 类别锚（AbstractLongTextWritingExpert）并经 ExpertExecution 重放 RecordedBasicAi 的录制流。
 /// </summary>
 public sealed class FakeExpertFacadeTests
 {
@@ -28,6 +28,24 @@ public sealed class FakeExpertFacadeTests
 
         Assert.NotSame(first, second);
         Assert.Equal(2, created);
+    }
+
+    [Fact]
+    public async Task ConvenienceRegistrationBindsTheDefaultExecutionContext()
+    {
+        var facade = new FakeExpertFacade();
+        facade.Register<AbstractLongTextWritingExpert, CountingStubExpert>();
+
+        var first = facade.Use<AbstractLongTextWritingExpert>();
+        var second = facade.Use<AbstractLongTextWritingExpert>();
+
+        Assert.NotSame(first, second);
+        // Reaching the stub's StreamAsyncCore (instead of the unbound-context guard) proves the
+        // convenience registration bound the default fake execution context automatically.
+        await Assert.ThrowsAsync<NotSupportedException>(
+            () => first.WithWorldSettings("world").WithPlayerInput("go").StreamAsync(TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<NotSupportedException>(
+            () => second.WithWorldSettings("world").WithPlayerInput("go").CompleteAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -114,10 +132,10 @@ public sealed class FakeExpertFacadeTests
     }
 
     /// <summary>
-    /// 样例 stub 专家：派生 RuntimeLongTextWritingExpertBase（获得 RuntimeContext/MetadataFieldNames/绑定面），
+    /// 样例 stub 专家：直接派生类别锚（获得 RuntimeContext/MetadataFieldNames/绑定面），
     /// StreamAsyncCore override 里构建 request + sink 后交给 ExpertExecution 单调用执行。
     /// </summary>
-    private sealed class StubLongTextWritingExpert : RuntimeLongTextWritingExpertBase
+    private sealed class StubLongTextWritingExpert : AbstractLongTextWritingExpert
     {
         private static readonly IReadOnlySet<string> SDeclaredMetadataFields =
             new HashSet<string>(StringComparer.Ordinal) { "afterFormat" };
@@ -158,10 +176,10 @@ public sealed class FakeExpertFacadeTests
 
     private sealed class CountingStubExpert : AbstractLongTextWritingExpert
     {
-        public override Task<ExpertCompletionResult> StreamAsync(CancellationToken cancellationToken = default)
+        protected override Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken)
             => throw new NotSupportedException("Counting stub never executes.");
 
-        public override Task<ExpertCompletionResult> CompleteAsync(CancellationToken cancellationToken = default)
+        protected override Task<ExpertCompletionResult> CompleteAsyncCore(CancellationToken cancellationToken)
             => throw new NotSupportedException("Counting stub never executes.");
     }
 }

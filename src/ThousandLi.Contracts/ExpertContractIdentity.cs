@@ -1,11 +1,16 @@
 using System.Collections.ObjectModel;
 using System.Security.Cryptography;
-using JetBrains.Annotations;
 using System.Text.Json;
-using ThousandLi.Contracts;
+using JetBrains.Annotations;
 
-namespace ThousandLi.ExpertContracts;
+namespace ThousandLi.Contracts;
 
+/// <summary>
+/// Declares the contract identity of an abstract expert category type: the contract id, version,
+/// and the fingerprint of the category's current contract definition. The abstract category type
+/// itself is the compile-time IDL; this attribute anchors its runtime identity for registry
+/// discovery, drift detection, and compatibility checks.
+/// </summary>
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class ExpertContractAttribute : Attribute
 {
@@ -24,9 +29,9 @@ public sealed class ExpertContractAttribute : Attribute
 }
 
 /// <summary>
-/// Compile-time contract marker implemented by abstract expert types. Implementations are read by
-/// the registry and tests directly on concrete types (static abstract members have no interface
-/// dispatch), so this member is intentionally part of the published authoring surface.
+/// Compile-time contract marker implemented by abstract expert category types. Implementations are
+/// read by the registry and tests directly on concrete types (static abstract members have no
+/// interface dispatch), so this member is intentionally part of the published authoring surface.
 /// </summary>
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 public interface IExpertContract
@@ -34,6 +39,13 @@ public interface IExpertContract
     static abstract ExpertContractDefinition Definition { get; }
 }
 
+/// <summary>
+/// The first-version validation document of an expert category contract: the projection of the
+/// category's fluent inputs, the whitelist of semantic event types, and a loose description of the
+/// completion output. The fluent type is the authoritative contract; this definition is allowed to
+/// evolve during the preview line, with the fingerprint serving as an internal drift detector
+/// between the SDK and the platform rather than a frozen compatibility promise.
+/// </summary>
 public sealed record ExpertContractDefinition
 {
     public ExpertContractDefinition(
@@ -60,6 +72,11 @@ public sealed record ExpertContractDefinition
     public JsonElement? OutputSchema { get; }
 }
 
+/// <summary>
+/// Computes the canonical fingerprint of a contract definition: object keys are sorted ordinally,
+/// semantic event types are sorted, numbers keep their raw text, and the canonical JSON is hashed
+/// with SHA-256 (lowercase hex). Used for SDK self-validation and SDK-to-platform drift gates.
+/// </summary>
 public static class ExpertContractFingerprint
 {
     public static string Compute(string id, ContractVersion version, ExpertContractDefinition definition)

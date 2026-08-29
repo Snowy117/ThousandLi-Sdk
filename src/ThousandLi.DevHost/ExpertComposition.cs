@@ -1,7 +1,6 @@
 using System.Reflection;
 using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
-using ThousandLi.ExpertContracts;
 using ThousandLi.RemoteExperts;
 
 namespace ThousandLi.DevHost;
@@ -17,8 +16,8 @@ internal sealed record ExpertContractComposition(
 
 /// <summary>
 /// The remote expert execution pair composed by the DevHost composition root: the raw client (used
-/// by the Playground to list the platform catalog) and the executor (used by the game runtime and
-/// the Playground invoke path through the shared <see cref="IExpertExecutor" /> seam).
+/// by the Playground to list the platform catalog) and the executor (used by the Playground invoke
+/// path; the game-facing remote facade arrives with the remote fidelity slice).
 /// </summary>
 public sealed record RemoteExpertComposition(RemoteExpertClient Client, RemoteExpertExecutor Executor);
 
@@ -118,7 +117,7 @@ internal static class ExpertComposition
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        if (options.ExpertExecutor != DevHostOptions.LocalExecutorName)
+        if (options.Experts != DevHostOptions.LocalExecutorName)
         {
             var localOnlyArguments = new List<string>();
             if (options.ExpertArtifactDirectories.Count > 0)
@@ -135,10 +134,10 @@ internal static class ExpertComposition
             if (localOnlyArguments.Count > 0)
                 throw new ArgumentException(
                     $"Arguments {string.Join(", ", localOnlyArguments.Select(flag => $"'{flag}'"))} require " +
-                    $"'--expert-executor {DevHostOptions.LocalExecutorName}'.");
+                    $"'--experts {DevHostOptions.LocalExecutorName}'.");
         }
 
-        if (options.ExpertExecutor == DevHostOptions.RemoteExecutorName)
+        if (options.Experts == DevHostOptions.RemoteExecutorName)
             return;
         var remoteOnlyArguments = new List<string>();
         if (!string.IsNullOrWhiteSpace(options.RemoteEndpoint))
@@ -151,7 +150,7 @@ internal static class ExpertComposition
         if (remoteOnlyArguments.Count > 0)
             throw new ArgumentException(
                 $"Arguments {string.Join(", ", remoteOnlyArguments.Select(flag => $"'{flag}'"))} require " +
-                $"'--expert-executor {DevHostOptions.RemoteExecutorName}'.");
+                $"'--experts {DevHostOptions.RemoteExecutorName}'.");
     }
 
     /// <summary>

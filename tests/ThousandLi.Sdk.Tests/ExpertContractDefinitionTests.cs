@@ -1,5 +1,5 @@
 using System.Text.Json;
-using ThousandLi.ExpertContracts;
+using ThousandLi.Contracts;
 
 namespace ThousandLi.Sdk.Tests;
 

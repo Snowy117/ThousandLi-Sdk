@@ -8,13 +8,13 @@ namespace ThousandLi.Sdk.Tests;
 
 public sealed class RemoteExpertExecutorTests
 {
-    private const string ContractId = "tests/narrator";
-    private const string Fingerprint = "tests-narrator-v1";
-    private const string PackageId = "tests/narrator-pro@1";
+    private const string ContractId = "tests/story";
+    private const string Fingerprint = "tests-story-v1";
+    private const string PackageId = "tests/story-pro@1";
     private const string InvocationId = "0199abc0-1111-7222-8333-444455556666";
 
     private static string CatalogJson(string versionMajor = "1", string versionMinor = "0", string fingerprint = Fingerprint) =>
-        "[{\"contractId\":\"" + ContractId + "\",\"name\":\"Narrator\",\"description\":\"\",\"version\":{\"major\":" +
+        "[{\"contractId\":\"" + ContractId + "\",\"name\":\"LongTextWriting\",\"description\":\"\",\"version\":{\"major\":" +
         versionMajor + ",\"minor\":" + versionMinor + "},\"fingerprint\":\"" + fingerprint + "\"}]";
 
     private static string SnapshotJson() =>

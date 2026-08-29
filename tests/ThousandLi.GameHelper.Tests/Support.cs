@@ -23,7 +23,6 @@ internal static class Support
             new NoopFrontendEventSink(),
             new EmptyActionHistory(),
             DisabledExpertFacade.Instance,
-            new ThrowingExecutor(),
             buckets ?? new InMemoryHistoryBucketSet());
 
     public static FrontendRequestContext BuildFrontendRequestContext(
@@ -52,14 +51,5 @@ internal static class Support
             int count,
             CancellationToken cancellationToken = default)
             => ValueTask.FromResult<IReadOnlyList<PlayerActionEnvelope>>([]);
-    }
-
-    private sealed class ThrowingExecutor : IExpertExecutor
-    {
-        public ValueTask<ExpertInvocationResult> ExecuteAsync(
-            ExpertInvocationRequest request,
-            IExpertSemanticEventSink events,
-            CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("GameHelper tests do not invoke experts.");
     }
 }

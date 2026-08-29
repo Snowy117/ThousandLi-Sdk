@@ -7,7 +7,7 @@ using ThousandLi.ExpertAuthoring;
 
 namespace ThousandLi.Sdk.Tests;
 
-public sealed class RuntimeLongTextWritingExpertBaseTests
+public sealed class LongTextWritingExpertAnchorTests
 {
     [Fact]
     public void RuntimeContext_ThrowsWhenUnbound()
@@ -336,7 +336,7 @@ public sealed class RuntimeLongTextWritingExpertBaseTests
         public IReadOnlyList<HistoryTurn> GetRawTurns() => [_turn];
     }
 
-    private sealed class ProbeExpert : RuntimeLongTextWritingExpertBase
+    private sealed class ProbeExpert : AbstractLongTextWritingExpert
     {
         public Func<ProbeExpert, CancellationToken, Task>? OnStream { get; init; }
 
@@ -361,7 +361,7 @@ public sealed class RuntimeLongTextWritingExpertBaseTests
             Task.FromResult(new ExpertCompletionResult(new Dictionary<string, string> { ["mode"] = "complete" }));
     }
 
-    private sealed class TestExpert(IReadOnlySet<string>? metadataFields) : RuntimeLongTextWritingExpertBase
+    private sealed class TestExpert(IReadOnlySet<string>? metadataFields) : AbstractLongTextWritingExpert
     {
         public IExpertExecutionContext ExposedRuntimeContext => RuntimeContext;
 
