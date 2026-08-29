@@ -1,6 +1,6 @@
 {
   "name": "ThousandLi.TemplateAuthor-ThousandLi.TemplatePackage-frontend",
-  "version": "0.3.0-preview.1",
+  "version": "0.3.0-preview.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,7 @@
     "build": "vue-tsc --noEmit && vite build"
   },
   "dependencies": {
-    "@thousandli/sdk": "^0.3.0-preview.1",
+    "@thousandli/sdk": "^0.3.0-preview.2",
     "vue": "^3.5.41"
   },
   "devDependencies": {
