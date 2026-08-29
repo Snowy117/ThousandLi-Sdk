@@ -200,7 +200,7 @@ public sealed class LocalExpertSettingsTests
         var (directory, filePath) = await WriteOverrideFileAsync("""{"count":2}""");
         try
         {
-            var context = new LocalExpertRuntimeContext(
+            var context = new LocalExpertExecutionContext(
                 new RecordedBasicAi(["m"], []),
                 new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "curious"),
                 NullLogger.Instance,
@@ -224,7 +224,7 @@ public sealed class LocalExpertSettingsTests
     public async Task TypedDeserializationFailuresSurfaceAsSettingsExceptions()
     {
         var defaults = TestSupport.Json("""{"count":"not-a-number"}""");
-        var context = new LocalExpertRuntimeContext(
+        var context = new LocalExpertExecutionContext(
             new RecordedBasicAi(["m"], []),
             new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "curious"),
             NullLogger.Instance,
@@ -296,7 +296,7 @@ public sealed class LocalExpertSettingsTests
         var (directory, filePath) = await WriteOverrideFileAsync("""{"count":2}""");
         try
         {
-            var context = new LocalExpertRuntimeContext(
+            var context = new LocalExpertExecutionContext(
                 new RecordedBasicAi(["m"], []),
                 new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "curious"),
                 NullLogger.Instance,
@@ -324,7 +324,7 @@ public sealed class LocalExpertSettingsTests
         var (directory, filePath) = await WriteOverrideFileAsync("""{"count": """);
         try
         {
-            var context = new LocalExpertRuntimeContext(
+            var context = new LocalExpertExecutionContext(
                 new RecordedBasicAi(["m"], []),
                 new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "curious"),
                 NullLogger.Instance,
@@ -351,10 +351,10 @@ public sealed class LocalExpertSettingsTests
         var profile = new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "curious");
         var logger = NullLogger.Instance;
         Assert.Throws<ArgumentNullException>(() =>
-            new LocalExpertRuntimeContext(null!, profile, logger));
+            new LocalExpertExecutionContext(null!, profile, logger));
         Assert.Throws<ArgumentNullException>(() =>
-            new LocalExpertRuntimeContext(new RecordedBasicAi(["m"], []), null!, logger));
+            new LocalExpertExecutionContext(new RecordedBasicAi(["m"], []), null!, logger));
         Assert.Throws<ArgumentNullException>(() =>
-            new LocalExpertRuntimeContext(new RecordedBasicAi(["m"], []), profile, null!));
+            new LocalExpertExecutionContext(new RecordedBasicAi(["m"], []), profile, null!));
     }
 }

@@ -340,10 +340,10 @@ public sealed class ExpertExecutionTests
     {
         protected override IReadOnlySet<string> MetadataFieldNames => metadataFields;
 
-        public override Task<ExpertCompletionResult> StreamAsync(CancellationToken cancellationToken = default) =>
+        protected override Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken) =>
             throw new NotSupportedException("The test expert is invoked through ExpertExecution directly.");
 
-        public override Task<ExpertCompletionResult> CompleteAsync(CancellationToken cancellationToken = default) =>
+        protected override Task<ExpertCompletionResult> CompleteAsyncCore(CancellationToken cancellationToken) =>
             throw new NotSupportedException("The test expert is invoked through ExpertExecution directly.");
     }
 
@@ -357,13 +357,13 @@ public sealed class ExpertExecutionTests
 
         protected override IReadOnlySet<string> MetadataFieldNames => metadataFields;
 
-        public override async Task<ExpertCompletionResult> StreamAsync(CancellationToken cancellationToken = default)
+        protected override async Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken)
         {
             Invoked = true;
             return await ExpertExecution.StreamOnceAsync(this, request, Sink, cancellationToken);
         }
 
-        public override Task<ExpertCompletionResult> CompleteAsync(CancellationToken cancellationToken = default) =>
+        protected override Task<ExpertCompletionResult> CompleteAsyncCore(CancellationToken cancellationToken) =>
             throw new NotSupportedException("The delegating expert only exercises the streaming path.");
     }
 

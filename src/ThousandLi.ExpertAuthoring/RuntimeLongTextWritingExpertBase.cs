@@ -26,13 +26,18 @@ public interface IExpertExecutionParticipant
 /// <see cref="ExpertExecution"/>. Extends the game-facing category contract from
 /// <see cref="ThousandLi.Contracts"/> with the bound <see cref="IExpertExecutionContext"/> and the
 /// <see cref="MetadataFieldNames"/> declaration surface. Instances are created unbound; the executor
-/// or facade binds an execution context exactly once before invocation.
+/// or facade binds an execution context exactly once before invocation. Instances and sinks are
+/// per-invocation: each instance executes at most once, enforced by
+/// <see cref="StreamAsync"/>/<see cref="CompleteAsync"/> before delegating to the
+/// <see cref="StreamAsyncCore"/>/<see cref="CompleteAsyncCore"/> overrides owned by the concrete
+/// expert. The base performs no model invocation itself; execution is owned by the concrete expert.
 /// </summary>
 public abstract class RuntimeLongTextWritingExpertBase : AbstractLongTextWritingExpert, IExpertExecutionParticipant
 {
     private static readonly IReadOnlySet<string> SEmptyMetadataFields = new HashSet<string>(StringComparer.Ordinal);
 
     private IExpertExecutionContext? _executionContext;
+    private int _executed;
 
     /// <summary>The bound execution context; throws when the instance has not been bound yet.</summary>
     protected IExpertExecutionContext RuntimeContext =>
@@ -59,6 +64,45 @@ public abstract class RuntimeLongTextWritingExpertBase : AbstractLongTextWriting
     /// intrinsic metadata fields (for example <c>afterThinking</c>/<c>afterFormat</c>).
     /// </summary>
     protected virtual IReadOnlySet<string> MetadataFieldNames => SEmptyMetadataFields;
+
+    /// <summary>
+    /// Streaming execution entry; each instance executes at most once. Delegates to the concrete
+    /// expert's <see cref="StreamAsyncCore"/> override after verifying the binding and the
+    /// single-execution lifecycle.
+    /// </summary>
+    public sealed override Task<ExpertCompletionResult> StreamAsync(CancellationToken cancellationToken = default) =>
+        ExecuteOnce(static (self, token) => self.StreamAsyncCore(token), cancellationToken);
+
+    /// <summary>
+    /// Non-streaming execution entry; each instance executes at most once. Delegates to the concrete
+    /// expert's <see cref="CompleteAsyncCore"/> override after verifying the binding and the
+    /// single-execution lifecycle.
+    /// </summary>
+    public sealed override Task<ExpertCompletionResult> CompleteAsync(CancellationToken cancellationToken = default) =>
+        ExecuteOnce(static (self, token) => self.CompleteAsyncCore(token), cancellationToken);
+
+    /// <summary>
+    /// Streaming execution contract owned by the concrete expert: build the request and sink, then
+    /// invoke <see cref="ExpertExecution"/> (or orchestrate multiple BasicAi calls directly).
+    /// </summary>
+    protected abstract Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Non-streaming execution contract owned by the concrete expert: build the request and sink,
+    /// then invoke <see cref="ExpertExecution"/> (or orchestrate multiple BasicAi calls directly).
+    /// </summary>
+    protected abstract Task<ExpertCompletionResult> CompleteAsyncCore(CancellationToken cancellationToken);
+
+    private Task<ExpertCompletionResult> ExecuteOnce(
+        Func<RuntimeLongTextWritingExpertBase, CancellationToken, Task<ExpertCompletionResult>> core,
+        CancellationToken cancellationToken)
+    {
+        _ = RuntimeContext;
+        if (Interlocked.Exchange(ref _executed, 1) != 0)
+            throw new InvalidOperationException(
+                "This expert invocation instance has already been executed. Expert instances and sinks are per-invocation; create a fresh instance for every invocation.");
+        return core(this, cancellationToken);
+    }
 
     IRuntimeBasicAi IExpertExecutionParticipant.BasicAi => RuntimeContext.BasicAi;
 

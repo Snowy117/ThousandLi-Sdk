@@ -8,10 +8,8 @@ using ThousandLi.ExpertAuthoring;
 
 namespace ThousandLi.LocalExpertNoContractFixture;
 
-public interface ILocalFeature : IExpertFeature;
-
 public abstract class LocalAbstractExpert
-    : ExpertBase<ILocalFeature, LocalAbstractExpert>, IInvocableExpert
+    : RuntimeLongTextWritingExpertBase, IInvocableExpert
 {
     public abstract Task<JsonElement> InvokeAsync(
         JsonElement input,

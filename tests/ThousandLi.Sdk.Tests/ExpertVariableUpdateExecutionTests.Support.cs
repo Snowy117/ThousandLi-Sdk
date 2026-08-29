@@ -66,12 +66,12 @@ public sealed partial class ExpertVariableUpdateExecutionTests
     {
         protected override IReadOnlySet<string> MetadataFieldNames => metadataFieldNames;
 
-        public override Task<ExpertCompletionResult> StreamAsync(
-            CancellationToken cancellationToken = default) =>
+        protected override Task<ExpertCompletionResult> StreamAsyncCore(
+            CancellationToken cancellationToken) =>
             throw new NotSupportedException("The test expert is invoked through ExpertVariableUpdateExecution directly.");
 
-        public override Task<ExpertCompletionResult> CompleteAsync(
-            CancellationToken cancellationToken = default) =>
+        protected override Task<ExpertCompletionResult> CompleteAsyncCore(
+            CancellationToken cancellationToken) =>
             throw new NotSupportedException("The test expert is invoked through ExpertVariableUpdateExecution directly.");
     }
 

@@ -8,8 +8,9 @@ namespace ThousandLi.SampleExpert;
 
 /// <summary>
 /// Sample concrete narrator expert for the official <c>thousandli.expert/narrator</c> contract.
-/// It streams plain-text deltas from the locally configured gateway model as <c>chunk</c> semantic
-/// events and returns the accumulated narration, mirroring how a real narration expert works.
+/// It streams the model's narrative JSON string chunks from the locally configured gateway model
+/// as <c>chunk</c> semantic events and returns the accumulated narration, mirroring how a real
+/// narration expert works.
 /// </summary>
 public sealed class SampleNarratorExpert : AbstractNarratorExpert
 {
@@ -40,18 +41,22 @@ public sealed class SampleNarratorExpert : AbstractNarratorExpert
         var turn = RequiredInputProperty("turn").GetInt32();
         var player = RequiredInputProperty("player").GetString();
         var action = RequiredInputProperty("action").GetRawText();
-        var request = new LocalBasicAiRequest(
-            RuntimeContext.BasicAi.AvailableModels[0],
-            [new LocalBasicAiMessage("user", $"Turn {turn} for {player}: narrate the outcome of the action {action}.")]);
+        var request = new BasicAiRequest(
+            RuntimeContext.BasicAi.AvailableModels[0].ModelId,
+            [BasicAiMessage.User($"Turn {turn} for {player}: narrate the outcome of the action {action}.")],
+            AiJsonSchema.Object(AiJsonSchema.Required("narrative", AiJsonSchema.String())));
         await foreach (var streamEvent in RuntimeContext.BasicAi
                            .StreamAsync(request, cancellationToken)
                            .ConfigureAwait(false))
         {
-            if (streamEvent is not ExpertTextDeltaEvent delta)
+            if (streamEvent is not BasicAiJsonStreamEvent
+                {
+                    Event: JsonStreamStringChunkEvent { Path: "/narrative" } chunk
+                })
                 continue;
-            _text.Append(delta.Delta);
+            _text.Append(chunk.Value);
             await _events.WriteAsync(
-                new ExpertSemanticEvent("chunk", JsonSerializer.SerializeToElement(new { text = delta.Delta })),
+                new ExpertSemanticEvent("chunk", JsonSerializer.SerializeToElement(new { text = chunk.Value })),
                 cancellationToken).ConfigureAwait(false);
         }
 

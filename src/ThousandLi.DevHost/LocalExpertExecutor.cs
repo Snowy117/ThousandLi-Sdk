@@ -11,10 +11,10 @@ public sealed class LocalExpertException(string message) : InvalidOperationExcep
 /// <summary>
 /// Per-executor composition of the local expert path: the BasicAi capability, the player profile,
 /// and the optional local settings override file. Credentials never appear here; they stay inside
-/// the composition root's <see cref="ILocalBasicAi"/> implementation.
+/// the composition root's <see cref="IRuntimeBasicAi"/> implementation.
 /// </summary>
 public sealed record LocalExpertExecutorOptions(
-    ILocalBasicAi BasicAi,
+    IRuntimeBasicAi BasicAi,
     BoundPlayerProfile PlayerProfile,
     ILogger? Logger = null,
     FileInfo? SettingsOverrideFile = null);
@@ -193,7 +193,7 @@ public sealed class LocalExpertExecutor : IExpertExecutor
         }
 
         var expert = package.ExpertFactory();
-        var context = new LocalExpertRuntimeContext(
+        var context = new LocalExpertExecutionContext(
             _options.BasicAi,
             _options.PlayerProfile,
             _options.Logger ?? NullLogger.Instance,

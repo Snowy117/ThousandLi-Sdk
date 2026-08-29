@@ -171,13 +171,13 @@ public sealed class SampleGameVariableUpdateTests
 
     /// <summary>
     /// 测试组合根提供的具体长文本写作专家（派生 <see cref="RuntimeLongTextWritingExpertBase" />）：
-    /// StreamAsync 内构建主调用 request+sink，并把 Game 传入的 VariableUpdateFeature
+    /// StreamAsyncCore 内构建主调用 request+sink，并把 Game 传入的 VariableUpdateFeature
     /// 显式交给共享的 ExpertVariableUpdateExecution 第二遍。平台语义中具体专家来自独立
     /// Expert 包；测试与本地组合根负责实例化与绑定。
     /// </summary>
     private sealed class SampleReflectingLongTextExpert : RuntimeLongTextWritingExpertBase
     {
-        public override async Task<ExpertCompletionResult> StreamAsync(CancellationToken cancellationToken = default)
+        protected override async Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken)
         {
             ValidateCategoryInputs();
             var textOutput = (TextPrimaryOutput)(ConfiguredPrimaryOutput
@@ -205,7 +205,7 @@ public sealed class SampleGameVariableUpdateTests
                 .ConfigureAwait(false);
         }
 
-        public override Task<ExpertCompletionResult> CompleteAsync(CancellationToken cancellationToken = default)
+        protected override Task<ExpertCompletionResult> CompleteAsyncCore(CancellationToken cancellationToken)
             => throw new NotSupportedException("The reflecting expert only exercises streaming.");
 
         private static string RequireConfigured(string? value, string name)

@@ -4,17 +4,14 @@ using ThousandLi.ExpertAuthoring;
 
 namespace ThousandLi.ExpertContracts.Narration;
 
-/// <summary>The narrator feature category. The initial contract ships without features.</summary>
-public interface INarratorFeature : IExpertFeature;
-
 /// <summary>
 /// Single inheritance forces contract identity ([ExpertContract] plus the static descriptor and
-/// definition) and the authoring surface (inherited from ExpertBase) to meet in this one base
-/// class: concrete narrator experts derive from this type and implement InvokeAsync.
+/// definition) and the authoring surface (inherited from RuntimeLongTextWritingExpertBase) to meet
+/// in this one base class: concrete narrator experts derive from this type and implement InvokeAsync.
 /// </summary>
 [ExpertContract("thousandli.expert/narrator", 1, 0, "c514466424e626a6f24dfb5b53894c493351fb2466d30f1ba6e00e5153264b10")]
 public abstract class AbstractNarratorExpert
-    : ExpertBase<INarratorFeature, AbstractNarratorExpert>, IExpertContract, IInvocableExpert
+    : RuntimeLongTextWritingExpertBase, IExpertContract, IInvocableExpert
 {
     public static ExpertContractDescriptor Descriptor { get; } =
         new("thousandli.expert/narrator", new ContractVersion(1, 0), "c514466424e626a6f24dfb5b53894c493351fb2466d30f1ba6e00e5153264b10");

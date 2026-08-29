@@ -4,10 +4,9 @@ using JetBrains.Annotations;
 namespace ThousandLi.ExpertAuthoring;
 
 /// <summary>
-/// The local BasicAi capability exposed to experts through <see cref="IExpertRuntimeContext.BasicAi"/>.
-/// Implementations are supplied by the composition root; expert code never sees credentials or
-/// transport configuration through this surface. Both methods are published authoring-surface
-/// members even where current in-repo flows exercise only one of them directly.
+/// The local BasicAi capability surface. Implementations are supplied by the composition root and
+/// expose neither credentials nor transport configuration. Both methods are published
+/// authoring-surface members even where current in-repo flows exercise only one of them directly.
 /// </summary>
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 public interface ILocalBasicAi

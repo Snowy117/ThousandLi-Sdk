@@ -115,7 +115,7 @@ public sealed class FakeExpertFacadeTests
 
     /// <summary>
     /// 样例 stub 专家：派生 RuntimeLongTextWritingExpertBase（获得 RuntimeContext/MetadataFieldNames/绑定面），
-    /// StreamAsync override 里构建 request + sink 后交给 ExpertExecution 单调用执行。
+    /// StreamAsyncCore override 里构建 request + sink 后交给 ExpertExecution 单调用执行。
     /// </summary>
     private sealed class StubLongTextWritingExpert : RuntimeLongTextWritingExpertBase
     {
@@ -124,7 +124,7 @@ public sealed class FakeExpertFacadeTests
 
         protected override IReadOnlySet<string> MetadataFieldNames => SDeclaredMetadataFields;
 
-        public override async Task<ExpertCompletionResult> StreamAsync(CancellationToken cancellationToken = default)
+        protected override async Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken)
         {
             ValidateCategoryInputs();
             var textOutput = (TextPrimaryOutput)(ConfiguredPrimaryOutput
@@ -138,7 +138,7 @@ public sealed class FakeExpertFacadeTests
                 .ConfigureAwait(false);
         }
 
-        public override Task<ExpertCompletionResult> CompleteAsync(CancellationToken cancellationToken = default)
+        protected override Task<ExpertCompletionResult> CompleteAsyncCore(CancellationToken cancellationToken)
             => throw new NotSupportedException("The stub expert sample only exercises streaming.");
     }
 

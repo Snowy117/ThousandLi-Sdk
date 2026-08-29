@@ -87,6 +87,8 @@ public abstract class AbstractLongTextWritingExpert
     public AbstractLongTextWritingExpert WithFeatures(params ILongTextWritingFeature[] features)
     {
         ArgumentNullException.ThrowIfNull(features);
+        if (features.Any(feature => (object?)feature is null))
+            throw new ArgumentException("Features cannot contain null entries.", nameof(features));
         ConfiguredFeatures = [.. ConfiguredFeatures, .. features];
         return this;
     }

@@ -41,19 +41,22 @@ public sealed class LocalExpertExecutorTests
         basicAi,
         new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "Curious explorer"));
 
-    /// <summary>One recorded interaction whose single stream yields the deltas in order.</summary>
+    /// <summary>One recorded runtime interaction whose single stream yields the deltas in order.</summary>
     private static RecordedBasicAi RecordedGateway(params string[] deltas) => new(
         ["test-model"],
-        [new RecordedBasicAiInteraction(
+        [],
+        [new RecordedRuntimeBasicAiInteraction(
             "test-model",
-            streamEvents: [.. deltas.Select(delta => new ExpertTextDeltaEvent(delta))])]);
+            streamEvents: [.. deltas.Select(delta => new BasicAiJsonStreamEvent(
+                JsonStreamEvent.StringChunk("/narrative", delta)))])]);
 
-    /// <summary>One recorded interaction per turn; each turn's stream yields its full text.</summary>
+    /// <summary>One recorded runtime interaction per turn; each turn's stream yields its full text.</summary>
     private static RecordedBasicAi RecordedGatewayTurns(params string[] turnTexts) => new(
         ["test-model"],
-        [.. turnTexts.Select(text => new RecordedBasicAiInteraction(
+        [],
+        [.. turnTexts.Select(text => new RecordedRuntimeBasicAiInteraction(
             "test-model",
-            streamEvents: [new ExpertTextDeltaEvent(text)]))]);
+            streamEvents: [new BasicAiJsonStreamEvent(JsonStreamEvent.StringChunk("/narrative", text))]))]);
 
     private static JsonElement Input() => TestSupport.Json("""{"turn":1,"player":"Creator","action":{"choice":"advance"}}""");
 
@@ -150,7 +153,7 @@ public sealed class LocalExpertExecutorTests
 
         Assert.Contains(events, runtimeEvent => runtimeEvent.Kind == ActionRuntimeEventKind.Committed);
         Assert.DoesNotContain(events, runtimeEvent => runtimeEvent.Kind == ActionRuntimeEventKind.Aborted);
-        var invocation = Assert.Single(gateway.Invocations);
+        var invocation = Assert.Single(gateway.RuntimeInvocations);
         Assert.Equal("test-model", invocation.ModelId);
     }
 
@@ -505,9 +508,10 @@ public sealed class LocalExpertExecutorTests
         const int count = 8;
         var gateway = new RecordedBasicAi(
             ["test-model"],
-            [.. Enumerable.Range(0, count).Select(_ => new RecordedBasicAiInteraction(
+            [],
+            [.. Enumerable.Range(0, count).Select(_ => new RecordedRuntimeBasicAiInteraction(
                 "test-model",
-                streamEvents: [new ExpertTextDeltaEvent("parallel")]))]);
+                streamEvents: [new BasicAiJsonStreamEvent(JsonStreamEvent.StringChunk("/narrative", "parallel"))]))]);
         var localExecutor = new LocalExpertExecutor(
             OfficialRegistry(), [package], null, OptionsWith(gateway));
         var playground = new PlaygroundService(

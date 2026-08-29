@@ -14,9 +14,9 @@ namespace ThousandLi.LocalExpertFixture;
 /// <summary>
 /// Test-fixture narrator expert. Binds the structured invocation input, executes through the
 /// authoring base's streaming entry (which enforces the bind-once and execute-once lifecycle),
-/// streams plain-text deltas from the injected local BasicAi as 'chunk' semantic events, and
-/// returns the accumulated text plus a per-invocation instance id (the id differs across
-/// invocations, proving the per-invocation instance lifecycle).
+/// streams narrative JSON string chunks from the injected runtime BasicAi as 'chunk' semantic
+/// events, and returns the accumulated text plus a per-invocation instance id (the id differs
+/// across invocations, proving the per-invocation instance lifecycle).
 /// </summary>
 /// <summary>
 /// Local two-layer settings probe: the POCO defaults are the schema-default layer; a local
@@ -64,18 +64,22 @@ public sealed class RecordedNarratorExpert : AbstractNarratorExpert
     {
         var turn = _input.GetProperty("turn").GetInt32();
         var player = _input.GetProperty("player").GetString();
-        var request = new LocalBasicAiRequest(
-            RuntimeContext.BasicAi.AvailableModels[0],
-            [new LocalBasicAiMessage("user", $"turn {turn}: {player}")]);
+        var request = new BasicAiRequest(
+            RuntimeContext.BasicAi.AvailableModels[0].ModelId,
+            [BasicAiMessage.User($"turn {turn}: {player}")],
+            AiJsonSchema.Object(AiJsonSchema.Required("narrative", AiJsonSchema.String())));
         await foreach (var streamEvent in RuntimeContext.BasicAi
                            .StreamAsync(request, cancellationToken)
                            .ConfigureAwait(false))
         {
-            if (streamEvent is not ExpertTextDeltaEvent delta)
+            if (streamEvent is not BasicAiJsonStreamEvent
+                {
+                    Event: JsonStreamStringChunkEvent { Path: "/narrative" } chunk
+                })
                 continue;
-            _text.Append(delta.Delta);
+            _text.Append(chunk.Value);
             await _events.WriteAsync(
-                new ExpertSemanticEvent("chunk", JsonSerializer.SerializeToElement(new { text = delta.Delta })),
+                new ExpertSemanticEvent("chunk", JsonSerializer.SerializeToElement(new { text = chunk.Value })),
                 cancellationToken).ConfigureAwait(false);
         }
 

@@ -73,10 +73,14 @@ public sealed class SampleExpertPackageTests
             new LocalExpertExecutorOptions(
                 new RecordedBasicAi(
                     ["test-model"],
-                    [new RecordedBasicAiInteraction(
+                    [],
+                    [new RecordedRuntimeBasicAiInteraction(
                         "test-model",
                         streamEvents:
-                        [new ExpertTextDeltaEvent("The road "), new ExpertTextDeltaEvent("narrows.")])]),
+                        [
+                            new BasicAiJsonStreamEvent(JsonStreamEvent.StringChunk("/narrative", "The road ")),
+                            new BasicAiJsonStreamEvent(JsonStreamEvent.StringChunk("/narrative", "narrows."))
+                        ])]),
                 new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "Curious explorer")));
         var sink = new RecordingSemanticSink();
 

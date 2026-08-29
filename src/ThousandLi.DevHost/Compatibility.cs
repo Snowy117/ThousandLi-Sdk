@@ -189,7 +189,7 @@ public sealed record GamePackageManifest
 
 /// <summary>
 /// Parsed <c>package.json</c> of an Expert Package Artifact. Model availability is not declared
-/// here: the local gateway configuration exposed through <c>ILocalBasicAi.AvailableModels</c> is
+/// here: the local gateway configuration exposed through <c>IRuntimeBasicAi.AvailableModels</c> is
 /// the authoritative model list, and <see cref="OpenAiModels"/> is advisory metadata only.
 /// </summary>
 public sealed record ExpertPackageManifest

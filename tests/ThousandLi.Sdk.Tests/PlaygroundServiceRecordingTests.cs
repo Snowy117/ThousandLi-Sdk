@@ -258,9 +258,11 @@ public sealed class PlaygroundServiceRecordingTests
                     new LocalExpertExecutorOptions(
                         new RecordedBasicAi(
                             ["test-model"],
-                            [new RecordedBasicAiInteraction(
+                            [],
+                            [new RecordedRuntimeBasicAiInteraction(
                                 "test-model",
-                                streamEvents: [new ExpertTextDeltaEvent("Hello playground")])]),
+                                streamEvents: [new BasicAiJsonStreamEvent(
+                                    JsonStreamEvent.StringChunk("/narrative", "Hello playground"))])]),
                         new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "Curious explorer"))),
                 Registry(),
                 new InMemoryExpertRecordingStore());

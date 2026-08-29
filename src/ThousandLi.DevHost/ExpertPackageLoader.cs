@@ -10,7 +10,7 @@ namespace ThousandLi.DevHost;
 /// <summary>
 /// A trusted locally loaded Expert Package: its manifest, its declared contract binding, and a
 /// factory for fresh (unbound) expert instances. Expert instances are created per invocation and
-/// bound to a runtime context by the executor; the factory never reuses instances.
+/// bound to an execution context by the executor; the factory never reuses instances.
 /// </summary>
 public sealed class LoadedExpertPackage : IDisposable
 {
@@ -21,7 +21,7 @@ public sealed class LoadedExpertPackage : IDisposable
         ExpertPackageManifest manifest,
         ExpertContractDescriptor contract,
         Type abstractExpertType,
-        Func<ExpertBase> expertFactory,
+        Func<RuntimeLongTextWritingExpertBase> expertFactory,
         PackageLoadContext loadContext)
     {
         Manifest = manifest;
@@ -40,7 +40,7 @@ public sealed class LoadedExpertPackage : IDisposable
     public Type AbstractExpertType { get; }
 
     /// <summary>Cached delegate over the concrete expert's public parameterless constructor.</summary>
-    public Func<ExpertBase> ExpertFactory { get; }
+    public Func<RuntimeLongTextWritingExpertBase> ExpertFactory { get; }
 
     /// <summary>Idempotent: unload is a one-shot operation and repeat calls are no-ops.</summary>
     public void Dispose()
@@ -63,7 +63,7 @@ internal static class ExpertSharedAssemblies
         {
             ["ThousandLi.Contracts"] = typeof(IGameBackend).Assembly,
             ["ThousandLi.ExpertContracts"] = typeof(ExpertContractAttribute).Assembly,
-            ["ThousandLi.ExpertAuthoring"] = typeof(ExpertBase).Assembly,
+            ["ThousandLi.ExpertAuthoring"] = typeof(RuntimeLongTextWritingExpertBase).Assembly,
             ["Microsoft.Extensions.Logging.Abstractions"] = typeof(ILogger).Assembly
         };
 
@@ -152,9 +152,9 @@ public static class ExpertPackageLoader
             if (!abstractType.IsAbstract)
                 throw new InvalidOperationException(
                     $"Expert entry point abstract type '{abstractType.FullName}' must be an abstract class.");
-            if (!typeof(ExpertBase).IsAssignableFrom(abstractType))
+            if (!typeof(RuntimeLongTextWritingExpertBase).IsAssignableFrom(abstractType))
                 throw new InvalidOperationException(
-                    $"Expert entry point abstract type '{abstractType.FullName}' must inherit from the authoring '{nameof(ExpertBase)}' surface.");
+                    $"Expert entry point abstract type '{abstractType.FullName}' must inherit from the authoring '{nameof(RuntimeLongTextWritingExpertBase)}' surface.");
             if (!typeof(IInvocableExpert).IsAssignableFrom(abstractType))
                 throw new InvalidOperationException(
                     $"Expert entry point abstract type '{abstractType.FullName}' must implement '{nameof(IInvocableExpert)}' so the executor can bind structured invocations.");
@@ -177,7 +177,7 @@ public static class ExpertPackageLoader
                 manifest,
                 new ExpertContractDescriptor(contractAttribute.Id, contractAttribute.Version, contractAttribute.Fingerprint),
                 abstractType,
-                () => (ExpertBase)constructor.Invoke(null),
+                () => (RuntimeLongTextWritingExpertBase)constructor.Invoke(null),
                 loadContext);
         }
         catch

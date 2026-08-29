@@ -9,11 +9,9 @@ using ThousandLi.ExpertContracts;
 
 namespace ThousandLi.UnregisteredContractFixture;
 
-public interface IUnregisteredFeature : IExpertFeature;
-
 [ExpertContract("tests.unregistered/narrator", 1, 0, "0fb414108c05b181387ae936fa3eebe3f07fb8a8ea5b7c102f7308a61e39a362")]
 public abstract class UnregisteredNarratorExpert
-    : ExpertBase<IUnregisteredFeature, UnregisteredNarratorExpert>, IExpertContract, IInvocableExpert
+    : RuntimeLongTextWritingExpertBase, IExpertContract, IInvocableExpert
 {
     public static ExpertContractDefinition Definition { get; } = new(semanticEventTypes: ["tick"]);
 
