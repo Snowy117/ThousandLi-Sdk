@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using JetBrains.Annotations;
+using ThousandLi.Contracts;
 
 namespace ThousandLi.ExpertAuthoring;
 
@@ -20,10 +21,18 @@ public interface ILocalBasicAi
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Performs a streaming completion. Yields <see cref="ExpertTextDeltaEvent"/> values in Text
-    /// response mode and <see cref="ExpertJsonStreamEvent"/> values in Json response mode.
+    /// Performs a streaming completion in <see cref="LocalBasicAiResponseMode.Text"/> mode. Yields
+    /// plain-text deltas until the gateway terminates the stream.
     /// </summary>
-    IAsyncEnumerable<ExpertStreamEvent> StreamAsync(
+    IAsyncEnumerable<ExpertTextDeltaEvent> StreamTextAsync(
+        LocalBasicAiRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Performs a streaming completion in <see cref="LocalBasicAiResponseMode.Json"/> mode. Yields
+    /// the published <see cref="JsonStreamEvent"/> family parsed from the streamed model output.
+    /// </summary>
+    IAsyncEnumerable<JsonStreamEvent> StreamJsonAsync(
         LocalBasicAiRequest request,
         CancellationToken cancellationToken = default);
 }
@@ -97,7 +106,7 @@ public sealed record LocalBasicAiCompletionResult
 /// <summary>
 /// Transport or protocol failure of a local gateway call (HTTP error status, invalid response
 /// envelope, malformed SSE framing). Malformed model JSON inside a Json-mode stream surfaces as
-/// <see cref="ExpertJsonStreamException"/> instead.
+/// <see cref="JsonStreamException"/> instead.
 /// </summary>
 public sealed class LocalBasicAiException(string message, int? statusCode = null, Exception? innerException = null)
     : Exception(message, innerException)

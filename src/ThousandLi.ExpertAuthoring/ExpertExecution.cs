@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using ThousandLi.Contracts;
 
 namespace ThousandLi.ExpertAuthoring;
@@ -81,11 +82,24 @@ public static class ExpertExecution
 
         var completion = await expert.BasicAi.CompleteAsync(request, cancellationToken).ConfigureAwait(false);
         var metadataCapture = new MetadataCapture(expert.MetadataFieldNames);
-        foreach (var streamEvent in ExpertJsonStreamEventMapper.ParseElementEvents(completion.Json))
+        foreach (var streamEvent in ParseElementEvents(completion.Json))
             await DispatchEventAsync(streamEvent, sink, metadataCapture, cancellationToken).ConfigureAwait(false);
         if (completion.Reasoning is { } fullReasoning)
             await RaiseReasoningAsync(expert.ReasoningHandler, fullReasoning, cancellationToken).ConfigureAwait(false);
         return (new ExpertCompletionResult(metadataCapture.Captured, completion.Reasoning), completion);
+    }
+
+    /// <summary>
+    /// Replays a complete model JSON document through the stream parser as contracts events, so
+    /// non-streaming execution paths observe the same event grammar as streaming ones.
+    /// </summary>
+    private static IEnumerable<JsonStreamEvent> ParseElementEvents(JsonElement json)
+    {
+        var parser = new JsonStreamParser();
+        foreach (var streamEvent in parser.Feed(json.GetRawText()))
+            yield return streamEvent;
+        foreach (var streamEvent in parser.Complete())
+            yield return streamEvent;
     }
 
     private static async ValueTask DispatchEventAsync(

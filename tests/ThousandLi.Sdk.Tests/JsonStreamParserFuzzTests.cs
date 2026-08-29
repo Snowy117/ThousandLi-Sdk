@@ -2,17 +2,17 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using ThousandLi.ExpertAuthoring;
+using ThousandLi.Contracts;
 
 namespace ThousandLi.Sdk.Tests;
 
 /// <summary>
-/// Property-based parity checks: for randomly generated JSON documents (object/array roots) the
-/// incremental stream parser must agree with System.Text.Json on acceptance, and replaying its
-/// event stream must reconstruct a deep-equal document. For randomly mutated documents the
-/// accept/reject verdicts must match the System.Text.Json oracle exactly.
+/// Property-based parity checks: for randomly generated JSON documents the incremental stream
+/// parser must agree with System.Text.Json on acceptance, and replaying its event stream must
+/// reconstruct a deep-equal document. For randomly mutated documents the accept/reject verdicts
+/// must match the System.Text.Json oracle exactly.
 /// </summary>
-public sealed class ExpertJsonStreamParserFuzzTests
+public sealed class JsonStreamParserFuzzTests
 {
     [Theory]
     [InlineData(1)]
@@ -98,7 +98,7 @@ public sealed class ExpertJsonStreamParserFuzzTests
             failure = null;
             return true;
         }
-        catch (Exception exception) when (exception is ExpertJsonStreamException or InvalidOperationException or ArgumentException)
+        catch (Exception exception) when (exception is JsonStreamException or InvalidOperationException or ArgumentException)
         {
             replayed = null;
             failure = exception;
@@ -106,22 +106,22 @@ public sealed class ExpertJsonStreamParserFuzzTests
         }
     }
 
-    private static List<ExpertJsonStreamEvent> ParseWhole(string json)
+    private static List<JsonStreamEvent> ParseWhole(string json)
     {
-        var parser = new ExpertJsonStreamParser();
-        var events = new List<ExpertJsonStreamEvent>(parser.Feed(json.AsSpan()));
+        var parser = new JsonStreamParser();
+        var events = new List<JsonStreamEvent>(parser.Feed(json));
         events.AddRange(parser.Complete());
         return events;
     }
 
-    private static List<ExpertJsonStreamEvent> FeedInRandomChunks(string json, Random random)
+    private static List<JsonStreamEvent> FeedInRandomChunks(string json, Random random)
     {
-        var parser = new ExpertJsonStreamParser();
-        var events = new List<ExpertJsonStreamEvent>();
+        var parser = new JsonStreamParser();
+        var events = new List<JsonStreamEvent>();
         for (var index = 0; index < json.Length;)
         {
             var length = Math.Min(random.Next(1, 6), json.Length - index);
-            events.AddRange(parser.Feed(json.AsSpan(index, length)));
+            events.AddRange(parser.Feed(json.Substring(index, length)));
             index += length;
         }
 
@@ -169,46 +169,46 @@ public sealed class ExpertJsonStreamParserFuzzTests
 
     private sealed record ReplayOutcome(Stack<ReplayFrame> Frames, JsonNode? Root);
 
-    private static JsonNode? Replay(List<ExpertJsonStreamEvent> events)
+    private static JsonNode? Replay(List<JsonStreamEvent> events)
     {
         var outcome = new ReplayOutcome(new Stack<ReplayFrame>(), null);
         foreach (var streamEvent in events)
             switch (streamEvent)
             {
-                case ExpertJsonObjectStartedEvent:
+                case JsonStreamObjectStartedEvent:
                     outcome.Frames.Push(new ObjectReplayFrame());
                     break;
-                case ExpertJsonArrayStartedEvent:
+                case JsonStreamArrayStartedEvent:
                     outcome.Frames.Push(new ArrayReplayFrame());
                     break;
-                case ExpertJsonPropertyNameEvent name:
+                case JsonStreamPropertyNameEvent name:
                     ((ObjectReplayFrame)outcome.Frames.Peek()).PendingName = name.Name;
                     break;
-                case ExpertJsonStringStartedEvent:
+                case JsonStreamStringStartedEvent:
                     outcome.Frames.Push(new StringReplayFrame());
                     break;
-                case ExpertJsonStringChunkEvent chunk:
+                case JsonStreamStringChunkEvent chunk:
                     ((StringReplayFrame)outcome.Frames.Peek()).Builder.Append(chunk.Value);
                     break;
-                case ExpertJsonStringCompletedEvent:
+                case JsonStreamStringCompletedEvent:
                     var stringFrame = (StringReplayFrame)outcome.Frames.Pop();
                     outcome = Attach(outcome, JsonValue.Create(stringFrame.Builder.ToString()));
                     break;
-                case ExpertJsonObjectCompletedEvent:
+                case JsonStreamObjectCompletedEvent:
                     var objectFrame = (ObjectReplayFrame)outcome.Frames.Pop();
                     outcome = Attach(outcome, objectFrame.Value);
                     break;
-                case ExpertJsonArrayCompletedEvent:
+                case JsonStreamArrayCompletedEvent:
                     var arrayFrame = (ArrayReplayFrame)outcome.Frames.Pop();
                     outcome = Attach(outcome, new JsonArray([.. arrayFrame.Values]));
                     break;
-                case ExpertJsonNumberValueEvent number:
+                case JsonStreamNumberValueEvent number:
                     outcome = Attach(outcome, JsonNode.Parse(number.RawValue));
                     break;
-                case ExpertJsonBooleanValueEvent boolean:
+                case JsonStreamBooleanValueEvent boolean:
                     outcome = Attach(outcome, JsonValue.Create(boolean.Value));
                     break;
-                case ExpertJsonNullValueEvent:
+                case JsonStreamNullValueEvent:
                     outcome = Attach(outcome, null);
                     break;
                 default:

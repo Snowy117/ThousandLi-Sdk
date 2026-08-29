@@ -1,6 +1,7 @@
 using System.Text;
 using System.Net;
 using System.Text.Json;
+using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
 
 namespace ThousandLi.Sdk.Tests;
@@ -98,9 +99,19 @@ public sealed class OpenAiCompatibleBasicAiTests
     private static LocalBasicAiRequest TextRequest(string modelId = "deepseek-v4-pro") =>
         new(modelId, [new LocalBasicAiMessage("system", "You narrate."), new LocalBasicAiMessage("user", "hi")]);
 
-    private static async Task<IReadOnlyList<ExpertStreamEvent>> CollectAsync(IAsyncEnumerable<ExpertStreamEvent> source)
+    private static async Task<IReadOnlyList<ExpertTextDeltaEvent>> CollectTextAsync(
+        IAsyncEnumerable<ExpertTextDeltaEvent> source)
     {
-        var events = new List<ExpertStreamEvent>();
+        var events = new List<ExpertTextDeltaEvent>();
+        await foreach (var streamEvent in source)
+            events.Add(streamEvent);
+        return events;
+    }
+
+    private static async Task<IReadOnlyList<JsonStreamEvent>> CollectJsonAsync(
+        IAsyncEnumerable<JsonStreamEvent> source)
+    {
+        var events = new List<JsonStreamEvent>();
         await foreach (var streamEvent in source)
             events.Add(streamEvent);
         return events;
@@ -199,12 +210,12 @@ public sealed class OpenAiCompatibleBasicAiTests
         var handler = CreateHandler(SseResponse("Hello", " ", "world", "!"));
         var adapter = CreateAdapter(handler, null, defaultToTestKey: true);
 
-        var events = await CollectAsync(adapter.StreamAsync(TextRequest(), TestSupport.CancellationToken));
+        var events = await CollectTextAsync(adapter.StreamTextAsync(TextRequest(), TestSupport.CancellationToken));
 
         Assert.All(events, @event => Assert.IsType<ExpertTextDeltaEvent>(@event));
         Assert.Equal(
             "Hello world!",
-            string.Concat(events.Cast<ExpertTextDeltaEvent>().Select(delta => delta.Delta)));
+            string.Concat(events.Select(delta => delta.Delta)));
     }
 
     [Fact]
@@ -217,18 +228,18 @@ public sealed class OpenAiCompatibleBasicAiTests
             [new LocalBasicAiMessage("user", "give json")],
             LocalBasicAiResponseMode.Json);
 
-        var events = await CollectAsync(adapter.StreamAsync(request, TestSupport.CancellationToken));
+        var events = await CollectJsonAsync(adapter.StreamJsonAsync(request, TestSupport.CancellationToken));
 
-        Assert.IsType<ExpertJsonObjectStartedEvent>(events[0]);
-        Assert.IsType<ExpertJsonPropertyNameEvent>(events[1]);
-        Assert.IsType<ExpertJsonStringStartedEvent>(events[2]);
-        Assert.IsType<ExpertJsonStringChunkEvent>(events[3]);
-        Assert.IsType<ExpertJsonStringChunkEvent>(events[4]);
-        Assert.IsType<ExpertJsonStringCompletedEvent>(events[5]);
-        Assert.IsType<ExpertJsonObjectCompletedEvent>(events[^1]);
+        Assert.IsType<JsonStreamObjectStartedEvent>(events[0]);
+        Assert.IsType<JsonStreamPropertyNameEvent>(events[1]);
+        Assert.IsType<JsonStreamStringStartedEvent>(events[2]);
+        Assert.IsType<JsonStreamStringChunkEvent>(events[3]);
+        Assert.IsType<JsonStreamStringChunkEvent>(events[4]);
+        Assert.IsType<JsonStreamStringCompletedEvent>(events[5]);
+        Assert.IsType<JsonStreamObjectCompletedEvent>(events[^1]);
         Assert.Equal(
             "hello",
-            string.Concat(events.OfType<ExpertJsonStringChunkEvent>().Select(chunk => chunk.Value)));
+            string.Concat(events.OfType<JsonStreamStringChunkEvent>().Select(chunk => chunk.Value)));
     }
 
     [Fact]
@@ -241,8 +252,8 @@ public sealed class OpenAiCompatibleBasicAiTests
             [new LocalBasicAiMessage("user", "give json")],
             LocalBasicAiResponseMode.Json);
 
-        await Assert.ThrowsAsync<ExpertJsonStreamException>(async () =>
-            await CollectAsync(adapter.StreamAsync(request, TestSupport.CancellationToken)));
+        await Assert.ThrowsAsync<JsonStreamException>(async () =>
+            await CollectJsonAsync(adapter.StreamJsonAsync(request, TestSupport.CancellationToken)));
     }
 
     [Fact]
@@ -252,7 +263,7 @@ public sealed class OpenAiCompatibleBasicAiTests
         var adapter = CreateAdapter(handler, null, defaultToTestKey: true);
 
         await Assert.ThrowsAsync<LocalBasicAiException>(async () =>
-            await CollectAsync(adapter.StreamAsync(TextRequest(), TestSupport.CancellationToken)));
+            await CollectTextAsync(adapter.StreamTextAsync(TextRequest(), TestSupport.CancellationToken)));
     }
 
     [Fact]
@@ -275,10 +286,10 @@ public sealed class OpenAiCompatibleBasicAiTests
         var adapter = CreateAdapter(handler, null, defaultToTestKey: true);
 
         var completion = await adapter.CompleteAsync(TextRequest(), TestSupport.CancellationToken);
-        var streamed = await CollectAsync(adapter.StreamAsync(TextRequest(), TestSupport.CancellationToken));
+        var streamed = await CollectTextAsync(adapter.StreamTextAsync(TextRequest(), TestSupport.CancellationToken));
 
         Assert.DoesNotContain(ApiKey, completion.Text, StringComparison.Ordinal);
-        Assert.DoesNotContain(ApiKey, string.Concat(streamed.OfType<ExpertTextDeltaEvent>().Select(delta => delta.Delta)), StringComparison.Ordinal);
+        Assert.DoesNotContain(ApiKey, string.Concat(streamed.Select(delta => delta.Delta)), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -290,7 +301,7 @@ public sealed class OpenAiCompatibleBasicAiTests
         await cancellationSource.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-            await CollectAsync(adapter.StreamAsync(TextRequest(), cancellationSource.Token)));
+            await CollectTextAsync(adapter.StreamTextAsync(TextRequest(), cancellationSource.Token)));
     }
 
     [Fact]
@@ -366,7 +377,7 @@ public sealed class OpenAiCompatibleBasicAiTests
         var adapter = CreateAdapter(handler, null, defaultToTestKey: true);
 
         var exception = await Assert.ThrowsAsync<LocalBasicAiException>(async () =>
-            await CollectAsync(adapter.StreamAsync(TextRequest(), TestSupport.CancellationToken)));
+            await CollectTextAsync(adapter.StreamTextAsync(TextRequest(), TestSupport.CancellationToken)));
 
         Assert.DoesNotContain(ApiKey, exception.Message, StringComparison.Ordinal);
         Assert.Contains("***", exception.Message, StringComparison.Ordinal);
@@ -394,7 +405,7 @@ public sealed class OpenAiCompatibleBasicAiTests
         var adapter = CreateAdapter(handler, null, defaultToTestKey: true);
 
         var exception = await Assert.ThrowsAsync<LocalBasicAiException>(async () =>
-            await CollectAsync(adapter.StreamAsync(TextRequest(), TestSupport.CancellationToken)));
+            await CollectTextAsync(adapter.StreamTextAsync(TextRequest(), TestSupport.CancellationToken)));
 
         Assert.Contains("deepseek-v4-pro", exception.Message, StringComparison.Ordinal);
         Assert.Contains("not valid JSON", exception.Message, StringComparison.Ordinal);
@@ -411,7 +422,7 @@ public sealed class OpenAiCompatibleBasicAiTests
         var adapter = CreateAdapter(handler, null, defaultToTestKey: true);
 
         await Assert.ThrowsAsync<LocalBasicAiException>(async () =>
-            await CollectAsync(adapter.StreamAsync(TextRequest(), TestSupport.CancellationToken)));
+            await CollectTextAsync(adapter.StreamTextAsync(TextRequest(), TestSupport.CancellationToken)));
     }
 
     [Fact]
@@ -428,9 +439,9 @@ public sealed class OpenAiCompatibleBasicAiTests
             """));
         var adapter = CreateAdapter(handler, null, defaultToTestKey: true);
 
-        var events = await CollectAsync(adapter.StreamAsync(TextRequest(), TestSupport.CancellationToken));
+        var events = await CollectTextAsync(adapter.StreamTextAsync(TextRequest(), TestSupport.CancellationToken));
 
-        var delta = Assert.Single(events.OfType<ExpertTextDeltaEvent>());
+        var delta = Assert.Single(events);
         Assert.Equal("kept", delta.Delta);
     }
 
@@ -452,9 +463,9 @@ public sealed class OpenAiCompatibleBasicAiTests
             """));
         var adapter = CreateAdapter(handler, null, defaultToTestKey: true);
 
-        var events = await CollectAsync(adapter.StreamAsync(TextRequest(), TestSupport.CancellationToken));
+        var events = await CollectTextAsync(adapter.StreamTextAsync(TextRequest(), TestSupport.CancellationToken));
 
-        var delta = Assert.Single(events.OfType<ExpertTextDeltaEvent>());
+        var delta = Assert.Single(events);
         Assert.Equal("answer", delta.Delta);
     }
 
@@ -473,9 +484,9 @@ public sealed class OpenAiCompatibleBasicAiTests
             """));
         var adapter = CreateAdapter(handler, null, defaultToTestKey: true);
 
-        var events = await CollectAsync(adapter.StreamAsync(TextRequest(), TestSupport.CancellationToken));
+        var events = await CollectTextAsync(adapter.StreamTextAsync(TextRequest(), TestSupport.CancellationToken));
 
-        var delta = Assert.Single(events.OfType<ExpertTextDeltaEvent>());
+        var delta = Assert.Single(events);
         Assert.Equal("first", delta.Delta);
     }
 
@@ -516,7 +527,7 @@ public sealed class OpenAiCompatibleBasicAiTests
         var adapter = CreateAdapter(handler, null, defaultToTestKey: true);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await CollectAsync(adapter.StreamAsync(TextRequest("gpt-unknown"), TestSupport.CancellationToken)));
+            await CollectTextAsync(adapter.StreamTextAsync(TextRequest("gpt-unknown"), TestSupport.CancellationToken)));
 
         Assert.Contains("not configured", exception.Message, StringComparison.Ordinal);
         Assert.Empty(handler.Requests);
@@ -533,10 +544,10 @@ public sealed class OpenAiCompatibleBasicAiTests
         var adapter = CreateAdapter(handler, null, defaultToTestKey: true);
         using var cancellationSource = new CancellationTokenSource();
 
-        var received = new List<ExpertStreamEvent>();
+        var received = new List<ExpertTextDeltaEvent>();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
         {
-            await foreach (var streamEvent in adapter.StreamAsync(TextRequest(), cancellationSource.Token))
+            await foreach (var streamEvent in adapter.StreamTextAsync(TextRequest(), cancellationSource.Token))
             {
                 received.Add(streamEvent);
                 if (received.Count == 1)

@@ -1,40 +1,52 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using ThousandLi.Contracts;
 
 namespace ThousandLi.ExpertAuthoring;
 
 /// <summary>
-/// One deterministic recorded interaction: either a completion result or a stream event sequence
-/// for one model id. Exactly one of <see cref="Completion"/> and <see cref="StreamEvents"/> is set.
+/// One deterministic recorded interaction: a completion result, a plain-text stream event
+/// sequence, or a JSON stream event sequence for one model id. Exactly one of
+/// <see cref="Completion"/>, <see cref="StreamEvents"/>, and <see cref="JsonStreamEvents"/> is set.
 /// </summary>
 public sealed record RecordedBasicAiInteraction
 {
     public RecordedBasicAiInteraction(
         string modelId,
         LocalBasicAiCompletionResult? completion = null,
-        IReadOnlyList<ExpertStreamEvent>? streamEvents = null)
+        IReadOnlyList<ExpertTextDeltaEvent>? streamEvents = null,
+        IReadOnlyList<JsonStreamEvent>? jsonStreamEvents = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(modelId);
-        if (completion is null == streamEvents is null)
+        var setCount = (completion is null ? 0 : 1) + (streamEvents is null ? 0 : 1) + (jsonStreamEvents is null ? 0 : 1);
+        if (setCount != 1)
             throw new ArgumentException(
-                "Exactly one of the completion result and the stream events must be provided.", nameof(completion));
+                "Exactly one of the completion result, the stream events, and the JSON stream events must be provided.", nameof(completion));
         if (streamEvents is not null)
         {
             foreach (var streamEvent in streamEvents)
                 ArgumentNullException.ThrowIfNull(streamEvent);
         }
+        if (jsonStreamEvents is not null)
+        {
+            foreach (var streamEvent in jsonStreamEvents)
+                ArgumentNullException.ThrowIfNull(streamEvent);
+        }
 
         ModelId = modelId;
         Completion = completion;
-        StreamEvents = streamEvents is null ? null : new ReadOnlyCollection<ExpertStreamEvent>([.. streamEvents]);
+        StreamEvents = streamEvents is null ? null : new ReadOnlyCollection<ExpertTextDeltaEvent>([.. streamEvents]);
+        JsonStreamEvents = jsonStreamEvents is null ? null : new ReadOnlyCollection<JsonStreamEvent>([.. jsonStreamEvents]);
     }
 
     public string ModelId { get; }
 
     public LocalBasicAiCompletionResult? Completion { get; }
 
-    public IReadOnlyList<ExpertStreamEvent>? StreamEvents { get; }
+    public IReadOnlyList<ExpertTextDeltaEvent>? StreamEvents { get; }
+
+    public IReadOnlyList<JsonStreamEvent>? JsonStreamEvents { get; }
 }
 
 /// <summary>
@@ -145,7 +157,7 @@ public sealed class RecordedBasicAi : ILocalBasicAi, IRuntimeBasicAi
     // so no asynchronous operation exists to await. Cancellation is honored between events.
     [SuppressMessage("ReSharper", "AsyncMethodWithoutAwait",
         Justification = "The recorded sequence is fully materialized; iteration is intentionally synchronous.")]
-    public async IAsyncEnumerable<ExpertStreamEvent> StreamAsync(
+    public async IAsyncEnumerable<ExpertTextDeltaEvent> StreamTextAsync(
         LocalBasicAiRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -155,6 +167,24 @@ public sealed class RecordedBasicAi : ILocalBasicAi, IRuntimeBasicAi
         if (interaction.StreamEvents is null)
             throw MismatchedShape(request, streaming: true);
         foreach (var streamEvent in interaction.StreamEvents)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return streamEvent;
+        }
+    }
+
+    [SuppressMessage("ReSharper", "AsyncMethodWithoutAwait",
+        Justification = "The recorded sequence is fully materialized; iteration is intentionally synchronous.")]
+    public async IAsyncEnumerable<JsonStreamEvent> StreamJsonAsync(
+        LocalBasicAiRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        var interaction = DequeueFor(request);
+        if (interaction.JsonStreamEvents is null)
+            throw MismatchedShape(request, streaming: true);
+        foreach (var streamEvent in interaction.JsonStreamEvents)
         {
             cancellationToken.ThrowIfCancellationRequested();
             yield return streamEvent;

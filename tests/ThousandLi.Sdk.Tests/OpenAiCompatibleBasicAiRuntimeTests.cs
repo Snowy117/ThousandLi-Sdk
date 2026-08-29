@@ -270,7 +270,7 @@ public sealed class OpenAiCompatibleBasicAiRuntimeTests
         var handler = CreateHandler(RuntimeSseResponse(DeltaFrame(content: """{"a": tru""", reasoning: null)));
         var adapter = CreateAdapter(handler);
 
-        await Assert.ThrowsAsync<ExpertJsonStreamException>(async () =>
+        await Assert.ThrowsAsync<JsonStreamException>(async () =>
             await CollectAsync(adapter.StreamAsync(RuntimeRequest(), TestSupport.CancellationToken)));
     }
 

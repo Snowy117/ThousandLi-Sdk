@@ -1,3 +1,4 @@
+using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
 
 namespace ThousandLi.Sdk.Tests;
@@ -26,15 +27,36 @@ public sealed class RecordedBasicAiTests
     [Fact]
     public async Task StreamEventsReplayVerbatim()
     {
-        ExpertStreamEvent[] recorded =
+        ExpertTextDeltaEvent[] recorded =
         [
-            new ExpertTextDeltaEvent("a"),
-            new ExpertTextDeltaEvent("b")
+            new("a"),
+            new("b")
         ];
         var basicAi = new RecordedBasicAi(["m1"], [new RecordedBasicAiInteraction("m1", streamEvents: recorded)]);
 
-        var events = new List<ExpertStreamEvent>();
-        await foreach (var streamEvent in basicAi.StreamAsync(Request(), TestSupport.CancellationToken))
+        var events = new List<ExpertTextDeltaEvent>();
+        await foreach (var streamEvent in basicAi.StreamTextAsync(Request(), TestSupport.CancellationToken))
+            events.Add(streamEvent);
+
+        Assert.Equal(recorded, events);
+    }
+
+    [Fact]
+    public async Task JsonStreamEventsReplayVerbatim()
+    {
+        JsonStreamEvent[] recorded =
+        [
+            JsonStreamEvent.ObjectStarted(""),
+            JsonStreamEvent.PropertyName("/n", "n"),
+            JsonStreamEvent.StringStarted("/n"),
+            JsonStreamEvent.StringChunk("/n", "v"),
+            JsonStreamEvent.StringCompleted("/n"),
+            JsonStreamEvent.ObjectCompleted(""),
+        ];
+        var basicAi = new RecordedBasicAi(["m1"], [new RecordedBasicAiInteraction("m1", jsonStreamEvents: recorded)]);
+
+        var events = new List<JsonStreamEvent>();
+        await foreach (var streamEvent in basicAi.StreamJsonAsync(Request(), TestSupport.CancellationToken))
             events.Add(streamEvent);
 
         Assert.Equal(recorded, events);
@@ -86,7 +108,7 @@ public sealed class RecordedBasicAiTests
         {
             await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             {
-                await foreach (var _ in basicAi.StreamAsync(Request(), TestSupport.CancellationToken))
+                await foreach (var _ in basicAi.StreamTextAsync(Request(), TestSupport.CancellationToken))
                 {
                 }
             });
@@ -131,7 +153,7 @@ public sealed class RecordedBasicAiTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
         {
-            await foreach (var _ in basicAi.StreamAsync(Request(), cancellationSource.Token))
+            await foreach (var _ in basicAi.StreamTextAsync(Request(), cancellationSource.Token))
             {
             }
         });

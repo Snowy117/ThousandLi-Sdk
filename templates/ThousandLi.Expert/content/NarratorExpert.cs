@@ -44,12 +44,10 @@ public sealed class NarratorExpert : AbstractNarratorExpert
         var request = new LocalBasicAiRequest(
             RuntimeContext.BasicAi.AvailableModels[0],
             [new LocalBasicAiMessage("user", $"Turn {turn} for {player}: narrate the outcome of the action {action}.")]);
-        await foreach (var streamEvent in RuntimeContext.BasicAi
-                           .StreamAsync(request, cancellationToken)
+        await foreach (var delta in RuntimeContext.BasicAi
+                           .StreamTextAsync(request, cancellationToken)
                            .ConfigureAwait(false))
         {
-            if (streamEvent is not ExpertTextDeltaEvent delta)
-                continue;
             _text.Append(delta.Delta);
             await _events.WriteAsync(
                 new ExpertSemanticEvent("chunk", JsonSerializer.SerializeToElement(new { text = delta.Delta })),

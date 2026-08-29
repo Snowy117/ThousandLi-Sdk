@@ -46,7 +46,7 @@ public static class ExpertVariableUpdateExecution
                 expert,
                 feature,
                 validatedContext,
-                ExpertJsonStreamReconstruction.BuildJsonElement(recordingSink.Events),
+                recordingSink.Events.BuildJsonElement(),
                 result.Reasoning,
                 cancellationToken)
             .ConfigureAwait(false);
