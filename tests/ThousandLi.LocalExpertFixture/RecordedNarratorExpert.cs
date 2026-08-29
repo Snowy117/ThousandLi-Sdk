@@ -4,7 +4,6 @@ using System.Text.Json;
 using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
 using ThousandLi.ExpertContracts.Narration;
-using ExpertCompletionResult = ThousandLi.ExpertAuthoring.ExpertCompletionResult;
 
 [assembly: ExpertPackageEntryPoint(
     typeof(AbstractNarratorExpert),

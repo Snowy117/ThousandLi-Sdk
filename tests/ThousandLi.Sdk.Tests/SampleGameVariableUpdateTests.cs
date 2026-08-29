@@ -4,8 +4,6 @@ using ThousandLi.ExpertAuthoring;
 using ThousandLi.ExpertContracts.Narration;
 using ThousandLi.SampleGame;
 using ThousandLi.Testing;
-using ExpertCompletionResult = ThousandLi.Contracts.ExpertCompletionResult;
-using TextPrimaryOutput = ThousandLi.Contracts.TextPrimaryOutput;
 
 namespace ThousandLi.Sdk.Tests;
 

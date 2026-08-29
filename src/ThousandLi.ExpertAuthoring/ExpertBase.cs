@@ -1,7 +1,6 @@
-namespace ThousandLi.ExpertAuthoring;
+using ThousandLi.Contracts;
 
-/// <summary>Zero-method marker interface. A feature is a pure data carrier with semantic callbacks.</summary>
-public interface IExpertFeature;
+namespace ThousandLi.ExpertAuthoring;
 
 /// <summary>
 /// Non-generic expert authoring base. Holds the bound <see cref="IExpertRuntimeContext"/> and the
@@ -40,7 +39,7 @@ public abstract class ExpertBase<TFeature, TSelf> : ExpertBase
     where TSelf : ExpertBase<TFeature, TSelf>
 {
     private readonly List<TFeature> _features = [];
-    private readonly List<IExpertHistoryBucket> _historyBuckets = [];
+    private readonly List<IHistoryBucket> _historyBuckets = [];
     private int _executed;
 
     public TSelf WithPrimaryOutput(IExpertPrimaryOutput primaryOutput)
@@ -61,13 +60,17 @@ public abstract class ExpertBase<TFeature, TSelf> : ExpertBase
         return (TSelf)this;
     }
 
-    public TSelf WithHistoryBuckets(params IExpertHistoryBucket[] buckets)
+    /// <summary>
+    /// 传入历史消息桶引用。每个 bucket 存储时被包装为 <see cref="ReadOnlyHistoryBucket"/>——
+    /// 专家执行期间是历史桶的只读消费者，写账本抛 <see cref="NotSupportedException"/>。
+    /// </summary>
+    public TSelf WithHistoryBuckets(params IHistoryBucket[] buckets)
     {
         ArgumentNullException.ThrowIfNull(buckets);
         if (buckets.Any(bucket => (object?)bucket is null))
             throw new ArgumentException("History buckets cannot contain null entries.", nameof(buckets));
         EnsureInvocationPending();
-        _historyBuckets.AddRange(buckets);
+        _historyBuckets.AddRange(buckets.Select(bucket => new ReadOnlyHistoryBucket(bucket)));
         return (TSelf)this;
     }
 
@@ -75,7 +78,7 @@ public abstract class ExpertBase<TFeature, TSelf> : ExpertBase
 
     protected IReadOnlyList<TFeature> ConfiguredFeatures => _features;
 
-    protected IReadOnlyList<IExpertHistoryBucket> HistoryBuckets => _historyBuckets;
+    protected IReadOnlyList<IHistoryBucket> HistoryBuckets => _historyBuckets;
 
     public Task<ExpertCompletionResult> StreamAsync(CancellationToken cancellationToken = default) =>
         ExecuteOnce(static (self, token) => self.StreamAsyncCore(token), cancellationToken);

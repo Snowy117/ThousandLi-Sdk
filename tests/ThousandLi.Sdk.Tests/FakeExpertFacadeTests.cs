@@ -2,8 +2,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
 using ThousandLi.Testing;
-using ExpertCompletionResult = ThousandLi.Contracts.ExpertCompletionResult;
-using TextPrimaryOutput = ThousandLi.Contracts.TextPrimaryOutput;
 
 namespace ThousandLi.Sdk.Tests;
 

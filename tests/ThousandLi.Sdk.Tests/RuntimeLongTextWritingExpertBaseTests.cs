@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
-using ExpertCompletionResult = ThousandLi.Contracts.ExpertCompletionResult;
 
 namespace ThousandLi.Sdk.Tests;
 

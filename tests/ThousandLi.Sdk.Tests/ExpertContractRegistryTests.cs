@@ -4,7 +4,6 @@ using ThousandLi.Contracts;
 using ThousandLi.ExpertContracts;
 using ThousandLi.ExpertContracts.Narration;
 using JetBrains.Annotations;
-using ExpertCompletionResult = ThousandLi.ExpertAuthoring.ExpertCompletionResult;
 
 namespace ThousandLi.Sdk.Tests;
 

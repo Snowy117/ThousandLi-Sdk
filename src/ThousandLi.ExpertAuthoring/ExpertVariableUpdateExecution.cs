@@ -1,7 +1,6 @@
 using ThousandLi.Contracts;
 using JsonElement = System.Text.Json.JsonElement;
 using JsonValueKind = System.Text.Json.JsonValueKind;
-using CompletionResult = ThousandLi.Contracts.ExpertCompletionResult;
 
 namespace ThousandLi.ExpertAuthoring;
 
@@ -22,7 +21,7 @@ public sealed record ExpertVariableUpdateContext(
 public static class ExpertVariableUpdateExecution
 {
     /// <summary>执行流式主调用，并在显式传入 Feature 时执行变量更新完成调用。</summary>
-    public static async Task<CompletionResult> StreamAsync(
+    public static async Task<ExpertCompletionResult> StreamAsync(
         IExpertExecutionParticipant expert,
         BasicAiRequest mainRequest,
         IJsonExpertStreamEventSink mainSink,
@@ -55,7 +54,7 @@ public static class ExpertVariableUpdateExecution
     }
 
     /// <summary>执行非流式主调用，并在显式传入 Feature 时执行变量更新完成调用。</summary>
-    public static async Task<CompletionResult> CompleteAsync(
+    public static async Task<ExpertCompletionResult> CompleteAsync(
         IExpertExecutionParticipant expert,
         BasicAiRequest mainRequest,
         IJsonExpertStreamEventSink mainSink,

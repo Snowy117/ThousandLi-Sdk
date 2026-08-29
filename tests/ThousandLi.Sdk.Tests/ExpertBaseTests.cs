@@ -4,10 +4,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
-using ExpertCompletionResult = ThousandLi.ExpertAuthoring.ExpertCompletionResult;
-using IExpertFeature = ThousandLi.ExpertAuthoring.IExpertFeature;
-using IExpertPrimaryOutput = ThousandLi.ExpertAuthoring.IExpertPrimaryOutput;
-using TextPrimaryOutput = ThousandLi.ExpertAuthoring.TextPrimaryOutput;
 
 namespace ThousandLi.Sdk.Tests;
 
@@ -17,21 +13,22 @@ public sealed class ExpertBaseTests
 
     private sealed class OtherFeature : IExpertFeature;
 
-    private sealed class StubHistoryBucket(string description) : IExpertHistoryBucket
+    private sealed class StubHistoryBucket(string description) : IHistoryBucket
     {
+        private readonly HistoryTurn _turn = new([ChatMessage.User("hello")], null, 0);
+
         public string Description => description;
 
-        public ValueTask<string> GetCompressedViewAsync(CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult($"compressed:{description}");
-        }
+        public void AddMessages(
+            string? digest,
+            IReadOnlyDictionary<string, string>? metadata,
+            params ChatMessage[] messages) =>
+            throw new NotSupportedException("Stub history buckets are read-only.");
 
-        public ValueTask<IReadOnlyList<ExpertHistoryTurn>> GetRawTurnsAsync(CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult<IReadOnlyList<ExpertHistoryTurn>>([new ExpertHistoryTurn("player", "hello")]);
-        }
+        public IReadOnlyList<HistoryProjectionEntry> GetCompressedView(CompressedViewOptions? options = null) =>
+            [.. GetRawTurns().Select(turn => new HistoryProjectionRawTurn(turn))];
+
+        public IReadOnlyList<HistoryTurn> GetRawTurns() => [_turn];
     }
 
     private sealed class ProbeExpert : ExpertBase<NarrationFeature, ProbeExpert>
@@ -42,14 +39,14 @@ public sealed class ExpertBaseTests
 
         public IReadOnlyList<NarrationFeature> DeclaredFeatures => ConfiguredFeatures;
 
-        public IReadOnlyList<IExpertHistoryBucket> DeclaredBuckets => HistoryBuckets;
+        public IReadOnlyList<IHistoryBucket> DeclaredBuckets => HistoryBuckets;
 
         public IExpertRuntimeContext BoundContext => RuntimeContext;
 
         protected override async Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken)
         {
             if (DeclaredOutput is TextPrimaryOutput textOutput)
-                await textOutput.OnDelta(new ExpertTextDeltaEvent("chunk"), cancellationToken);
+                await textOutput.OnDelta(new TextDeltaEvent("chunk"), cancellationToken);
             if (OnStream is not null)
                 await OnStream(this, cancellationToken);
             return new ExpertCompletionResult(new Dictionary<string, string> { ["mode"] = "stream" });
@@ -103,7 +100,8 @@ public sealed class ExpertBaseTests
 
         Assert.Same(expert, configured);
         Assert.Equal([feature], expert.DeclaredFeatures);
-        Assert.Equal([bucket], expert.DeclaredBuckets);
+        var storedBucket = Assert.Single(expert.DeclaredBuckets);
+        Assert.Equal("bucket", storedBucket.Description);
         Assert.Equal("narrative", expert.DeclaredOutput!.PropertyName);
     }
 
@@ -220,17 +218,20 @@ public sealed class ExpertBaseTests
     }
 
     [Fact]
-    public async Task HistoryBucketsAreReadableThroughConfiguration()
+    public void HistoryBucketsAreReadableThroughConfiguration()
     {
         var expert = CreateBound();
         expert.WithHistoryBuckets(new StubHistoryBucket("main"));
-        var view = await expert.DeclaredBuckets[0].GetCompressedViewAsync(TestSupport.CancellationToken);
+        var bucket = expert.DeclaredBuckets[0];
 
-        Assert.Equal("main", expert.DeclaredBuckets[0].Description);
-        Assert.Equal("compressed:main", view);
-        var turns = await expert.DeclaredBuckets[0].GetRawTurnsAsync(TestSupport.CancellationToken);
+        Assert.Equal("main", bucket.Description);
+        var turns = bucket.GetRawTurns();
         var turn = Assert.Single(turns);
-        Assert.Equal("player", turn.Role);
+        var message = Assert.Single(turn.Messages);
+        Assert.Equal(ChatMessageRole.User, message.Role);
+        Assert.Equal("hello", message.Content);
+        var view = Assert.IsType<HistoryProjectionRawTurn>(Assert.Single(bucket.GetCompressedView()));
+        Assert.Same(turn, view.Turn);
     }
 
     [Fact]
@@ -241,7 +242,7 @@ public sealed class ExpertBaseTests
         Assert.Throws<ArgumentNullException>(() => expert.WithFeatures(null!));
         Assert.Throws<ArgumentNullException>(() => expert.WithHistoryBuckets(null!));
         Assert.Throws<ArgumentException>(() => expert.WithFeatures((NarrationFeature)null!));
-        Assert.Throws<ArgumentException>(() => expert.WithHistoryBuckets((IExpertHistoryBucket)null!));
+        Assert.Throws<ArgumentException>(() => expert.WithHistoryBuckets((IHistoryBucket)null!));
     }
 
     [Fact]

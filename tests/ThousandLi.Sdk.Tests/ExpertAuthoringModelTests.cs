@@ -1,3 +1,4 @@
+using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
 
 namespace ThousandLi.Sdk.Tests;
@@ -39,17 +40,16 @@ public sealed class ExpertAuthoringModelTests
     }
 
     [Fact]
-    public void HistoryTurnsValidateRoleContentAndCopyMetadata()
+    public void HistoryTurnsValidateMessagesAndCopyMetadata()
     {
-        Assert.Throws<ArgumentException>(() => new ExpertHistoryTurn(" ", "content"));
-        Assert.Throws<ArgumentNullException>(() => new ExpertHistoryTurn("player", null!));
-        Assert.Equal(string.Empty, new ExpertHistoryTurn("player", string.Empty).Content);
+        Assert.Throws<ArgumentNullException>(() => new HistoryTurn(null!, null, 0));
+        Assert.Throws<ArgumentException>(() => new HistoryTurn([], null, 0));
 
         var metadata = new Dictionary<string, string> { ["k"] = "v" };
-        var turn = new ExpertHistoryTurn("player", "hello", metadata);
+        var turn = new HistoryTurn([ChatMessage.User("hello")], null, 0, metadata);
         metadata["k"] = "mutated";
         Assert.Equal("v", turn.Metadata!["k"]);
-        Assert.Null(new ExpertHistoryTurn("player", "hello").Metadata);
+        Assert.Null(new HistoryTurn([ChatMessage.User("hello")], null, 0).Metadata);
     }
 
     [Fact]
@@ -70,7 +70,11 @@ public sealed class ExpertAuthoringModelTests
             () => new TextPrimaryOutput(null!));
         Assert.Throws<ArgumentException>(
             () => new TextPrimaryOutput((_, _) => ValueTask.CompletedTask, " "));
-        Assert.Throws<ArgumentException>(() => new JsonPrimaryOutput(" ", (_, _) => ValueTask.CompletedTask));
-        Assert.Throws<ArgumentNullException>(() => new JsonPrimaryOutput("out", null!));
+        Assert.Throws<ArgumentException>(
+            () => new JsonPrimaryOutput(" ", AiJsonSchema.String(), (_, _) => ValueTask.CompletedTask));
+        Assert.Throws<ArgumentNullException>(
+            () => new JsonPrimaryOutput("out", null!, (_, _) => ValueTask.CompletedTask));
+        Assert.Throws<ArgumentNullException>(
+            () => new JsonPrimaryOutput("out", AiJsonSchema.String(), null!));
     }
 }

@@ -1,6 +1,5 @@
 using System.Text;
 using ThousandLi.Contracts;
-using CompletionResult = ThousandLi.Contracts.ExpertCompletionResult;
 
 namespace ThousandLi.ExpertAuthoring;
 
@@ -16,7 +15,7 @@ public static class ExpertExecution
     /// Performs one streaming BasicAi call. Reasoning deltas are forwarded per-delta to the
     /// registered handler and also accumulated into the returned result.
     /// </summary>
-    public static async Task<CompletionResult> StreamOnceAsync(
+    public static async Task<ExpertCompletionResult> StreamOnceAsync(
         IExpertExecutionParticipant expert,
         BasicAiRequest request,
         IJsonExpertStreamEventSink sink,
@@ -47,14 +46,14 @@ public static class ExpertExecution
             }
         }
 
-        return new CompletionResult(metadataCapture.Captured, reasoning.Length == 0 ? null : reasoning.ToString());
+        return new ExpertCompletionResult(metadataCapture.Captured, reasoning.Length == 0 ? null : reasoning.ToString());
     }
 
     /// <summary>
     /// Performs one non-streaming BasicAi call, replays the completion JSON through the sink as
     /// stream events, and forwards the full reasoning text once as a single delta.
     /// </summary>
-    public static async Task<CompletionResult> CompleteOnceAsync(
+    public static async Task<ExpertCompletionResult> CompleteOnceAsync(
         IExpertExecutionParticipant expert,
         BasicAiRequest request,
         IJsonExpertStreamEventSink sink,
@@ -69,7 +68,7 @@ public static class ExpertExecution
     /// The completion-bearing variant used by follow-up orchestrators that need the raw BasicAi
     /// completion (for example the shared variable-update second pass) in addition to the result.
     /// </summary>
-    internal static async Task<(CompletionResult Result, BasicAiCompletionResult Completion)>
+    internal static async Task<(ExpertCompletionResult Result, BasicAiCompletionResult Completion)>
         CompleteOnceWithCompletionAsync(
             IExpertExecutionParticipant expert,
             BasicAiRequest request,
@@ -86,7 +85,7 @@ public static class ExpertExecution
             await DispatchEventAsync(streamEvent, sink, metadataCapture, cancellationToken).ConfigureAwait(false);
         if (completion.Reasoning is { } fullReasoning)
             await RaiseReasoningAsync(expert.ReasoningHandler, fullReasoning, cancellationToken).ConfigureAwait(false);
-        return (new CompletionResult(metadataCapture.Captured, completion.Reasoning), completion);
+        return (new ExpertCompletionResult(metadataCapture.Captured, completion.Reasoning), completion);
     }
 
     private static async ValueTask DispatchEventAsync(
