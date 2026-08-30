@@ -273,41 +273,58 @@ public sealed record HistoryProjectionGrandSummary : HistoryProjectionEntry
 /// 单个历史消息桶：存全量原文不可变账本 + 提供压缩视图服务。
 /// </summary>
 /// <remarks>
-///     bucket 接口是纯线性的（<see cref="AddMessages" /> / <see cref="GetRawTurns" /> /
-///     <see cref="GetCompressedView" />），不暴露任何分支语义给 Game。
+///     bucket 接口是纯线性的（<see cref="AddMessages" /> / <see cref="GetRawTurnsAsync" /> /
+///     <see cref="GetCompressedViewAsync" />），不暴露任何分支语义给 Game。
+///     读取面为异步（远程惰性桶经 dataRequest/dataResponse 往返取数）；写入口
+///     <see cref="AddMessages" /> 保持同步（Game 侧本地追加，无 IO）。
 ///     分支/reroll 是平台内部透明职责，由完整持久化隐含支持。
 /// </remarks>
 // ReSharper disable UnusedMemberInSuper.Global
 public interface IHistoryBucket
 {
-    /// <summary>该 bucket 的 LLM-friendly 自然语言描述（如「主叙事历史」「支线A」）。</summary>
+    /// <summary>
+    ///     该 bucket 的 LLM-friendly 自然语言描述（如「主叙事历史」「支线A」）。
+    ///     保持同步属性：描述从不上 wire 异步拉取——SDK 编码时本地直读，
+    ///     平台侧由 wire 参数包预填（ref/inline 元素均携带 description）。
+    /// </summary>
     string Description { get; }
 
     /// <summary>
     ///     显式入历史：以一个回合单元追加到账本。<paramref name="digest" /> 可选（小摘要，接口预留），
     ///     <paramref name="metadata" /> 可选（回合级结构化元数据，承载专家产出的 <c>afterThinking</c> 等）。
+    ///     写入口保持同步：Game 侧本地账本追加，无 IO；专家执行期间经只读包装禁止调用。
     /// </summary>
     /// <param name="digest">可选小摘要；本次可不填。</param>
     /// <param name="metadata">可选回合级结构化元数据，与 digest 语义分离。</param>
     /// <param name="messages">该回合的所有消息（params 必须在末尾）。</param>
     void AddMessages(string? digest, IReadOnlyDictionary<string, string>? metadata, params ChatMessage[] messages);
 
-    /// <summary>原始视图：返回全部回合单元的原始内容（不压缩），供 Game（如玩家查看久远历史）使用。</summary>
-    IReadOnlyList<HistoryTurn> GetRawTurns();
+    /// <summary>
+    ///     原始视图：返回全部回合单元的原始内容（不压缩），供 Game（如玩家查看久远历史）使用。
+    ///     异步读取面：远程惰性桶（如平台侧 dataRequest 代理）经取消感知的异步往返取数；
+    ///     实现方必须观察 <paramref name="cancellationToken" /> 并传播取消。
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌；调用方取消时读取应以 <see cref="OperationCanceledException" /> 观察到。</param>
+    ValueTask<IReadOnlyList<HistoryTurn>> GetRawTurnsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     压缩视图：按策略返回混合投影序列。本次只实现「原文层」——返回每个原始回合对应的
     ///     <see cref="HistoryProjectionRawTurn" />（全原文，不压缩）。
+    ///     异步读取面：远程惰性桶（如平台侧 dataRequest 代理）经取消感知的异步往返取数；
+    ///     实现方必须观察 <paramref name="cancellationToken" /> 并传播取消。
     /// </summary>
     /// <param name="options">预留策略参数；本次不读取。</param>
-    IReadOnlyList<HistoryProjectionEntry> GetCompressedView([UsedImplicitly] CompressedViewOptions? options = null);
+    /// <param name="cancellationToken">取消令牌；调用方取消时读取应以 <see cref="OperationCanceledException" /> 观察到。</param>
+    ValueTask<IReadOnlyList<HistoryProjectionEntry>> GetCompressedViewAsync(
+        [UsedImplicitly] CompressedViewOptions? options = null,
+        CancellationToken cancellationToken = default);
 }
 // ReSharper restore UnusedMemberInSuper.Global
 
 /// <summary>
 /// 只读历史桶视图：专家执行期间持有 bucket 时禁止写账本。
-/// 读取（<see cref="GetRawTurns" /> / <see cref="GetCompressedView" /> / <see cref="Description" />）透传，
-/// <see cref="AddMessages" /> 抛 <see cref="NotSupportedException" />。
+/// 读取（<see cref="GetRawTurnsAsync" /> / <see cref="GetCompressedViewAsync" /> / <see cref="Description" />）
+/// 透传（含取消令牌），<see cref="AddMessages" /> 抛 <see cref="NotSupportedException" />。
 /// </summary>
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 public sealed class ReadOnlyHistoryBucket(IHistoryBucket inner) : IHistoryBucket
@@ -325,11 +342,14 @@ public sealed class ReadOnlyHistoryBucket(IHistoryBucket inner) : IHistoryBucket
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<HistoryTurn> GetRawTurns() => Inner.GetRawTurns();
+    public ValueTask<IReadOnlyList<HistoryTurn>> GetRawTurnsAsync(CancellationToken cancellationToken = default)
+        => Inner.GetRawTurnsAsync(cancellationToken);
 
     /// <inheritdoc />
-    public IReadOnlyList<HistoryProjectionEntry> GetCompressedView(CompressedViewOptions? options = null)
-        => Inner.GetCompressedView(options);
+    public ValueTask<IReadOnlyList<HistoryProjectionEntry>> GetCompressedViewAsync(
+        CompressedViewOptions? options = null,
+        CancellationToken cancellationToken = default)
+        => Inner.GetCompressedViewAsync(options, cancellationToken);
 }
 
 /// <summary>一个 session 内的历史消息桶集合：管理多 bucket 的显式创建与按名访问。</summary>

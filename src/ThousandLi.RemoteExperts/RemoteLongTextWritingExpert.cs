@@ -85,7 +85,7 @@ public sealed class RemoteLongTextWritingExpert(
     private async Task<ExpertCompletionResult> InvokeRemoteAsync(CancellationToken cancellationToken)
     {
         ValidateCategoryInputs();
-        var invocation = _codec.EncodeInvocation(
+        var invocation = await _codec.EncodeInvocationAsync(
             WorldSettings!,
             PlayerInput!,
             PlayerPersona,
@@ -93,7 +93,8 @@ public sealed class RemoteLongTextWritingExpert(
             StateSchema,
             ConfiguredPrimaryOutput,
             ConfiguredFeatures,
-            ConfiguredHistoryBuckets);
+            ConfiguredHistoryBuckets,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
         // The platform defaults an omitted primary output to a text output; a game that never
         // configured one has no callback to deliver to, so dispatch targets a silent drop.
         var dispatchOutput = ConfiguredPrimaryOutput ?? new TextPrimaryOutput(static (_, _) => ValueTask.CompletedTask);
@@ -146,15 +147,18 @@ public sealed class RemoteLongTextWritingExpert(
         if (!invocation.BucketRegistry.TryGetValue(dataRequest.BucketId, out var bucket))
             throw new RemoteProtocolException(
                 $"The platform requested data for unknown history bucket '{dataRequest.BucketId}'.");
-        var body = BuildDataResponse(bucket, dataRequest);
+        var body = await BuildDataResponseAsync(bucket, dataRequest, token).ConfigureAwait(false);
         await _client.PostInvocationDataAsync(
             snapshot.ExpertInvocationId, dataRequest.RequestId, body, token).ConfigureAwait(false);
     }
 
-    private static JsonElement BuildDataResponse(IHistoryBucket bucket, RemoteExpertDataRequestFrame frame)
+    private static async ValueTask<JsonElement> BuildDataResponseAsync(
+        IHistoryBucket bucket,
+        RemoteExpertDataRequestFrame frame,
+        CancellationToken cancellationToken)
     {
         using var stream = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(stream))
+        await using (var writer = new Utf8JsonWriter(stream))
         {
             writer.WriteStartObject();
             switch (frame.View)
@@ -163,11 +167,18 @@ public sealed class RemoteLongTextWritingExpert(
                     writer.WriteString("description", bucket.Description);
                     break;
                 case RemoteExpertDataView.RawTurns:
-                    WritePagedView(writer, bucket.GetRawTurns(), frame, HistoryBucketWireProjection.WriteTurn);
+                    WritePagedView(
+                        writer,
+                        await bucket.GetRawTurnsAsync(cancellationToken).ConfigureAwait(false),
+                        frame,
+                        HistoryBucketWireProjection.WriteTurn);
                     break;
                 case RemoteExpertDataView.CompressedView:
                     WritePagedView(
-                        writer, bucket.GetCompressedView(), frame, HistoryBucketWireProjection.WriteProjectionEntry);
+                        writer,
+                        await bucket.GetCompressedViewAsync(cancellationToken: cancellationToken).ConfigureAwait(false),
+                        frame,
+                        HistoryBucketWireProjection.WriteProjectionEntry);
                     break;
                 default:
                     throw new RemoteProtocolException($"Unknown data view '{frame.View}'.");

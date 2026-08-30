@@ -118,8 +118,8 @@ public abstract class AbstractLongTextWritingExpert : IExpertContract, IExpertEx
     }
 
     /// <summary>
-    /// 传入历史消息桶引用。专家自己调 <see cref="IHistoryBucket.GetCompressedView" /> /
-    /// <see cref="IHistoryBucket.GetRawTurns" /> / <see cref="IHistoryBucket.Description" /> 按需投影提取信息。
+    /// 传入历史消息桶引用。专家自己调 <see cref="IHistoryBucket.GetCompressedViewAsync" /> /
+    /// <see cref="IHistoryBucket.GetRawTurnsAsync" /> / <see cref="IHistoryBucket.Description" /> 按需投影提取信息。
     /// 每个 bucket 在存储时被包装为 <see cref="ReadOnlyHistoryBucket" />——专家执行期间是历史桶的只读消费者，
     /// <see cref="IHistoryBucket.AddMessages" /> 抛 <see cref="NotSupportedException" />（防专家写账本）。
     /// </summary>

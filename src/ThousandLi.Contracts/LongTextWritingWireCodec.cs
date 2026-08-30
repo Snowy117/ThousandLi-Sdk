@@ -419,12 +419,20 @@ internal sealed class WireInlineHistoryBucket(string description, IReadOnlyList<
         throw new NotSupportedException("Expert cannot mutate history buckets during execution.");
     }
 
-    public IReadOnlyList<HistoryTurn> GetRawTurns() => turns;
+    public ValueTask<IReadOnlyList<HistoryTurn>> GetRawTurnsAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(turns);
+    }
 
-    public IReadOnlyList<HistoryProjectionEntry> GetCompressedView(CompressedViewOptions? options = null)
+    public ValueTask<IReadOnlyList<HistoryProjectionEntry>> GetCompressedViewAsync(
+        CompressedViewOptions? options = null,
+        CancellationToken cancellationToken = default)
     {
         _ = options;
-        return [.. turns.Select(turn => new HistoryProjectionRawTurn(turn))];
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult<IReadOnlyList<HistoryProjectionEntry>>(
+            [.. turns.Select(turn => new HistoryProjectionRawTurn(turn))]);
     }
 }
 
@@ -536,9 +544,10 @@ public sealed class LongTextWritingWireCodec
     /// SDK 代理侧编码：把类别 fluent 状态（显式参数）编码为 wire 参数包（POST input）。
     /// ref 桶按 <c>b0, b1, …</c> 分配 bucketId 并连同活动桶引用一起经
     /// <see cref="LongTextWritingWireInvocation.BucketRegistry" /> 返回，供代理响应 dataRequest；
-    /// <paramref name="inlineHistoryBuckets" /> 为 true 时桶以 inline 全量快照编码（录制/手捏场景），不入注册表。
+    /// <paramref name="inlineHistoryBuckets" /> 为 true 时桶以 inline 全量快照编码（录制/手捏场景），
+    /// 不入注册表——inline 快照需读取桶账本，故编码为异步并接受取消令牌。
     /// </summary>
-    public LongTextWritingWireInvocation EncodeInvocation(
+    public async ValueTask<LongTextWritingWireInvocation> EncodeInvocationAsync(
         string worldSettings,
         string playerInput,
         string? playerPersona = null,
@@ -547,14 +556,15 @@ public sealed class LongTextWritingWireCodec
         IExpertPrimaryOutput? primaryOutput = null,
         IReadOnlyList<ILongTextWritingFeature>? features = null,
         IReadOnlyList<IHistoryBucket>? historyBuckets = null,
-        bool inlineHistoryBuckets = false)
+        bool inlineHistoryBuckets = false,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(worldSettings);
         ArgumentException.ThrowIfNullOrWhiteSpace(playerInput);
         var registry = new Dictionary<string, IHistoryBucket>(StringComparer.Ordinal);
 
         using var stream = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(stream))
+        await using (var writer = new Utf8JsonWriter(stream))
         {
             writer.WriteStartObject();
             writer.WriteString("worldSettings", worldSettings);
@@ -591,7 +601,7 @@ public sealed class LongTextWritingWireCodec
                     if (bucket is null)
                         throw new ArgumentException("History buckets cannot contain null entries.", nameof(historyBuckets));
                     if (inlineHistoryBuckets)
-                        WriteInlineBucket(bucket, writer);
+                        await WriteInlineBucketAsync(bucket, writer, cancellationToken).ConfigureAwait(false);
                     else
                     {
                         var bucketId = $"b{index}";
@@ -1024,13 +1034,14 @@ public sealed class LongTextWritingWireCodec
         writer.WriteEndObject();
     }
 
-    private static void WriteInlineBucket(IHistoryBucket bucket, Utf8JsonWriter writer)
+    private static async ValueTask WriteInlineBucketAsync(
+        IHistoryBucket bucket, Utf8JsonWriter writer, CancellationToken cancellationToken)
     {
         writer.WriteStartObject();
         writer.WriteString("kind", "inline");
         writer.WriteString("description", bucket.Description);
         writer.WriteStartArray("turns");
-        foreach (var turn in bucket.GetRawTurns())
+        foreach (var turn in await bucket.GetRawTurnsAsync(cancellationToken).ConfigureAwait(false))
             HistoryBucketWireProjection.WriteTurn(writer, turn);
         writer.WriteEndArray();
         writer.WriteEndObject();

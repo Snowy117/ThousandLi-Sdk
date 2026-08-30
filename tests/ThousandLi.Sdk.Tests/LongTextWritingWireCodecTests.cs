@@ -18,10 +18,10 @@ public sealed class LongTextWritingWireCodecTests
     private static string Norm(string json) => TextOf(TestSupport.Json(json));
 
     [Fact]
-    public void EncodeInvocationRoundTripsAFullyConfiguredInvocation()
+    public async Task EncodeInvocationRoundTripsAFullyConfiguredInvocation()
     {
         var bucket = NewBucket("主叙事历史", ("user", "我推门进去"), ("assistant", "门后是一条长廊。"));
-        var packet = _codec.EncodeInvocation(
+        var packet = await _codec.EncodeInvocationAsync(
             worldSettings: "仙侠世界",
             playerInput: "我往长廊深处走。",
             playerPersona: "冷剑客",
@@ -29,7 +29,8 @@ public sealed class LongTextWritingWireCodecTests
             stateSchema: "{\"kind\":\"object\",\"properties\":[]}",
             primaryOutput: new TextPrimaryOutput(static (_, _) => ValueTask.CompletedTask, "story"),
             features: [new TimeTagsFeature(null, null), new ActionOptionsFeature(3, static (_, _) => ValueTask.CompletedTask)],
-            historyBuckets: [bucket]);
+            historyBuckets: [bucket],
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(
             Norm("""{"kind":"ref","bucketId":"b0","description":"主叙事历史"}"""),
@@ -59,22 +60,23 @@ public sealed class LongTextWritingWireCodecTests
         Assert.NotNull(actionOptions.OnOptionCompleted);
         var decodedBucket = Assert.Single(config.HistoryBuckets);
         Assert.Equal("主叙事历史", decodedBucket.Description);
-        Assert.Equal(2, decodedBucket.GetRawTurns().Count);
+        Assert.Equal(2, (await decodedBucket.GetRawTurnsAsync(CancellationToken.None)).Count);
     }
 
     [Fact]
-    public void EncodeInvocationWithInlineBucketsProjectsTurnsAndKeepsTheRegistryEmpty()
+    public async Task EncodeInvocationWithInlineBucketsProjectsTurnsAndKeepsTheRegistryEmpty()
     {
         var bucket = NewBucket(
             "支线A",
             metadata: new Dictionary<string, string> { ["afterThinking"] = "计划" },
             digest: "支线A的开局摘要",
             ("user", "查看地图"));
-        var packet = _codec.EncodeInvocation(
+        var packet = await _codec.EncodeInvocationAsync(
             "世界",
             "输入",
             historyBuckets: [bucket],
-            inlineHistoryBuckets: true);
+            inlineHistoryBuckets: true,
+            cancellationToken: CancellationToken.None);
 
         Assert.Empty(packet.BucketRegistry);
         var wireBucket = packet.Input.GetProperty("historyBuckets")[0];
@@ -91,16 +93,19 @@ public sealed class LongTextWritingWireCodecTests
         var config = _codec.DecodeInvocation(packet.Input, new RecordingWireEventSink(), static _ => throw new InvalidOperationException("inline buckets must not resolve refs."));
         var decoded = Assert.Single(config.HistoryBuckets);
         Assert.Equal("支线A", decoded.Description);
-        var turn = Assert.Single(decoded.GetRawTurns());
+        var turn = Assert.Single(await decoded.GetRawTurnsAsync(CancellationToken.None));
         Assert.Equal("支线A的开局摘要", turn.Digest);
         Assert.Equal("计划", turn.Metadata!["afterThinking"]);
         Assert.Throws<NotSupportedException>(() => decoded.AddMessages(null, null, ChatMessage.User("x")));
     }
 
     [Fact]
-    public void DecodeInvocationDefaultsToATextPrimaryOutputWhenThePacketOmitsIt()
+    public async Task DecodeInvocationDefaultsToATextPrimaryOutputWhenThePacketOmitsIt()
     {
-        var packet = _codec.EncodeInvocation("世界", "输入");
+        var packet = await _codec.EncodeInvocationAsync(
+            "世界",
+            "输入",
+            cancellationToken: CancellationToken.None);
 
         Assert.False(packet.Input.TryGetProperty("primaryOutput", out _));
         var config = _codec.DecodeInvocation(packet.Input, new RecordingWireEventSink(), static _ => throw new InvalidOperationException("no buckets"));
@@ -113,22 +118,24 @@ public sealed class LongTextWritingWireCodecTests
     }
 
     [Fact]
-    public void EncodeInvocationRejectsFeatureTypesWithoutARegisteredCodec()
+    public async Task EncodeInvocationRejectsFeatureTypesWithoutARegisteredCodec()
     {
-        Assert.Throws<NotSupportedException>(() => _codec.EncodeInvocation(
+        await Assert.ThrowsAsync<NotSupportedException>(async () => await _codec.EncodeInvocationAsync(
             "世界",
             "输入",
-            features: [new UnsupportedFeature()]));
+            features: [new UnsupportedFeature()],
+            cancellationToken: CancellationToken.None));
     }
 
     [Fact]
     public async Task DecodedCallbacksEmitWireEventsThroughTheSink()
     {
-        var packet = _codec.EncodeInvocation(
+        var packet = await _codec.EncodeInvocationAsync(
             "世界",
             "输入",
             primaryOutput: new TextPrimaryOutput(static (_, _) => ValueTask.CompletedTask),
-            features: [new ActionOptionsFeature(2, static (_, _) => ValueTask.CompletedTask)]);
+            features: [new ActionOptionsFeature(2, static (_, _) => ValueTask.CompletedTask)],
+            cancellationToken: CancellationToken.None);
         var sink = new RecordingWireEventSink();
         var config = _codec.DecodeInvocation(packet.Input, sink, static _ => throw new InvalidOperationException("no buckets"));
 
@@ -208,12 +215,13 @@ public sealed class LongTextWritingWireCodecTests
             proposals.Add(proposal);
             return ValueTask.CompletedTask;
         });
-        var packet = _codec.EncodeInvocation(
+        var packet = await _codec.EncodeInvocationAsync(
             "世界",
             "输入",
             currentState: "{\"courage\":10}",
             stateSchema: "{\"kind\":\"object\",\"properties\":[]}",
-            features: [gameFeature]);
+            features: [gameFeature],
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(
             Norm("""{"kind":"variableUpdate"}"""),
@@ -271,13 +279,14 @@ public sealed class LongTextWritingWireCodecTests
         foreach (var (payloadJson, expected) in JsonStreamPayloads)
         {
             var platformSinks = new RecordingWireEventSink();
-            var packet = _codec.EncodeInvocation(
+            var packet = await _codec.EncodeInvocationAsync(
                 "世界",
                 "输入",
                 primaryOutput: new JsonPrimaryOutput(
                     "dialogues",
                     AiJsonSchema.Array(AiJsonSchema.String()),
-                    static (_, _) => ValueTask.CompletedTask));
+                    static (_, _) => ValueTask.CompletedTask),
+                cancellationToken: CancellationToken.None);
             var config = _codec.DecodeInvocation(packet.Input, platformSinks, static _ => throw new InvalidOperationException("no buckets"));
             var platformOutput = (JsonPrimaryOutput)config.PrimaryOutput;
 
@@ -308,10 +317,11 @@ public sealed class LongTextWritingWireCodecTests
     [Fact]
     public async Task CompletionAggregatesTextPrimaryMetadataAndReasoning()
     {
-        var packet = _codec.EncodeInvocation(
+        var packet = await _codec.EncodeInvocationAsync(
             "世界",
             "输入",
-            primaryOutput: new TextPrimaryOutput(static (_, _) => ValueTask.CompletedTask, "story"));
+            primaryOutput: new TextPrimaryOutput(static (_, _) => ValueTask.CompletedTask, "story"),
+            cancellationToken: CancellationToken.None);
         var sink = new RecordingWireEventSink();
         var config = _codec.DecodeInvocation(packet.Input, sink, static _ => throw new InvalidOperationException("no buckets"));
         var platformOutput = (TextPrimaryOutput)config.PrimaryOutput;
@@ -353,10 +363,11 @@ public sealed class LongTextWritingWireCodecTests
             AiJsonSchema.Object(
                 AiJsonSchema.Required("speaker", AiJsonSchema.String()),
                 AiJsonSchema.Required("text", AiJsonSchema.String())));
-        var packet = _codec.EncodeInvocation(
+        var packet = await _codec.EncodeInvocationAsync(
             "世界",
             "输入",
-            primaryOutput: new JsonPrimaryOutput("dialogues", schema, static (_, _) => ValueTask.CompletedTask));
+            primaryOutput: new JsonPrimaryOutput("dialogues", schema, static (_, _) => ValueTask.CompletedTask),
+            cancellationToken: CancellationToken.None);
         var sink = new RecordingWireEventSink();
         var config = _codec.DecodeInvocation(packet.Input, sink, static _ => throw new InvalidOperationException("no buckets"));
         var platformOutput = (JsonPrimaryOutput)config.PrimaryOutput;
@@ -433,10 +444,11 @@ public sealed class LongTextWritingWireCodecTests
 
         var gameTags = new List<EmotionTagDeltaEvent>();
         var gameFeature = new EmotionTagsFeature((evt, _) => Capture(gameTags, evt));
-        var packet = codec.EncodeInvocation(
+        var packet = await codec.EncodeInvocationAsync(
             "世界",
             "输入",
-            features: [gameFeature]);
+            features: [gameFeature],
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(
             Norm("""{"kind":"emotionTags"}"""),
@@ -495,10 +507,10 @@ public sealed class LongTextWritingWireCodecTests
     }
 
     [Fact]
-    public void ApplyReplaysTheDecodedConfigurationOntoAFreshExpert()
+    public async Task ApplyReplaysTheDecodedConfigurationOntoAFreshExpert()
     {
         var bucket = NewBucket("主叙事历史", ("user", "开局"));
-        var packet = _codec.EncodeInvocation(
+        var packet = await _codec.EncodeInvocationAsync(
             "世界",
             "输入",
             playerPersona: "剑客",
@@ -506,7 +518,8 @@ public sealed class LongTextWritingWireCodecTests
             stateSchema: "{}",
             primaryOutput: new TextPrimaryOutput(static (_, _) => ValueTask.CompletedTask),
             features: [new TimeTagsFeature(null, null)],
-            historyBuckets: [bucket]);
+            historyBuckets: [bucket],
+            cancellationToken: CancellationToken.None);
         var config = _codec.DecodeInvocation(packet.Input, new RecordingWireEventSink(), _ => bucket);
 
         var expert = new TestLongTextWritingExpert();
@@ -564,12 +577,20 @@ public sealed class LongTextWritingWireCodecTests
             _turns.Add(new HistoryTurn(messages, digest, _turns.Count, metadata));
         }
 
-        public IReadOnlyList<HistoryTurn> GetRawTurns() => _turns;
+        public ValueTask<IReadOnlyList<HistoryTurn>> GetRawTurnsAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<IReadOnlyList<HistoryTurn>>(_turns);
+        }
 
-        public IReadOnlyList<HistoryProjectionEntry> GetCompressedView(CompressedViewOptions? options = null)
+        public ValueTask<IReadOnlyList<HistoryProjectionEntry>> GetCompressedViewAsync(
+            CompressedViewOptions? options = null,
+            CancellationToken cancellationToken = default)
         {
             _ = options;
-            return [.. _turns.Select(static turn => new HistoryProjectionRawTurn(turn))];
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<IReadOnlyList<HistoryProjectionEntry>>(
+                [.. _turns.Select(static turn => new HistoryProjectionRawTurn(turn))]);
         }
     }
 

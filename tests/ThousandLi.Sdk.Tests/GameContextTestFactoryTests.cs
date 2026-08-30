@@ -188,7 +188,7 @@ public sealed class GameContextTestFactoryTests
     }
 
     [Fact]
-    public void InMemoryHistoryBucketAppendsTurnsWithMonotonicOrdinals()
+    public async Task InMemoryHistoryBucketAppendsTurnsWithMonotonicOrdinals()
     {
         var buckets = new InMemoryHistoryBucketSet();
         buckets.Create("main", "主叙事历史");
@@ -196,11 +196,11 @@ public sealed class GameContextTestFactoryTests
         buckets["main"].AddMessages(null, null, ChatMessage.User("一"));
         buckets["main"].AddMessages("digest", null, ChatMessage.User("二"), ChatMessage.Assistant("答"));
 
-        var turns = buckets["main"].GetRawTurns();
+        var turns = await buckets["main"].GetRawTurnsAsync(CancellationToken.None);
         Assert.Equal([0L, 1L], turns.Select(turn => turn.TurnOrdinal));
         Assert.Equal(["一", "二", "答"], turns.SelectMany(turn => turn.Messages).Select(item => item.Content));
         Assert.Equal("digest", turns[1].Digest);
-        var projections = buckets["main"].GetCompressedView()
+        var projections = (await buckets["main"].GetCompressedViewAsync(cancellationToken: CancellationToken.None))
             .Select(Assert.IsType<HistoryProjectionRawTurn>)
             .ToArray();
         Assert.Equal(turns, projections.Select(projection => projection.Turn));

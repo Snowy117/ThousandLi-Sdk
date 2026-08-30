@@ -155,8 +155,19 @@ public sealed class ExpertFacadeContractTests
         {
         }
 
-        public IReadOnlyList<HistoryTurn> GetRawTurns() => [];
+        public ValueTask<IReadOnlyList<HistoryTurn>> GetRawTurnsAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<IReadOnlyList<HistoryTurn>>([]);
+        }
 
-        public IReadOnlyList<HistoryProjectionEntry> GetCompressedView(CompressedViewOptions? options = null) => [];
+        public ValueTask<IReadOnlyList<HistoryProjectionEntry>> GetCompressedViewAsync(
+            CompressedViewOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            _ = options;
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<IReadOnlyList<HistoryProjectionEntry>>([]);
+        }
     }
 }

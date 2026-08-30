@@ -613,12 +613,20 @@ public sealed class RemoteLongTextWritingExpertTests
             _turns.Add(new HistoryTurn(messages, digest, _turns.Count, metadata));
         }
 
-        public IReadOnlyList<HistoryTurn> GetRawTurns() => _turns;
+        public ValueTask<IReadOnlyList<HistoryTurn>> GetRawTurnsAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<IReadOnlyList<HistoryTurn>>(_turns);
+        }
 
-        public IReadOnlyList<HistoryProjectionEntry> GetCompressedView(CompressedViewOptions? options = null)
+        public ValueTask<IReadOnlyList<HistoryProjectionEntry>> GetCompressedViewAsync(
+            CompressedViewOptions? options = null,
+            CancellationToken cancellationToken = default)
         {
             _ = options;
-            return [.. _turns.Select(static turn => new HistoryProjectionRawTurn(turn))];
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<IReadOnlyList<HistoryProjectionEntry>>(
+                [.. _turns.Select(static turn => new HistoryProjectionRawTurn(turn))]);
         }
     }
 }

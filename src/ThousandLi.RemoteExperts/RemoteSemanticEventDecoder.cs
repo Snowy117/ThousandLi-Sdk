@@ -31,10 +31,10 @@ public enum RemoteExpertDataView
     /// <summary>The bucket's <c>Description</c> text.</summary>
     Description,
 
-    /// <summary>The raw-turn view (<see cref="ThousandLi.Contracts.IHistoryBucket.GetRawTurns" />).</summary>
+    /// <summary>The raw-turn view (<see cref="ThousandLi.Contracts.IHistoryBucket.GetRawTurnsAsync" />).</summary>
     RawTurns,
 
-    /// <summary>The compressed view (<see cref="ThousandLi.Contracts.IHistoryBucket.GetCompressedView" />).</summary>
+    /// <summary>The compressed view (<see cref="ThousandLi.Contracts.IHistoryBucket.GetCompressedViewAsync" />).</summary>
     CompressedView
 }
 

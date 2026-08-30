@@ -115,7 +115,7 @@ public sealed class WirePrimaryOutputAccumulator
 }
 
 /// <summary>
-/// SDK 代理侧 <c>EncodeInvocation</c> 的产物：wire 参数包（POST input）与桶注册表
+/// SDK 代理侧 <c>EncodeInvocationAsync</c> 的产物：wire 参数包（POST input）与桶注册表
 /// （bucketId → 本地活动桶引用，供代理响应平台的 dataRequest 反向请求）。
 /// </summary>
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]

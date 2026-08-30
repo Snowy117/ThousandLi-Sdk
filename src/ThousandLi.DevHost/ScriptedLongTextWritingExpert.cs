@@ -183,7 +183,7 @@ public sealed class ScriptedLongTextWritingExpert : AbstractLongTextWritingExper
         ValidateCategoryInputs();
         _scenario = ResolveScenario();
         cancellationToken.ThrowIfCancellationRequested();
-        var metadata = BuildMetadata();
+        var metadata = await BuildMetadataAsync(cancellationToken).ConfigureAwait(false);
         await StreamPrimaryOutputAsync(cancellationToken).ConfigureAwait(false);
         await StreamFeaturesAsync(cancellationToken).ConfigureAwait(false);
         return new ExpertCompletionResult(metadata, _scenario.Reasoning);
@@ -208,7 +208,7 @@ public sealed class ScriptedLongTextWritingExpert : AbstractLongTextWritingExper
         return _scenarios.FirstOrDefault(scenario => scenario.ScenarioId == "default") ?? _scenarios[0];
     }
 
-    private Dictionary<string, string> BuildMetadata()
+    private async ValueTask<Dictionary<string, string>> BuildMetadataAsync(CancellationToken cancellationToken)
     {
         var metadata = new Dictionary<string, string>(StringComparer.Ordinal);
         if (_scenario.Metadata is not null)
@@ -224,7 +224,7 @@ public sealed class ScriptedLongTextWritingExpert : AbstractLongTextWritingExper
         var totalTurns = 0;
         foreach (var bucket in ConfiguredHistoryBuckets)
         {
-            var count = bucket.GetRawTurns().Count;
+            var count = (await bucket.GetRawTurnsAsync(cancellationToken).ConfigureAwait(false)).Count;
             metadata[$"history.{bucket.Description}"] = count.ToString(CultureInfo.InvariantCulture);
             totalTurns += count;
         }

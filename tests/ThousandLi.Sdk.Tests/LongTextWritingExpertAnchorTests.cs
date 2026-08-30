@@ -234,19 +234,19 @@ public sealed class LongTextWritingExpertAnchorTests
     }
 
     [Fact]
-    public void HistoryBucketsAreReadableThroughConfiguration()
+    public async Task HistoryBucketsAreReadableThroughConfiguration()
     {
         var expert = CreateBoundProbe();
         expert.WithHistoryBuckets(new StubHistoryBucket("main"));
         var bucket = expert.DeclaredBuckets[0];
 
         Assert.Equal("main", bucket.Description);
-        var turns = bucket.GetRawTurns();
+        var turns = await bucket.GetRawTurnsAsync(CancellationToken.None);
         var turn = Assert.Single(turns);
         var message = Assert.Single(turn.Messages);
         Assert.Equal(ChatMessageRole.User, message.Role);
         Assert.Equal("hello", message.Content);
-        var view = Assert.IsType<HistoryProjectionRawTurn>(Assert.Single(bucket.GetCompressedView()));
+        var view = Assert.IsType<HistoryProjectionRawTurn>(Assert.Single(await bucket.GetCompressedViewAsync(cancellationToken: CancellationToken.None)));
         Assert.Same(turn, view.Turn);
     }
 
@@ -330,10 +330,20 @@ public sealed class LongTextWritingExpertAnchorTests
             params ChatMessage[] messages) =>
             throw new NotSupportedException("Stub history buckets are read-only.");
 
-        public IReadOnlyList<HistoryProjectionEntry> GetCompressedView(CompressedViewOptions? options = null) =>
-            [.. GetRawTurns().Select(turn => new HistoryProjectionRawTurn(turn))];
+        public ValueTask<IReadOnlyList<HistoryTurn>> GetRawTurnsAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<IReadOnlyList<HistoryTurn>>([_turn]);
+        }
 
-        public IReadOnlyList<HistoryTurn> GetRawTurns() => [_turn];
+        public ValueTask<IReadOnlyList<HistoryProjectionEntry>> GetCompressedViewAsync(
+            CompressedViewOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            _ = options;
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<IReadOnlyList<HistoryProjectionEntry>>([new HistoryProjectionRawTurn(_turn)]);
+        }
     }
 
     private sealed class ProbeExpert : AbstractLongTextWritingExpert
