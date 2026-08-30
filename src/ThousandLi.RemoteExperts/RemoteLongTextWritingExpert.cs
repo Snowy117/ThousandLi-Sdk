@@ -179,6 +179,11 @@ public sealed class RemoteLongTextWritingExpert(
         return JsonDocument.Parse(stream.ToArray()).RootElement.Clone();
     }
 
+    /// <summary>
+    /// Writes one cursor page of a bucket view. Cursors are item indices into the live view, which
+    /// is stable only because buckets are contractually frozen during an invocation (only the Game
+    /// appends, never mid-run — see the read-only bucket rules in the expert contracts).
+    /// </summary>
     private static void WritePagedView<T>(
         Utf8JsonWriter writer,
         IReadOnlyList<T> view,

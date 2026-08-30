@@ -68,6 +68,7 @@ public sealed class LongTextWritingWireCodecTests
         var bucket = NewBucket(
             "支线A",
             metadata: new Dictionary<string, string> { ["afterThinking"] = "计划" },
+            digest: "支线A的开局摘要",
             ("user", "查看地图"));
         var packet = _codec.EncodeInvocation(
             "世界",
@@ -83,6 +84,7 @@ public sealed class LongTextWritingWireCodecTests
         Assert.Equal(
             Norm("""{"role":"user","content":"查看地图"}"""),
             TextOf(wireTurn.GetProperty("messages")[0]));
+        Assert.Equal("支线A的开局摘要", wireTurn.GetProperty("digest").GetString());
         Assert.Equal(0, wireTurn.GetProperty("turnOrdinal").GetInt64());
         Assert.Equal("计划", wireTurn.GetProperty("metadata").GetProperty("afterThinking").GetString());
 
@@ -90,6 +92,7 @@ public sealed class LongTextWritingWireCodecTests
         var decoded = Assert.Single(config.HistoryBuckets);
         Assert.Equal("支线A", decoded.Description);
         var turn = Assert.Single(decoded.GetRawTurns());
+        Assert.Equal("支线A的开局摘要", turn.Digest);
         Assert.Equal("计划", turn.Metadata!["afterThinking"]);
         Assert.Throws<NotSupportedException>(() => decoded.AddMessages(null, null, ChatMessage.User("x")));
     }
@@ -541,10 +544,11 @@ public sealed class LongTextWritingWireCodecTests
     private static StubHistoryBucket NewBucket(
         string description,
         IReadOnlyDictionary<string, string> metadata,
+        string digest,
         params (string Role, string Content)[] messages)
     {
         var bucket = new StubHistoryBucket(description);
-        bucket.AddMessages(null, metadata, [.. messages.Select(static message => ChatMessage.User(message.Content))]);
+        bucket.AddMessages(digest, metadata, [.. messages.Select(static message => ChatMessage.User(message.Content))]);
         return bucket;
     }
 

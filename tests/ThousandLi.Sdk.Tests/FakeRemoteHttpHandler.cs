@@ -11,13 +11,16 @@ namespace ThousandLi.Sdk.Tests;
 /// </summary>
 internal sealed class FakeRemoteHttpHandler : HttpMessageHandler
 {
-    private readonly Queue<HttpResponseMessage> _responses = [];
+    private readonly Queue<object> _responses = [];
 
     private List<CapturedRemoteRequest> Requests { get; } = [];
 
     public IReadOnlyList<CapturedRemoteRequest> CapturedRequests => new ReadOnlyCollection<CapturedRemoteRequest>(Requests);
 
     public void Enqueue(HttpResponseMessage response) => _responses.Enqueue(response);
+
+    /// <summary>Fails the next request with a transport-level exception (after capturing the request).</summary>
+    public void EnqueueFailure(Exception exception) => _responses.Enqueue(exception);
 
     public void EnqueueJson(string json, HttpStatusCode status = HttpStatusCode.OK) =>
         Enqueue(new HttpResponseMessage(status)
@@ -50,9 +53,10 @@ internal sealed class FakeRemoteHttpHandler : HttpMessageHandler
             request.Headers.Authorization?.ToString(),
             request.Headers.TryGetValues("Last-Event-ID", out var lastEventId) ? lastEventId.FirstOrDefault() : null,
             body));
-        return _responses.Count == 0
-            ? throw new InvalidOperationException("The fake platform received an unexpected request.")
-            : _responses.Dequeue();
+        if (_responses.Count == 0)
+            throw new InvalidOperationException("The fake platform received an unexpected request.");
+        var next = _responses.Dequeue();
+        return next is Exception exception ? throw exception : (HttpResponseMessage)next;
     }
 }
 

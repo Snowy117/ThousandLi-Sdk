@@ -169,8 +169,8 @@ internal sealed class RemoteInvocationSession(RemoteExpertClient client, RemoteI
                             throw new RemoteInvocationCancelledException(
                                 $"The remote expert invocation '{snapshot.ExpertInvocationId}' was cancelled.");
                         case RemoteExpertEventFrame eventFrame:
-                            // A reconnect replay can re-deliver already-seen ordinals; each frame must
-                            // be observed exactly once (semantic events and data responses alike).
+                            // A reconnect replay can re-deliver already-seen ordinals; each semantic
+                            // event must be observed exactly once (its ordinal commits on receipt).
                             if (eventFrame.Ordinal <= lastSeen)
                                 continue;
                             lastSeen = eventFrame.Ordinal;
@@ -179,8 +179,12 @@ internal sealed class RemoteInvocationSession(RemoteExpertClient client, RemoteI
                         case RemoteExpertDataRequestFrame dataRequestFrame:
                             if (dataRequestFrame.Ordinal <= lastSeen)
                                 continue;
-                            lastSeen = dataRequestFrame.Ordinal;
+                            // The ordinal commits only after the response POST succeeded: a transient
+                            // transport failure mid-serve is reconnectable, and the replayed frame must
+                            // re-serve the view (the platform memoizes repeated responses) rather than
+                            // strand the platform-side waiter until its dataRequestTimeout.
                             result = await handleFrame(snapshot, dataRequestFrame, token).ConfigureAwait(false);
+                            lastSeen = dataRequestFrame.Ordinal;
                             break;
                         case RemoteExpertCompletedFrame completedFrame:
                             result = await handleFrame(snapshot, completedFrame, token).ConfigureAwait(false);

@@ -335,6 +335,46 @@ public sealed class RemoteLongTextWritingExpertTests
     }
 
     [Fact]
+    public async Task StreamAsyncReServesADataRequestWhenItsResponsePostFailsTransiently()
+    {
+        var handler = new FakeRemoteHttpHandler();
+        handler.EnqueueJson(CatalogJson());
+        handler.EnqueueJson(SnapshotJson(), System.Net.HttpStatusCode.Accepted);
+        // The first stream delivers one dataRequest; the response POST then hits a transient
+        // transport failure, which the session must treat as reconnectable.
+        handler.EnqueueSse(DataRequestSse(0, "req-flaky", "b0", "description"));
+        handler.EnqueueFailure(new HttpRequestException("transient network blip"));
+        // The resumed stream replays the SAME ordinal from before the failed serve: the proxy
+        // must re-serve the view (the platform memoizes repeated responses), not strand the
+        // platform-side waiter until its dataRequestTimeout.
+        handler.EnqueueSse(
+            DataRequestSse(0, "req-flaky", "b0", "description") +
+            EventSse(1, "chunk", """{"text":"ok"}""") +
+            CompletedSse("""{"primary":"ok"}"""));
+        handler.EnqueueJson("{}");
+
+        var chunks = new List<string>();
+        var expert = CreateExpert(handler)
+            .WithWorldSettings("世界")
+            .WithPlayerInput("输入")
+            .WithPrimaryOutput(new TextPrimaryOutput((evt, _) => Capture(chunks, evt.Delta)))
+            .WithHistoryBuckets(NewBucket("主叙事", "一"));
+
+        await expert.StreamAsync(TestSupport.CancellationToken);
+
+        // Request order: catalog, start, events#1, data#1 (failed), events#2 (resume), data#2.
+        Assert.Equal(6, handler.CapturedRequests.Count);
+        Assert.Null(handler.CapturedRequests[4].LastEventId);
+        var posts = handler.CapturedRequests
+            .Where(request => request.Method == HttpMethod.Post && request.Uri.Contains("/data/", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(2, posts.Length);
+        Assert.All(posts, post =>
+            Assert.Equal("主叙事", ParseBody(post).GetProperty("description").GetString()));
+        Assert.Equal(["ok"], chunks);
+    }
+
+    [Fact]
     public async Task StreamAsyncDispatchesVariableUpdateProposals()
     {
         var handler = new FakeRemoteHttpHandler();
@@ -471,6 +511,34 @@ public sealed class RemoteLongTextWritingExpertTests
             expert.StreamAsync(TestSupport.CancellationToken));
 
         Assert.Contains("schema violation", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StreamAsyncMapsAFailureFrameArrivingAfterADataRequest()
+    {
+        var handler = new FakeRemoteHttpHandler();
+        handler.EnqueueJson(CatalogJson());
+        handler.EnqueueJson(SnapshotJson(), System.Net.HttpStatusCode.Accepted);
+        // Mirrors the platform's dataRequestTimeout: the served response arrives, yet the
+        // invocation can still terminate via a failed frame on a later ordinal.
+        handler.EnqueueSse(
+            DataRequestSse(0, "req-1", "b0", "description") +
+            """data: {"type":"failed","code":"dataRequestTimeout","message":"no data response"}""" + "\n\n");
+        handler.EnqueueJson("""{"description":"主叙事"}""");
+
+        var expert = CreateExpert(handler)
+            .WithWorldSettings("世界")
+            .WithPlayerInput("输入")
+            .WithPrimaryOutput(new TextPrimaryOutput(static (_, _) => ValueTask.CompletedTask))
+            .WithHistoryBuckets(NewBucket("主叙事", "一"));
+
+        var exception = await Assert.ThrowsAsync<RemoteExpertException>(() =>
+            expert.StreamAsync(TestSupport.CancellationToken));
+
+        Assert.Contains("no data response", exception.Message, StringComparison.Ordinal);
+        // The dataRequest was served before the terminal failure: its POST hit the data endpoint.
+        Assert.Contains(handler.CapturedRequests, request =>
+            request.Method == HttpMethod.Post && request.Uri.Contains("/data/req-1", StringComparison.Ordinal));
     }
 
     [Fact]
