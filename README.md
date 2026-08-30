@@ -16,7 +16,7 @@ Open `http://127.0.0.1:5180`. Omit `--ephemeral` to persist local development st
 `--reset` to clear only the selected local session before startup.
 
 Both the sample game and the game template require the official long-text-writing category
-contract `thousandli.expert/long-text-writing` (1.0, fingerprint `573299a6…`) declared on the
+contract `thousandli.expert/long-text-writing` (1.0, fingerprint `8046a8ea…`) declared on the
 category anchor in the `ThousandLi.Contracts` package. Games consume the category through the
 typed expert facade (`context.Experts.Use<AbstractLongTextWritingExpert>()`).
 

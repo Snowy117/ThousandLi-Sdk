@@ -9,7 +9,7 @@ namespace ThousandLi.Sdk.Tests;
 
 /// <summary>
 /// Full-host loopback tests: a minimal TCP HTTP server plays the platform (catalog, 202 snapshot,
-/// SSE event stream, DELETE) so the whole <see cref="RemoteExpertExecutor" /> lifecycle — including
+/// SSE event stream, DELETE) so the whole <see cref="RemoteInvocationRunner" /> lifecycle — including
 /// mid-stream disconnections and cancellation propagation — runs over real sockets.
 /// </summary>
 public sealed class RemoteExpertLoopbackTests
@@ -36,10 +36,10 @@ public sealed class RemoteExpertLoopbackTests
             _ => throw new InvalidOperationException($"Unexpected loopback request {request.Method} {request.Path}.")
         });
 
-        var executor = CreateExecutor(platform);
+        var runner = CreateRunner(platform);
         var sink = new RecordingSemanticSink();
 
-        var result = await executor.ExecuteAsync(
+        var result = await runner.ExecuteAsync(
             new ExpertInvocationRequest(
                 new ExpertContractDescriptor(ContractId, new ContractVersion(1, 0), Fingerprint),
                 scenarioId: "loopback-scenario",
@@ -92,10 +92,10 @@ public sealed class RemoteExpertLoopbackTests
             }
         });
 
-        var executor = CreateExecutor(platform);
+        var runner = CreateRunner(platform);
         var sink = new RecordingSemanticSink();
 
-        var result = await executor.ExecuteAsync(
+        var result = await runner.ExecuteAsync(
             new ExpertInvocationRequest(
                 new ExpertContractDescriptor(ContractId, new ContractVersion(1, 0), Fingerprint),
                 scenarioId: null,
@@ -145,12 +145,12 @@ public sealed class RemoteExpertLoopbackTests
             }
         });
 
-        var executor = CreateExecutor(platform);
+        var runner = CreateRunner(platform);
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestSupport.CancellationToken);
         var sink = new CancellingSink(cts);
 
         _ = await Assert.ThrowsAsync<RemoteInvocationCancelledException>(() =>
-            executor.ExecuteAsync(
+            runner.ExecuteAsync(
                 new ExpertInvocationRequest(
                     new ExpertContractDescriptor(ContractId, new ContractVersion(1, 0), Fingerprint),
                     scenarioId: null,
@@ -179,11 +179,11 @@ public sealed class RemoteExpertLoopbackTests
         ContractId + "\",\"expertPackageId\":\"" + PackageId +
         "\",\"lastEventOrdinal\":0,\"createdAt\":\"2026-08-26T10:00:00Z\",\"terminatedAt\":\"2026-08-26T10:00:02Z\"}";
 
-    private static RemoteExpertExecutor CreateExecutor(LoopbackFakePlatform platform) => new(
+    private static RemoteInvocationRunner CreateRunner(LoopbackFakePlatform platform) => new(
         new RemoteExpertClient(
             new HttpClient { Timeout = Timeout.InfiniteTimeSpan },
             new RemoteExpertClientOptions(platform.BaseUri.ToString(), () => Token)),
-        new RemoteExpertExecutorOptions(
+        new RemoteInvocationRunnerOptions(
             new Dictionary<string, string> { [ContractId] = PackageId },
             timeout: TimeSpan.FromMinutes(2)));
 

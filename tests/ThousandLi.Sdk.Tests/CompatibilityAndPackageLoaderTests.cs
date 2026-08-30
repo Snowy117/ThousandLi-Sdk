@@ -156,7 +156,7 @@ public sealed class CompatibilityAndPackageLoaderTests
               {
                 "id": "thousandli.expert/long-text-writing",
                 "version": { "major": 1, "minor": 0 },
-                "fingerprint": "573299a67800f57dead23e7fc320857b8725440df2260e9050afb70cfe247488"
+                "fingerprint": "8046a8ea2ca4ffbd55776315b126d870e51e335438aed82a9cd44333f8f1df76"
               }
             ]
           }

@@ -254,6 +254,42 @@ public sealed class RemoteExpertClient(HttpClient httpClient, RemoteExpertClient
             yield return frame;
     }
 
+    /// <summary>
+    /// Answers a lazy <c>dataRequest</c> frame (<c>POST /expert-invocations/{id}/data/{requestId}</c>).
+    /// The platform memoizes the first response per request id, so re-sends after a reconnect are
+    /// safe; an unknown or expired request id surfaces through the typed 404 exception family. The
+    /// response body is not meaningful to the sender and is not parsed.
+    /// </summary>
+    /// <param name="invocationId">The invocation identifier.</param>
+    /// <param name="requestId">The dataRequest frame's request identifier.</param>
+    /// <param name="body">The projected view response JSON.</param>
+    /// <param name="cancellationToken">Propagated to the request.</param>
+    public async Task PostInvocationDataAsync(
+        string invocationId,
+        string requestId,
+        JsonElement body,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(invocationId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(requestId);
+        if (body.ValueKind == JsonValueKind.Undefined)
+            throw new ArgumentException("The data response JSON value is undefined.", nameof(body));
+
+        using var request = CreateRequest(
+            HttpMethod.Post, $"{InvocationPath(invocationId)}/data/{Uri.EscapeDataString(requestId)}", out var token);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        request.Content = new StringContent(body.GetRawText(), Encoding.UTF8, "application/json");
+
+        using var response = await _httpClient
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+        if (response.IsSuccessStatusCode)
+            return;
+
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        throw CreateStatusException(response, responseBody, token);
+    }
+
     private async Task<T> GetJsonAsync<T>(string path, CancellationToken cancellationToken)
     {
         using var request = CreateRequest(HttpMethod.Get, path, out var token);

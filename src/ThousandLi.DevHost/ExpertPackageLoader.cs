@@ -9,7 +9,7 @@ namespace ThousandLi.DevHost;
 /// <summary>
 /// A trusted locally loaded Expert Package: its manifest, its declared contract binding, and a
 /// factory for fresh (unbound) expert instances. Expert instances are created per invocation and
-/// bound to an execution context by the executor; the factory never reuses instances.
+/// bound to an execution context by the local composition; the factory never reuses instances.
 /// </summary>
 public sealed class LoadedExpertPackage : IDisposable
 {
@@ -162,7 +162,7 @@ public static class ExpertPackageLoader
                     $"Expert entry point concrete type '{concreteType.FullName}' must be a concrete class inheriting '{abstractType.FullName}'.");
             if (!typeof(IInvocableExpert).IsAssignableFrom(concreteType))
                 throw new InvalidOperationException(
-                    $"Expert entry point concrete type '{concreteType.FullName}' must implement '{nameof(IInvocableExpert)}' so the executor can bind structured invocations.");
+                    $"Expert entry point concrete type '{concreteType.FullName}' must implement '{nameof(IInvocableExpert)}' so the composition can bind structured invocations.");
             if (concreteType.Assembly != assembly)
                 throw new InvalidOperationException(
                     "Expert entry point concrete type must be declared in the Package entry assembly.");

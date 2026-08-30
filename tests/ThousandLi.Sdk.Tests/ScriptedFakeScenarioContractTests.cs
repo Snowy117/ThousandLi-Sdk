@@ -12,7 +12,7 @@ public sealed class ScriptedFakeScenarioContractTests
     [Fact]
     public void OfficialContractOmittingTheFingerprintResolvesItFromTheAnchorDescriptor()
     {
-        var executor = Load(
+        var runner = Load(
             """
             [
               {
@@ -24,7 +24,7 @@ public sealed class ScriptedFakeScenarioContractTests
             ]
             """);
 
-        var contract = Assert.Single(executor.Contracts);
+        var contract = Assert.Single(runner.Contracts);
         Assert.Equal(AbstractLongTextWritingExpert.Descriptor.Id, contract.Id);
         Assert.Equal(AbstractLongTextWritingExpert.Descriptor.Fingerprint, contract.Fingerprint);
     }
@@ -32,7 +32,7 @@ public sealed class ScriptedFakeScenarioContractTests
     [Fact]
     public async Task OmittedOfficialFingerprintExecutesAgainstTheAnchorDescriptor()
     {
-        var executor = Load(
+        var runner = Load(
             """
             [
               {
@@ -44,7 +44,7 @@ public sealed class ScriptedFakeScenarioContractTests
             ]
             """);
 
-        var result = await executor.ExecuteAsync(
+        var result = await runner.ExecuteAsync(
             new ExpertInvocationRequest(AbstractLongTextWritingExpert.Descriptor, "advance", TestSupport.Json("{}")),
             new RecordingSemanticSink(),
             TestSupport.CancellationToken);
@@ -74,7 +74,7 @@ public sealed class ScriptedFakeScenarioContractTests
     [Fact]
     public async Task ExplicitFingerprintMismatchIsRejectedAtExecutionTime()
     {
-        var executor = Load(
+        var runner = Load(
             """
             [
               {
@@ -90,7 +90,7 @@ public sealed class ScriptedFakeScenarioContractTests
             ]
             """);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () => await executor.ExecuteAsync(
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () => await runner.ExecuteAsync(
             new ExpertInvocationRequest(AbstractLongTextWritingExpert.Descriptor, "advance", TestSupport.Json("{}")),
             new RecordingSemanticSink(),
             TestSupport.CancellationToken));
@@ -131,14 +131,14 @@ public sealed class ScriptedFakeScenarioContractTests
         Assert.Contains("one version and fingerprint", exception.Message, StringComparison.Ordinal);
     }
 
-    private static ScriptedFakeExpertExecutor Load(string json)
+    private static ScriptedFakeExpertRunner Load(string json)
     {
         var directory = Directory.CreateTempSubdirectory("thousandli-fake-scenarios-");
         try
         {
             var path = Path.Combine(directory.FullName, "scenarios.json");
             File.WriteAllText(path, json);
-            return ScriptedFakeExpertExecutor.Load(path);
+            return ScriptedFakeExpertRunner.Load(path);
         }
         finally
         {

@@ -8,7 +8,7 @@ namespace ThousandLi.Sdk.Tests;
 /// <summary>
 /// Regression tests for the Phase 6 sample migration: the sample game declares the official
 /// <c>thousandli.expert/long-text-writing</c> contract from ThousandLi.Contracts (never a private
-/// copy), and the sample expert package binds that same contract through the local executor.
+/// copy), and the sample expert package binds that same contract through the local composition.
 /// </summary>
 public sealed class SampleExpertPackageTests
 {
@@ -61,14 +61,14 @@ public sealed class SampleExpertPackageTests
     }
 
     [Fact]
-    public async Task SampleExpertStreamsChunkEventsAndReturnsNarrationThroughTheLocalExecutor()
+    public async Task SampleExpertStreamsChunkEventsAndReturnsNarrationThroughTheLocalComposition()
     {
         using var package = ExpertPackageLoader.Load(SampleExpertArtifact);
-        var executor = new LocalExpertExecutor(
+        var composition = new LocalExpertComposition(
             new ExpertContractRegistry([typeof(AbstractLongTextWritingExpert).Assembly]),
             [package],
             null,
-            new LocalExpertExecutorOptions(
+            new LocalExpertCompositionOptions(
                 new RecordedBasicAi(
                     ["test-model"],
                     [],
@@ -82,7 +82,7 @@ public sealed class SampleExpertPackageTests
                 new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "Curious explorer")));
         var sink = new RecordingSemanticSink();
 
-        var result = await executor.ExecuteAsync(
+        var result = await composition.ExecuteAsync(
             new ExpertInvocationRequest(
                 AbstractLongTextWritingExpert.Descriptor,
                 "advance",
@@ -101,17 +101,17 @@ public sealed class SampleExpertPackageTests
     public async Task SampleExpertReportsMissingInputPropertiesWithAnActionableDiagnostic()
     {
         using var package = ExpertPackageLoader.Load(SampleExpertArtifact);
-        var executor = new LocalExpertExecutor(
+        var composition = new LocalExpertComposition(
             new ExpertContractRegistry([typeof(AbstractLongTextWritingExpert).Assembly]),
             [package],
             null,
-            new LocalExpertExecutorOptions(
+            new LocalExpertCompositionOptions(
                 new RecordedBasicAi(["test-model"], []),
                 new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "Curious explorer")));
         var sink = new RecordingSemanticSink();
 
         var exception = await Assert.ThrowsAsync<ArgumentException>(
-            async () => await executor.ExecuteAsync(
+            async () => await composition.ExecuteAsync(
                 new ExpertInvocationRequest(
                     AbstractLongTextWritingExpert.Descriptor,
                     "advance",
@@ -128,11 +128,11 @@ public sealed class SampleExpertPackageTests
     public async Task SampleGameAdvanceRunsPureFacadeAgainstTheSampleExpertPackageLocally()
     {
         using var expertPackage = ExpertPackageLoader.Load(SampleExpertArtifact);
-        var executor = new LocalExpertExecutor(
+        var composition = new LocalExpertComposition(
             new ExpertContractRegistry([typeof(AbstractLongTextWritingExpert).Assembly]),
             [expertPackage],
             null,
-            new LocalExpertExecutorOptions(
+            new LocalExpertCompositionOptions(
                 new RecordedBasicAi(
                     ["test-model"],
                     [],
@@ -152,7 +152,7 @@ public sealed class SampleExpertPackageTests
             new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "Curious explorer"),
             new InMemoryLocalSessionStore(),
             new SessionId($"sample-local-{Guid.NewGuid():N}"),
-            expertFacade: new LocalExpertFacade(executor),
+            expertFacade: new LocalExpertFacade(composition),
             cancellationToken: TestSupport.CancellationToken);
 
         var events = await TestSupport.CollectAsync(runtime.HandleActionAsync(

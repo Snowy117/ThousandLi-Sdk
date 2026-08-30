@@ -90,7 +90,7 @@ public sealed class ScriptedLongTextWritingExpertFacade : IExpertFacade
     /// <summary>
     /// 从 <c>--fake-scenarios</c> JSON 数组加载脚本化类型化场景。
     /// 数组项的 <c>output</c> 属性（对象）作为脚本化模型输出；缺 <c>output</c> 的项只服务
-    /// <see cref="ScriptedFakeExpertExecutor" />（协议执行端口），此处跳过。
+    /// <see cref="ScriptedFakeExpertRunner" />（协议执行端口），此处跳过。
     /// 没有任何脚本化项时返回空 facade（输出空对象的默认场景），保证 <c>Use&lt;T&gt;</c> 可用。
     /// </summary>
     /// <param name="path">场景文件路径；null/空白时返回空 facade。</param>

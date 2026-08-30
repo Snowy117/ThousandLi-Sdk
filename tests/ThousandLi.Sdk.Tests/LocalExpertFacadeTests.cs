@@ -13,16 +13,16 @@ public sealed class LocalExpertFacadeTests
             TestSupport.FindRepositoryRoot(),
             "tests", "ThousandLi.LocalExpertFixture", "bin", "Debug", "net10.0", "PackageArtifact");
 
-    private static LocalExpertExecutor ExecutorWithLoadedPackage(
+    private static LocalExpertComposition CompositionWithLoadedPackage(
         ExpertContractRegistry? registry = null,
         LoadedExpertPackage? package = null)
     {
         package ??= ExpertPackageLoader.Load(ValidArtifact);
-        return new LocalExpertExecutor(
+        return new LocalExpertComposition(
             registry ?? new ExpertContractRegistry([typeof(AbstractLongTextWritingExpert).Assembly]),
             [package],
             null,
-            new LocalExpertExecutorOptions(
+            new LocalExpertCompositionOptions(
                 new RecordedBasicAi(["test-model"], [], []),
                 new BoundPlayerProfile(TestSupport.PlayerId, "Creator", "Curious explorer")));
     }
@@ -31,7 +31,7 @@ public sealed class LocalExpertFacadeTests
     public void UseCreatesDistinctBoundInstancesPerCall()
     {
         using var package = ExpertPackageLoader.Load(ValidArtifact);
-        var facade = new LocalExpertFacade(ExecutorWithLoadedPackage(package: package));
+        var facade = new LocalExpertFacade(CompositionWithLoadedPackage(package: package));
 
         var first = facade.Use<AbstractLongTextWritingExpert>();
         var second = facade.Use<AbstractLongTextWritingExpert>();
@@ -46,7 +46,7 @@ public sealed class LocalExpertFacadeTests
         // The cast failure (not an attribute-lookup failure) proves the category identity is
         // inherited from the anchor: implementing the contract by inheritance (design D1.1).
         using var package = ExpertPackageLoader.Load(ValidArtifact);
-        var facade = new LocalExpertFacade(ExecutorWithLoadedPackage(package: package));
+        var facade = new LocalExpertFacade(CompositionWithLoadedPackage(package: package));
 
         Assert.Throws<InvalidCastException>(facade.Use<LocalAbstractExpert>);
     }
@@ -57,7 +57,7 @@ public sealed class LocalExpertFacadeTests
         using var package = ExpertPackageLoader.Load(ValidArtifact);
         var registry = new ExpertContractRegistry(
             [typeof(AbstractLongTextWritingExpert).Assembly, typeof(UnregisteredLongTextWritingExpert).Assembly]);
-        var facade = new LocalExpertFacade(ExecutorWithLoadedPackage(registry, package));
+        var facade = new LocalExpertFacade(CompositionWithLoadedPackage(registry, package));
 
         var exception = Assert.Throws<LocalExpertException>(facade.Use<UnregisteredLongTextWritingExpert>);
 

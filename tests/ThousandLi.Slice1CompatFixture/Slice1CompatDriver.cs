@@ -16,7 +16,7 @@ public static class Slice1CompatDriver
             new ContractVersion(1, 0),
             "fixture-long-text-writing-v1");
         var request = new ExpertInvocationRequest(contract, "default", Json("{\"value\":42}"));
-        var executor = new FakeExpertExecutor([
+        var runner = new FakeExpertRunner([
             new FakeExpertScenario(
                 "default",
                 contract,
@@ -27,8 +27,8 @@ public static class Slice1CompatDriver
                 Json("{\"text\":\"fixture-complete\"}"))
         ]);
         var sink = new CollectingSink();
-        var result = executor.ExecuteAsync(request, sink, CancellationToken.None).GetAwaiter().GetResult();
-        var invocation = executor.Invocations.Single();
+        var result = runner.ExecuteAsync(request, sink, CancellationToken.None).GetAwaiter().GetResult();
+        var invocation = runner.Invocations.Single();
         return
         [
             $"scenario:{invocation.Request.ScenarioId}",

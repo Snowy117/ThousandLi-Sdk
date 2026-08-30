@@ -285,7 +285,7 @@ public static class CompatibilityValidator
                     string.Equals(candidate.Id, requiredExpert.Id, StringComparison.Ordinal))
                 ?? throw new CompatibilityException(
                     $"Expert contract '{requiredExpert.Id}' is required at version {requiredExpert.Version} " +
-                    $"with fingerprint '{requiredExpert.Fingerprint}', but no configured executor provides it. " +
+                    $"with fingerprint '{requiredExpert.Fingerprint}', but no configured expert source provides it. " +
                     "Provide a matching fake scenario (--fake-scenarios), a local expert artifact " +
                     "(--experts local), or a remote platform binding (--experts remote).");
             ValidateVersion($"Expert contract '{requiredExpert.Id}'", requiredExpert.Version, availableExpert.Version);

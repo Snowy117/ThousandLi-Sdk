@@ -75,7 +75,7 @@ public sealed class LocalGameRuntime
                     $"Session '{sessionId}' belongs to package '{existing.PackageId}', not '{packageId}'.");
             }
             return new LocalGameRuntime(
-                backend, playerProfile, expertFacade ?? DisabledExpertFacade.Instance,
+                backend, playerProfile, expertFacade ?? UnconfiguredExpertFacade.Instance,
                 bucketSet, store, existing, settingsStore, executionLogger);
         }
 
@@ -91,7 +91,7 @@ public sealed class LocalGameRuntime
             committedActions: []);
         await store.SaveAsync(session, cancellationToken).ConfigureAwait(false);
         return new LocalGameRuntime(
-            backend, playerProfile, expertFacade ?? DisabledExpertFacade.Instance,
+            backend, playerProfile, expertFacade ?? UnconfiguredExpertFacade.Instance,
             bucketSet, store, session, settingsStore, executionLogger);
     }
 
@@ -295,5 +295,23 @@ public sealed class LocalGameRuntime
                 [.. actions.TakeLast(count).Reverse().Select(record => record.Action)];
             return ValueTask.FromResult(result);
         }
+    }
+
+    /// <summary>
+    /// The null-object facade used when no expert facade is composed: <c>Use&lt;T&gt;()</c> fails fast
+    /// instead of silently returning an empty implementation.
+    /// </summary>
+    private sealed class UnconfiguredExpertFacade : IExpertFacade
+    {
+        public static UnconfiguredExpertFacade Instance { get; } = new();
+
+        private UnconfiguredExpertFacade()
+        {
+        }
+
+        public TAbstract Use<TAbstract>() where TAbstract : AbstractLongTextWritingExpert =>
+            throw new InvalidOperationException(
+                $"Typed expert facade '{typeof(TAbstract).FullName}' is not configured for this local runtime; " +
+                "pass an IExpertFacade to LocalGameRuntime.CreateAsync.");
     }
 }

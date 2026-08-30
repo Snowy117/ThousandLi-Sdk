@@ -162,7 +162,7 @@ public sealed class DevHostApplicationTests
     }
 
     [Fact]
-    public async Task RemoteExecutorStartsGameArtifactsWithoutFakeScenarioBindings()
+    public async Task RemoteModeStartsGameArtifactsWithoutFakeScenarioBindings()
     {
         var port = ReservePort();
         var repositoryRoot = FindRepositoryRoot();

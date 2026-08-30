@@ -6,86 +6,70 @@ using ThousandLi.Contracts;
 namespace ThousandLi.RemoteExperts;
 
 /// <summary>
-/// Options for <see cref="RemoteExpertExecutor" />. <see cref="ContractBindings" /> maps a contract
-/// id to the Expert Package canonical id that executes it on the platform (mirroring the slice-2
-/// local explicit-binding semantics); contracts without a binding fail deterministically before any
-/// HTTP traffic.
+/// The per-frame callback of <see cref="RemoteInvocationSession" />: returns a non-null value to
+/// complete the invocation with it, or <see langword="null" /> to keep streaming. Terminal
+/// <c>failed</c>/<c>cancelled</c> classification is owned by the session; the handler observes
+/// event, dataRequest, and completed frames after ordinal deduplication.
 /// </summary>
-public sealed record RemoteExpertExecutorOptions
-{
-    public RemoteExpertExecutorOptions(
-        IReadOnlyDictionary<string, string>? contractBindings = null,
-        TimeSpan? timeout = null,
-        int maxReconnects = 3)
-    {
-        var bindings = contractBindings ?? new Dictionary<string, string>();
-        foreach (var binding in bindings)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(binding.Key);
-            ArgumentException.ThrowIfNullOrWhiteSpace(binding.Value);
-        }
-
-        if (timeout is { } value && value <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(timeout), "The timeout must be positive.");
-        ArgumentOutOfRangeException.ThrowIfNegative(maxReconnects);
-
-        ContractBindings = new Dictionary<string, string>(bindings, StringComparer.Ordinal);
-        Timeout = timeout;
-        MaxReconnects = maxReconnects;
-    }
-
-    /// <summary>Contract id to Expert Package id bindings, compared ordinally.</summary>
-    public IReadOnlyDictionary<string, string> ContractBindings { get; }
-
-    /// <summary>
-    /// The execution timeout. It is enforced locally and forwarded to the platform as
-    /// <c>timeoutSeconds</c> (rounded up); the platform timeout failure carries the stable
-    /// <c>timeout</c> code.
-    /// </summary>
-    public TimeSpan? Timeout { get; }
-
-    /// <summary>How many times a broken event stream is reconnected (with Last-Event-ID resume) before failing.</summary>
-    public int MaxReconnects { get; }
-}
+/// <typeparam name="T">The invocation result type.</typeparam>
+/// <param name="snapshot">The started invocation's status snapshot.</param>
+/// <param name="frame">The decoded stream frame.</param>
+/// <param name="cancellationToken">The combined timeout/caller cancellation token.</param>
+public delegate ValueTask<T?> RemoteInvocationFrameHandler<T>(
+    RemoteInvocationSnapshot snapshot,
+    RemoteExpertStreamFrame frame,
+    CancellationToken cancellationToken) where T : class;
 
 /// <summary>
-/// Executes expert invocations on the remote platform: binding resolution, catalog precheck,
-/// idempotent start, SSE streaming with deduplicating reconnect, cancellation propagation
-/// (DELETE), and timeout. The idempotency key is the request
-/// <see cref="ExpertInvocationRequest.ChannelKey" /> when present, so replaying a channel key
-/// resumes the same remote invocation instead of executing twice.
+/// The single shared execution flow behind every remote-invocation consumer (the
+/// <see cref="RemoteInvocationRunner" /> Playground tool face and the game-facing remote proxy):
+/// binding resolution, catalog contract precheck, idempotent start, timeout/cancellation
+/// propagation with best-effort DELETE, and the SSE stream loop with ordinal deduplication,
+/// Last-Event-ID reconnect, and terminal-frame classification. Consumers only supply the
+/// per-frame handler.
 /// </summary>
-public sealed class RemoteExpertExecutor(RemoteExpertClient client, RemoteExpertExecutorOptions options)
+internal sealed class RemoteInvocationSession(RemoteExpertClient client, RemoteInvocationRunnerOptions options)
 {
-    private static readonly JsonElement NullOutput = CreateNullElement();
-
     private readonly RemoteExpertClient _client = client ?? throw new ArgumentNullException(nameof(client));
-    private readonly RemoteExpertExecutorOptions _options =
+    private readonly RemoteInvocationRunnerOptions _options =
         options ?? throw new ArgumentNullException(nameof(options));
 
-    /// <summary>Starts, streams, and completes one remote expert invocation.</summary>
-    public async ValueTask<ExpertInvocationResult> ExecuteAsync(
-        ExpertInvocationRequest request,
-        IExpertSemanticEventSink events,
+    /// <summary>
+    /// Starts one invocation and streams it to completion. The idempotency key defaults to a fresh
+    /// random key; the timeout is enforced locally and forwarded as <c>timeoutSeconds</c>.
+    /// </summary>
+    /// <typeparam name="T">The invocation result type.</typeparam>
+    /// <param name="contract">The contract identity triple required from the platform.</param>
+    /// <param name="input">The opaque contract input JSON.</param>
+    /// <param name="idempotencyKey">The idempotency key, or <see langword="null" /> for a fresh random key.</param>
+    /// <param name="clientCorrelation">An optional client-side correlation label.</param>
+    /// <param name="handleFrame">The per-frame handler.</param>
+    /// <param name="cancellationToken">The caller's cancellation token.</param>
+    public async ValueTask<T> ExecuteAsync<T>(
+        ExpertContractDescriptor contract,
+        JsonElement input,
+        string? idempotencyKey,
+        string? clientCorrelation,
+        RemoteInvocationFrameHandler<T> handleFrame,
         CancellationToken cancellationToken = default)
+        where T : class
     {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(handleFrame);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var expertPackageId = ResolveBinding(request.Contract.Id);
-        await EnsureContractCompatibleAsync(request, cancellationToken).ConfigureAwait(false);
+        var expertPackageId = ResolveBinding(contract.Id);
+        await EnsureContractCompatibleAsync(contract, cancellationToken).ConfigureAwait(false);
 
         var startRequest = new RemoteInvocationStartRequest(
-            request.Contract,
+            contract,
             expertPackageId,
-            request.Input,
-            idempotencyKey: request.ChannelKey ??
-                Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
+            input,
+            idempotencyKey: idempotencyKey ?? Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
             timeoutSeconds: _options.Timeout is { } timeout
                 ? (int)Math.Ceiling(timeout.TotalSeconds)
                 : null,
-            clientCorrelation: request.ScenarioId);
+            clientCorrelation: clientCorrelation);
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (_options.Timeout is { } configuredTimeout)
@@ -96,7 +80,7 @@ public sealed class RemoteExpertExecutor(RemoteExpertClient client, RemoteExpert
         try
         {
             snapshot = await _client.StartInvocationAsync(startRequest, token).ConfigureAwait(false);
-            return await StreamToCompletionAsync(snapshot, events, token).ConfigureAwait(false);
+            return await StreamToCompletionAsync(snapshot, handleFrame, token).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is OperationCanceledException && token.IsCancellationRequested)
         {
@@ -126,42 +110,43 @@ public sealed class RemoteExpertExecutor(RemoteExpertClient client, RemoteExpert
     }
 
     private async ValueTask EnsureContractCompatibleAsync(
-        ExpertInvocationRequest request,
+        ExpertContractDescriptor contract,
         CancellationToken cancellationToken)
     {
         var contracts = await _client.ListContractsAsync(cancellationToken).ConfigureAwait(false);
-        var catalog = contracts.FirstOrDefault(contract =>
-            string.Equals(contract.ContractId, request.Contract.Id, StringComparison.Ordinal));
+        var catalog = contracts.FirstOrDefault(entry =>
+            string.Equals(entry.ContractId, contract.Id, StringComparison.Ordinal));
         if (catalog is null)
         {
             var registered = contracts.Count == 0
                 ? "none"
                 : string.Join(", ", contracts
-                    .Select(contract => contract.ContractId)
+                    .Select(entry => entry.ContractId)
                     .Order(StringComparer.Ordinal)
                     .Select(id => $"'{id}'"));
             throw new RemoteUnknownContractException(
-                $"Contract '{request.Contract.Id}' is not registered on the remote platform. Registered contracts: {registered}.");
+                $"Contract '{contract.Id}' is not registered on the remote platform. Registered contracts: {registered}.");
         }
 
-        if (catalog.Version.Supports(request.Contract.Version) &&
-            string.Equals(catalog.Fingerprint, request.Contract.Fingerprint, StringComparison.Ordinal))
+        if (catalog.Version.Supports(contract.Version) &&
+            string.Equals(catalog.Fingerprint, contract.Fingerprint, StringComparison.Ordinal))
             return;
 
         throw new RemoteContractMismatchException(
-            $"Contract mismatch for '{request.Contract.Id}': the invocation requires {request.Contract.Version} " +
-            $"with fingerprint '{request.Contract.Fingerprint}', but the remote catalog has {catalog.Version} " +
+            $"Contract mismatch for '{contract.Id}': the invocation requires {contract.Version} " +
+            $"with fingerprint '{contract.Fingerprint}', but the remote catalog has {catalog.Version} " +
             $"with fingerprint '{catalog.Fingerprint}'.",
-            requiredVersion: request.Contract.Version.ToString(),
-            requiredFingerprint: request.Contract.Fingerprint,
+            requiredVersion: contract.Version.ToString(),
+            requiredFingerprint: contract.Fingerprint,
             availableVersion: catalog.Version.ToString(),
             availableFingerprint: catalog.Fingerprint);
     }
 
-    private async ValueTask<ExpertInvocationResult> StreamToCompletionAsync(
+    private async ValueTask<T> StreamToCompletionAsync<T>(
         RemoteInvocationSnapshot snapshot,
-        IExpertSemanticEventSink events,
+        RemoteInvocationFrameHandler<T> handleFrame,
         CancellationToken token)
+        where T : class
     {
         var lastSeen = -1L;
         var attempt = 0;
@@ -173,22 +158,9 @@ public sealed class RemoteExpertExecutor(RemoteExpertClient client, RemoteExpert
                                    .StreamEventsAsync(snapshot.ExpertInvocationId, lastSeen, token)
                                    .ConfigureAwait(false))
                 {
+                    T? result;
                     switch (frame)
                     {
-                        case RemoteExpertEventFrame eventFrame:
-                            // A reconnect replay can re-deliver already-seen ordinals; the sink must
-                            // observe each semantic event exactly once.
-                            if (eventFrame.Ordinal <= lastSeen)
-                                continue;
-                            lastSeen = eventFrame.Ordinal;
-                            await events.WriteAsync(
-                                new ExpertSemanticEvent(eventFrame.EventType, eventFrame.Payload),
-                                token).ConfigureAwait(false);
-                            break;
-                        case RemoteExpertCompletedFrame completed:
-                            return new ExpertInvocationResult(
-                                snapshot.ExpertInvocationId,
-                                completed.Output ?? NullOutput);
                         case RemoteExpertFailedFrame failed:
                             throw RemoteExpertExceptionFactory.Create(
                                 failed.Code,
@@ -196,10 +168,33 @@ public sealed class RemoteExpertExecutor(RemoteExpertClient client, RemoteExpert
                         case RemoteExpertCancelledFrame:
                             throw new RemoteInvocationCancelledException(
                                 $"The remote expert invocation '{snapshot.ExpertInvocationId}' was cancelled.");
+                        case RemoteExpertEventFrame eventFrame:
+                            // A reconnect replay can re-deliver already-seen ordinals; each frame must
+                            // be observed exactly once (semantic events and data responses alike).
+                            if (eventFrame.Ordinal <= lastSeen)
+                                continue;
+                            lastSeen = eventFrame.Ordinal;
+                            result = await handleFrame(snapshot, eventFrame, token).ConfigureAwait(false);
+                            break;
+                        case RemoteExpertDataRequestFrame dataRequestFrame:
+                            if (dataRequestFrame.Ordinal <= lastSeen)
+                                continue;
+                            lastSeen = dataRequestFrame.Ordinal;
+                            result = await handleFrame(snapshot, dataRequestFrame, token).ConfigureAwait(false);
+                            break;
+                        case RemoteExpertCompletedFrame completedFrame:
+                            result = await handleFrame(snapshot, completedFrame, token).ConfigureAwait(false);
+                            if (result is null)
+                                throw new RemoteProtocolException(
+                                    "The completed frame handler declined to finish the invocation.");
+                            return result;
                         default:
                             throw new RemoteProtocolException(
                                 $"Unknown stream frame '{frame.GetType().Name}'.");
                     }
+
+                    if (result is not null)
+                        return result;
                 }
 
                 throw new IOException("The event stream ended without a terminal frame.");
@@ -237,11 +232,5 @@ public sealed class RemoteExpertExecutor(RemoteExpertClient client, RemoteExpert
         {
             // Deliberately swallowed: the caller observes the timeout/cancelled exception instead.
         }
-    }
-
-    private static JsonElement CreateNullElement()
-    {
-        using var document = JsonDocument.Parse("null");
-        return document.RootElement.Clone();
     }
 }

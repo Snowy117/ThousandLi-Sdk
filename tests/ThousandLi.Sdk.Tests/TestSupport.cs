@@ -59,7 +59,7 @@ internal static class TestSupport
 
     public static PlayerActionEnvelope Action(string json = "{}") => new(PlayerId, Json(json), "client-action-1");
 
-    public static FakeExpertExecutor FakeExpert() => new([
+    public static FakeExpertRunner FakeExpert() => new([
         new FakeExpertScenario(
             "default",
             Contract,

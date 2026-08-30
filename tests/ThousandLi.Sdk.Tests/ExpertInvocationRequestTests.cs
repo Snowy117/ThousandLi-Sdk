@@ -82,7 +82,7 @@ public sealed class ExpertInvocationRequestTests
     public void ChannelConstructorAllowsBareInvocationWithoutScenarioOrChannelKey()
     {
         // The request is a carrier shape shared by Fake/Local/Remote channels; whether a key is
-        // required is executor policy (Fake executors reject a missing scenario key themselves).
+        // required is runner policy (the fake runners reject a missing scenario key themselves).
         var request = new ExpertInvocationRequest(TestSupport.Contract, null, TestSupport.Json("{}"), null);
 
         Assert.Null(request.ScenarioId);
@@ -146,31 +146,31 @@ public sealed class ExpertInvocationRequestTests
     }
 
     [Fact]
-    public async Task FakeExecutorRejectsChannelOnlyRequestWithClearDiagnostic()
+    public async Task FakeRunnerRejectsChannelOnlyRequestWithClearDiagnostic()
     {
-        var executor = TestSupport.FakeExpert();
+        var runner = TestSupport.FakeExpert();
         var request = new ExpertInvocationRequest(TestSupport.Contract, null, TestSupport.Json("{}"), "channel-1");
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await executor.ExecuteAsync(request, new RecordingSemanticSink(), TestSupport.CancellationToken));
+            await runner.ExecuteAsync(request, new RecordingSemanticSink(), TestSupport.CancellationToken));
 
         Assert.Contains("scenario key", exception.Message, StringComparison.Ordinal);
         Assert.Contains(TestSupport.Contract.Id, exception.Message, StringComparison.Ordinal);
-        Assert.Empty(executor.Invocations);
+        Assert.Empty(runner.Invocations);
     }
 
     [Fact]
-    public async Task ScriptedFakeExecutorRejectsChannelOnlyRequestWithClearDiagnostic()
+    public async Task ScriptedFakeRunnerRejectsChannelOnlyRequestWithClearDiagnostic()
     {
-        var executor = ScriptedFakeExpertExecutor.Load(null);
+        var runner = ScriptedFakeExpertRunner.Load(null);
         var request = new ExpertInvocationRequest(TestSupport.Contract, null, TestSupport.Json("{}"), "channel-1");
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await executor.ExecuteAsync(request, new RecordingSemanticSink(), TestSupport.CancellationToken));
+            await runner.ExecuteAsync(request, new RecordingSemanticSink(), TestSupport.CancellationToken));
 
         Assert.Contains("scenario key", exception.Message, StringComparison.Ordinal);
         Assert.Contains(TestSupport.Contract.Id, exception.Message, StringComparison.Ordinal);
-        Assert.Empty(executor.Invocations);
+        Assert.Empty(runner.Invocations);
     }
 
     [Fact]

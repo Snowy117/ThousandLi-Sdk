@@ -343,4 +343,55 @@ public sealed class RemoteExpertClientTests
         var options = new RemoteExpertClientOptions("http://platform.test/base");
         Assert.Equal("http://platform.test/base/", options.BaseUri.ToString());
     }
+
+    [Fact]
+    public async Task PostInvocationDataAsync_PostsTheBodyOnTheDataRoute()
+    {
+        var handler = new FakeRemoteHttpHandler();
+        handler.EnqueueJson("{}");
+        var client = CreateClient(handler);
+
+        await client.PostInvocationDataAsync(
+            "id-7",
+            "req-42",
+            TestSupport.Json("""{"description":"主叙事"}"""),
+            TestSupport.CancellationToken);
+
+        var request = Assert.Single(handler.CapturedRequests);
+        Assert.Equal(HttpMethod.Post, request.Method);
+        Assert.Equal("http://platform.test/expert-invocations/id-7/data/req-42", request.Uri);
+        Assert.Equal($"Bearer {Token}", request.Authorization);
+        Assert.NotNull(request.Body);
+        using var body = JsonDocument.Parse(request.Body);
+        Assert.Equal("主叙事", body.RootElement.GetProperty("description").GetString());
+    }
+
+    [Fact]
+    public async Task PostInvocationDataAsync_MapsNotFoundToTheTypedException()
+    {
+        var handler = new FakeRemoteHttpHandler();
+        handler.EnqueueProblem(
+            "{\"title\":\"Not Found\",\"status\":404,\"code\":\"not-found\",\"detail\":\"unknown request id\"}",
+            HttpStatusCode.NotFound);
+        var client = CreateClient(handler);
+
+        var exception = await Assert.ThrowsAsync<RemoteInvocationNotFoundException>(() =>
+            client.PostInvocationDataAsync(
+                "id-7", "req-missing", TestSupport.Json("""{"items":[]}"""), TestSupport.CancellationToken));
+
+        Assert.Equal(RemoteExpertErrorCodes.NotFound, exception.ErrorCode);
+        Assert.Equal(404, exception.StatusCode);
+    }
+
+    [Fact]
+    public async Task PostInvocationDataAsync_RejectsAnUndefinedBody()
+    {
+        var handler = new FakeRemoteHttpHandler();
+        var client = CreateClient(handler);
+
+        _ = await Assert.ThrowsAsync<ArgumentException>(() =>
+            client.PostInvocationDataAsync("id-7", "req-1", default, TestSupport.CancellationToken));
+
+        Assert.Empty(handler.CapturedRequests);
+    }
 }

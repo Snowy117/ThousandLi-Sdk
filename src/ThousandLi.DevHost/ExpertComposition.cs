@@ -15,11 +15,14 @@ internal sealed record ExpertContractComposition(
     IReadOnlyDictionary<string, Assembly> ContractAssemblies);
 
 /// <summary>
-/// The remote expert execution pair composed by the DevHost composition root: the raw client (used
-/// by the Playground to list the platform catalog) and the executor (used by the Playground invoke
-/// path; the game-facing remote facade arrives with the remote fidelity slice).
+/// The remote expert execution trio composed by the DevHost composition root: the raw client (used
+/// by the Playground to list the platform catalog), the invocation runner (the Playground
+/// invoke/replay tool face), and the game-facing remote facade (typed fluent proxy experts).
 /// </summary>
-public sealed record RemoteExpertComposition(RemoteExpertClient Client, RemoteExpertExecutor Executor);
+public sealed record RemoteExpertComposition(
+    RemoteExpertClient Client,
+    RemoteInvocationRunner Runner,
+    RemoteExpertFacade Facade);
 
 internal static class ExpertComposition
 {
@@ -50,7 +53,7 @@ internal static class ExpertComposition
         return new ExpertContractComposition(new ExpertContractRegistry(assemblies), contractAssemblies);
     }
 
-    public static LocalExpertExecutor CreateLocalExecutor(
+    public static LocalExpertComposition CreateLocalExpertComposition(
         DevHostOptions options,
         ExpertContractComposition contracts,
         BoundPlayerProfile player,
@@ -76,7 +79,7 @@ internal static class ExpertComposition
             options.GatewayEndpoint,
             options.GatewayModels,
             CreateEnvironmentTokenProvider(options.GatewayApiKeyEnvironmentVariable));
-        var executorOptions = new LocalExpertExecutorOptions(
+        var compositionOptions = new LocalExpertCompositionOptions(
             new OpenAiCompatibleBasicAi(gatewayClient, gatewayOptions),
             player)
         {
@@ -84,19 +87,22 @@ internal static class ExpertComposition
         };
         loadedPackages.AddRange(options.ExpertArtifactDirectories.Select(
             directory => ExpertPackageLoader.Load(directory, contracts.ContractAssemblies)));
-        return new LocalExpertExecutor(
+        return new LocalExpertComposition(
             contracts.Registry,
             loadedPackages,
             options.ExpertBindings.Count == 0 ? null : options.ExpertBindings,
-            executorOptions);
+            compositionOptions);
     }
 
     /// <summary>
-    /// Composes the remote expert execution pair from a DevHost already validated for the remote
-    /// executor. The caller owns the <see cref="HttpClient" /> lifecycle and must disable its
+    /// Composes the remote expert execution trio from a DevHost already validated for the remote
+    /// expert mode. The caller owns the <see cref="HttpClient" /> lifecycle and must disable its
     /// default request timeout for the long SSE event stream.
     /// </summary>
-    public static RemoteExpertComposition CreateRemoteExecutor(DevHostOptions options, HttpClient platformClient)
+    public static RemoteExpertComposition CreateRemoteInvocationRunner(
+        DevHostOptions options,
+        HttpClient platformClient,
+        BoundPlayerProfile? player = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(platformClient);
@@ -107,13 +113,15 @@ internal static class ExpertComposition
         var client = new RemoteExpertClient(
             platformClient,
             new RemoteExpertClientOptions(options.RemoteEndpoint, CreateEnvironmentTokenProvider(options.RemoteTokenEnvironmentVariable)));
-        var executor = new RemoteExpertExecutor(
+        var runnerOptions = new RemoteInvocationRunnerOptions(options.RemoteBindings);
+        var runner = new RemoteInvocationRunner(client, runnerOptions);
+        return new RemoteExpertComposition(
             client,
-            new RemoteExpertExecutorOptions(options.RemoteBindings));
-        return new RemoteExpertComposition(client, executor);
+            runner,
+            new RemoteExpertFacade(client, runnerOptions, player));
     }
 
-    public static void ValidateExecutorOptions(DevHostOptions options)
+    public static void ValidateExpertModeOptions(DevHostOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
 

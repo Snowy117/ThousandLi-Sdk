@@ -27,13 +27,13 @@ public sealed record FakeExpertScenario
     public JsonElement Result { get; }
 }
 
-public sealed class FakeExpertExecutor
+public sealed class FakeExpertRunner
 {
     private readonly Dictionary<string, FakeExpertScenario> _scenarios;
     private readonly ConcurrentQueue<ExpertInvocationRecord> _invocations = new();
     private int _invocationSequence;
 
-    public FakeExpertExecutor(IEnumerable<FakeExpertScenario> scenarios)
+    public FakeExpertRunner(IEnumerable<FakeExpertScenario> scenarios)
     {
         ArgumentNullException.ThrowIfNull(scenarios);
         _scenarios = scenarios.ToDictionary(

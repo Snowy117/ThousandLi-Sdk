@@ -34,7 +34,7 @@ public sealed class OfficialLongTextWritingContractTests
     {
         var definition = AbstractLongTextWritingExpert.Definition;
 
-        Assert.Equal(["actionOption", "chunk", "jsonStream", "timetag"], definition.SemanticEventTypes);
+        Assert.Equal(["actionOption", "chunk", "jsonStream", "timetag", "variableUpdate"], definition.SemanticEventTypes);
         Assert.Equal(JsonValueKind.Object, definition.InputSchema?.ValueKind);
         Assert.Equal(JsonValueKind.Object, definition.OutputSchema?.ValueKind);
 

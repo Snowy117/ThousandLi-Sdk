@@ -51,8 +51,8 @@ public static class DevHostApplication
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ExpertComposition.ValidateExecutorOptions(options);
-        var fakeExperts = ScriptedFakeExpertExecutor.Load(options.FakeScenariosPath);
+        ExpertComposition.ValidateExpertModeOptions(options);
+        var fakeExperts = ScriptedFakeExpertRunner.Load(options.FakeScenariosPath);
         var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
         var contracts = ExpertComposition.BuildContractRegistry(options.ContractAssemblies);
         var useLocalExperts = options.Experts == DevHostOptions.LocalExecutorName;
@@ -79,31 +79,31 @@ public static class DevHostApplication
                 "Local development player");
             var expertPackages = new List<LoadedExpertPackage>();
             HttpClient? httpClient = null;
-            LocalExpertExecutor? localExperts = null;
+            LocalExpertComposition? localExperts = null;
             RemoteExpertComposition? remoteExperts = null;
             try
             {
                 if (useLocalExperts)
                 {
                     httpClient = new HttpClient();
-                    localExperts = ExpertComposition.CreateLocalExecutor(
+                    localExperts = ExpertComposition.CreateLocalExpertComposition(
                         options, contracts, player, httpClient, expertPackages);
                 }
                 else if (useRemoteExperts)
                 {
                     // Long SSE event streams must outlive HttpClient's default 100-second timeout.
                     httpClient = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
-                    remoteExperts = ExpertComposition.CreateRemoteExecutor(options, httpClient);
+                    remoteExperts = ExpertComposition.CreateRemoteInvocationRunner(options, httpClient, player);
                 }
 
                 // The game-facing facade follows the selected expert mode: scripted doubles for
-                // fake, the same create-and-bind flow as the production Host for local, and a
-                // fail-fast placeholder for remote (arriving with the remote fidelity slice).
+                // fake, the same create-and-bind flow as the production Host for local, and the
+                // typed remote proxy for remote (identical fluent surface, full-fidelity wire).
                 IExpertFacade expertFacade;
                 if (localExperts is not null)
                     expertFacade = new LocalExpertFacade(localExperts);
-                else if (useRemoteExperts)
-                    expertFacade = DisabledExpertFacade.Instance;
+                else if (remoteExperts is not null)
+                    expertFacade = remoteExperts.Facade;
                 else
                     expertFacade = ScriptedLongTextWritingExpertFacade.Load(options.FakeScenariosPath);
 
@@ -444,7 +444,7 @@ public static class DevHostApplication
         <label for="package">Expert package <span class="hint">(local override, optional)</span></label>
         <select id="package"><option value="">— configured binding —</option></select>
         <label for="input">Input JSON</label>
-        <textarea id="input">{"worldSettings":"A quiet valley under autumn rain.","playerInput":"look around"}</textarea>
+        <textarea id="input">__THOUSANDLI_PLAYGROUND_DEFAULT_INPUT__</textarea>
         <div class="check"><input type="checkbox" id="record"><label for="record">Record invocation</label></div>
         <div class="row" style="margin-top:12px">
           <button id="invoke" disabled>Invoke</button>
@@ -666,7 +666,7 @@ public static class DevHostApplication
     </script>
     </body>
     </html>
-    """;
+    """.Replace("__THOUSANDLI_PLAYGROUND_DEFAULT_INPUT__", PlaygroundService.DefaultInputJson);
 
     private static string PreviewShell(string frontendUrl) => $$"""
     <!doctype html>

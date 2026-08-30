@@ -8,11 +8,11 @@ namespace ThousandLi.DevHost;
 public sealed class LocalExpertException(string message) : InvalidOperationException(message);
 
 /// <summary>
-/// Per-executor composition of the local expert path: the BasicAi capability, the player profile,
+/// Composition options of the local expert path: the BasicAi capability, the player profile,
 /// and the optional local settings override file. Credentials never appear here; they stay inside
 /// the composition root's <see cref="IRuntimeBasicAi"/> implementation.
 /// </summary>
-public sealed record LocalExpertExecutorOptions(
+public sealed record LocalExpertCompositionOptions(
     IRuntimeBasicAi BasicAi,
     BoundPlayerProfile PlayerProfile,
     ILogger? Logger = null,
@@ -25,27 +25,27 @@ public sealed record LocalExpertExecutorOptions(
 /// per invocation. This is the Playground/protocol tool surface; game code reaches the same
 /// packages through <see cref="LocalExpertFacade"/>.
 /// </summary>
-public sealed class LocalExpertExecutor
+public sealed class LocalExpertComposition
 {
     private readonly ExpertContractRegistry _registry;
     private readonly IReadOnlyDictionary<string, LoadedExpertPackage> _packagesById;
-    private readonly LocalExpertExecutorOptions _options;
+    private readonly LocalExpertCompositionOptions _options;
     private readonly IReadOnlyDictionary<string, LoadedExpertPackage> _resolvedContracts;
     private long _sequence;
 
     /// <summary>
-    /// 以注册表、已加载的 Expert Package 集合与组合配置构造本地执行器。要求至少一个已加载包；
+    /// 以注册表、已加载的 Expert Package 集合与组合配置构造本地专家组合。要求至少一个已加载包；
     /// 重复的包 id、无法唯一解析的契约绑定在构造期即失败。
     /// </summary>
     /// <param name="registry">契约注册表（提供平台侧契约身份与指纹）。</param>
     /// <param name="expertPackages">已加载的本地 Expert Package 集合。</param>
     /// <param name="explicitContractBindings">可选的契约 id → 包 id 显式绑定。</param>
     /// <param name="options">本地执行组合配置（BasicAi、玩家档案、可选设置覆盖文件）。</param>
-    public LocalExpertExecutor(
+    public LocalExpertComposition(
         ExpertContractRegistry registry,
         IReadOnlyList<LoadedExpertPackage> expertPackages,
         IReadOnlyDictionary<string, string>? explicitContractBindings,
-        LocalExpertExecutorOptions options)
+        LocalExpertCompositionOptions options)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(expertPackages);

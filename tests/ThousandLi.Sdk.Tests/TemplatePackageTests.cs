@@ -104,8 +104,8 @@ public sealed class TemplatePackageTests
 
         Assert.Contains("<IsThousandLiPackageArtifact>true</IsThousandLiPackageArtifact>", project);
         Assert.Contains("<IsThousandLiExpertPackageArtifact>true</IsThousandLiExpertPackageArtifact>", project);
-        Assert.Contains("<PackageReference Include=\"ThousandLi.Contracts\" Version=\"0.4.0-preview.1\" />", project);
-        Assert.Contains("<PackageReference Include=\"ThousandLi.ExpertAuthoring\" Version=\"0.4.0-preview.1\" />", project);
+        Assert.Contains("<PackageReference Include=\"ThousandLi.Contracts\" Version=\"0.4.0-preview.2\" />", project);
+        Assert.Contains("<PackageReference Include=\"ThousandLi.ExpertAuthoring\" Version=\"0.4.0-preview.2\" />", project);
     }
 
     [Fact]

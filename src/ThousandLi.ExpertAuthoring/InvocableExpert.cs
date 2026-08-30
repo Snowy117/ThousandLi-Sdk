@@ -5,8 +5,8 @@ namespace ThousandLi.ExpertAuthoring;
 
 /// <summary>
 /// Structured invocation bridge implemented by contract abstract expert bases. The local expert
-/// executor binds an invocation's structured input and semantic event sink through this surface;
-/// callback-dense authoring APIs stay inside the expert process and never cross the executor seam.
+/// composition binds an invocation's structured input and semantic event sink through this surface;
+/// callback-dense authoring APIs stay inside the expert process and never cross the composition seam.
 /// </summary>
 public interface IInvocableExpert
 {

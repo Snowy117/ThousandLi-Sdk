@@ -1,6 +1,6 @@
 using System.Text.Json;
 using ThousandLi.Contracts;
-using ThousandLi.DevHost;
+using ThousandLi.Testing;
 
 namespace ThousandLi.GameHelper.Tests;
 
@@ -22,7 +22,7 @@ internal static class Support
             state,
             new NoopFrontendEventSink(),
             new EmptyActionHistory(),
-            DisabledExpertFacade.Instance,
+            ThrowingExpertFacade.Instance,
             buckets ?? new InMemoryHistoryBucketSet());
 
     public static FrontendRequestContext BuildFrontendRequestContext(

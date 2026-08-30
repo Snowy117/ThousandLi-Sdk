@@ -53,7 +53,7 @@ public sealed class DevHostOptionsTests
     }
 
     [Fact]
-    public void ParseRejectsTheRemovedExpertExecutorAliasWithoutASilentFallback()
+    public void ParseRejectsTheRemovedExpertsFlagAliasWithoutASilentFallback()
     {
         var exception = Assert.Throws<ArgumentException>(() => DevHostOptions.Parse(
             ["--artifact", "samples", "--expert-executor", "local"]));

@@ -6,8 +6,8 @@ namespace ThousandLi.Testing;
 
 /// <summary>
 /// <see cref="ActionContext" /> 的测试组装工厂：未提供的依赖使用清晰的禁用态默认
-/// （确定性的测试 ID、空 JSON 对象状态、丢弃事件的 frontend、空历史、抛错的专家门面与
-/// 执行器、内存历史桶），供 Game Package 测试一行构造 action 运行上下文。
+/// （确定性的测试 ID、空 JSON 对象状态、丢弃事件的 frontend、空历史、抛错的专家门面、
+/// 内存历史桶），供 Game Package 测试一行构造 action 运行上下文。
 /// 生产代码不应调用本工厂。
 /// </summary>
 public static class ActionContextTestFactory

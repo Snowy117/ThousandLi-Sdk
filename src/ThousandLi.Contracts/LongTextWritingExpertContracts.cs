@@ -10,7 +10,7 @@ namespace ThousandLi.Contracts;
 /// 再调用 <see cref="StreamAsync" /> / <see cref="CompleteAsync" /> 执行。
 /// 具体执行流程（prompt/schema 构建、LLM 调用、事件到 callback 的映射）由具体专家在
 /// <see cref="StreamAsyncCore" /> / <see cref="CompleteAsyncCore" /> override 中拥有。
-/// 实例由工厂/facade 创建后未经绑定（unbound）；执行前由 facade/executor 调用
+/// 实例由工厂/facade 创建后未经绑定（unbound）；执行前由 facade/组合根调用
 /// <see cref="Bind" /> 恰好绑定一次。实例与 sink 均为单次调用对象：每个实例至多执行一次。
 /// 契约身份（<c>thousandli.expert/long-text-writing</c>）直接挂在本类型上；类别 fluent 类型
 /// 本身是编译期 IDL，<see cref="Definition" /> 只是第一版校验文档（允许随 preview 演进）。
@@ -140,10 +140,10 @@ public abstract class AbstractLongTextWritingExpert : IExpertContract, IExpertEx
     }
 
     /// <summary>
-    /// Binds the execution context to this instance, exactly once, before invocation. Callers are the
-    /// facades/executors that hand experts to game code: the production Host facade, local
-    /// composition roots, and test doubles (for example the <c>ThousandLi.Testing</c> fake facade
-    /// pattern where the registered factory creates, binds, and returns the expert).
+    /// Binds the execution context to this instance, exactly once, before invocation. Callers are
+    /// the facades and composition roots that hand experts to game code: the production Host facade,
+    /// local composition roots, and test doubles (for example the <c>ThousandLi.Testing</c> fake
+    /// facade pattern where the registered factory creates, binds, and returns the expert).
     /// </summary>
     public void Bind(IExpertExecutionContext context)
     {
@@ -219,64 +219,30 @@ public abstract class AbstractLongTextWritingExpert : IExpertContract, IExpertEx
 
 /// <summary>
 /// The contract identity constants and first-version definition of the long-text-writing expert
-/// category. The fingerprint pins the current <see cref="AbstractLongTextWritingExpert.Definition"/>
-/// for drift detection; recompute it whenever the definition evolves during the preview line.
+/// category. The definition is a codec projection (D6 single source of truth): the input schema
+/// and the semantic event whitelist are derived from <see cref="LongTextWritingWireCodec.Default"/>,
+/// so codec changes are automatically covered by fingerprint drift detection. The fingerprint pins
+/// the current <see cref="AbstractLongTextWritingExpert.Definition"/>; recompute it whenever the
+/// definition evolves during the preview line.
 /// </summary>
 internal static class LongTextWritingContract
 {
     public const string Id = "thousandli.expert/long-text-writing";
-    public const string Fingerprint = "573299a67800f57dead23e7fc320857b8725440df2260e9050afb70cfe247488";
+    public const string Fingerprint = "8046a8ea2ca4ffbd55776315b126d870e51e335438aed82a9cd44333f8f1df76";
 
-    public static ExpertContractDefinition CreateDefinition() => new(
-        inputSchema: ParseSchema("""
-            {
-              "type": "object",
-              "properties": {
-                "worldSettings": {
-                  "type": "string",
-                  "description": "World settings text governing the whole session."
-                },
-                "playerInput": {
-                  "type": "string",
-                  "description": "The acting player's input for this turn."
-                },
-                "playerPersona": {
-                  "type": "string",
-                  "description": "Optional persona of the acting player."
-                },
-                "currentState": {
-                  "type": "string",
-                  "description": "Optional summary of the current game state."
-                },
-                "stateSchema": {
-                  "type": "string",
-                  "description": "Optional AI-facing schema of the current state, consumed by the variable-update pass."
-                },
-                "primaryOutput": {
+    public static ExpertContractDefinition CreateDefinition()
+    {
+        var codec = LongTextWritingWireCodec.Default;
+        return new ExpertContractDefinition(
+            inputSchema: codec.BuildInputSchema(),
+            semanticEventTypes: codec.EventTypes,
+            outputSchema: ParseSchema("""
+                {
                   "type": "object",
-                  "description": "Primary output declaration: the root property name and whether it streams text or JSON."
-                },
-                "features": {
-                  "type": "array",
-                  "description": "Feature declarations enabled for this invocation: time tags, action options, variable update.",
-                  "items": { "type": "object" }
-                },
-                "historyBuckets": {
-                  "type": "array",
-                  "description": "Read-only history bucket projections the expert may consume.",
-                  "items": { "type": "object" }
+                  "description": "Completion frame aggregating every expert-to-game channel: the primary output value, feature results, turn metadata, and provider reasoning. The exact wire shape is finalized with the remote invocation payload."
                 }
-              },
-              "required": ["worldSettings", "playerInput"]
-            }
-            """),
-        semanticEventTypes: ["actionOption", "chunk", "jsonStream", "timetag"],
-        outputSchema: ParseSchema("""
-            {
-              "type": "object",
-              "description": "Completion frame aggregating every expert-to-game channel: the primary output value, feature results, turn metadata, and provider reasoning. The exact wire shape is finalized with the remote invocation payload."
-            }
-            """));
+                """));
+    }
 
     private static JsonElement ParseSchema(string json) => JsonDocument.Parse(json).RootElement.Clone();
 }

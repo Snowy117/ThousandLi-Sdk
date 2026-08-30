@@ -11,14 +11,14 @@ namespace ThousandLi.DevHost;
 /// </summary>
 public sealed class LocalExpertFacade : IExpertFacade
 {
-    private readonly LocalExpertExecutor _executor;
+    private readonly LocalExpertComposition _composition;
 
     /// <summary>以本地执行组合根构造 facade。</summary>
-    /// <param name="executor">本地专家执行组合（提供契约解析与专家实例创建）。</param>
-    public LocalExpertFacade(LocalExpertExecutor executor)
+    /// <param name="composition">本地专家执行组合（提供契约解析与专家实例创建）。</param>
+    public LocalExpertFacade(LocalExpertComposition composition)
     {
-        ArgumentNullException.ThrowIfNull(executor);
-        _executor = executor;
+        ArgumentNullException.ThrowIfNull(composition);
+        _composition = composition;
     }
 
     /// <summary>
@@ -32,6 +32,6 @@ public sealed class LocalExpertFacade : IExpertFacade
             ?? throw new InvalidOperationException(
                 $"The expert category type '{typeof(TAbstract).FullName}' does not carry '[ExpertContract]'; " +
                 "the local facade resolves packages through the category's contract identity.");
-        return (TAbstract)_executor.CreateExpert(contractId);
+        return (TAbstract)_composition.CreateExpert(contractId);
     }
 }

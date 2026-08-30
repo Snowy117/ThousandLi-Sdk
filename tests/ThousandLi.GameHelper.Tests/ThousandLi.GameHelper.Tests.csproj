@@ -10,5 +10,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/ThousandLi.GameHelper/ThousandLi.GameHelper.csproj" />
     <ProjectReference Include="../../src/ThousandLi.DevHost/ThousandLi.DevHost.csproj" />
+    <ProjectReference Include="../../src/ThousandLi.Testing/ThousandLi.Testing.csproj" />
   </ItemGroup>
 </Project>

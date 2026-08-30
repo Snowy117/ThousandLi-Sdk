@@ -5,17 +5,17 @@ using ThousandLi.Contracts;
 namespace ThousandLi.DevHost;
 
 /// <summary>
-/// Deterministic scripted executor for the expert invocation protocol (Playground / tests). This
+/// Deterministic scripted runner for the expert invocation protocol (Playground / tests). This
 /// is a tool surface, not a game-authoring API; game code reaches experts through the typed facade.
 /// </summary>
 [JetBrains.Annotations.PublicAPI]
-public sealed class ScriptedFakeExpertExecutor
+public sealed class ScriptedFakeExpertRunner
 {
     private readonly IReadOnlyDictionary<string, ScriptedScenario> _scenarios;
     private readonly ConcurrentQueue<ExpertInvocationRecord> _invocations = new();
     private long _sequence;
 
-    private ScriptedFakeExpertExecutor(IReadOnlyDictionary<string, ScriptedScenario> scenarios)
+    private ScriptedFakeExpertRunner(IReadOnlyDictionary<string, ScriptedScenario> scenarios)
     {
         _scenarios = scenarios;
     }
@@ -25,9 +25,9 @@ public sealed class ScriptedFakeExpertExecutor
 
     public IReadOnlyList<ExpertInvocationRecord> Invocations => [.. _invocations];
 
-    public static ScriptedFakeExpertExecutor Load(string? path)
+    public static ScriptedFakeExpertRunner Load(string? path)
     {
-        if (string.IsNullOrWhiteSpace(path)) return new ScriptedFakeExpertExecutor(new Dictionary<string, ScriptedScenario>());
+        if (string.IsNullOrWhiteSpace(path)) return new ScriptedFakeExpertRunner(new Dictionary<string, ScriptedScenario>());
         using var document = JsonDocument.Parse(File.ReadAllText(path));
         if (document.RootElement.ValueKind != JsonValueKind.Array)
             throw new InvalidOperationException("Fake scenario file root must be an array.");
@@ -74,7 +74,7 @@ public sealed class ScriptedFakeExpertExecutor
             if (contracts.Length != 1)
                 throw new InvalidOperationException($"Fake scenarios for contract '{contractGroup.Key}' must use one version and fingerprint.");
         }
-        return new ScriptedFakeExpertExecutor(scenarios);
+        return new ScriptedFakeExpertRunner(scenarios);
     }
 
     public async ValueTask<ExpertInvocationResult> ExecuteAsync(

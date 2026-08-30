@@ -37,16 +37,16 @@ public sealed record DevHostOptions
     /// <summary>Expert mode selection: 'fake' (default), 'local', or 'remote' (explicit opt-in).</summary>
     public string Experts { get; init; } = FakeExecutorName;
 
-    /// <summary>Artifact directories of trusted local Expert Packages to load with the local executor.</summary>
+    /// <summary>Artifact directories of trusted local Expert Packages to load with the local expert composition.</summary>
     public IReadOnlyList<string> ExpertArtifactDirectories { get; init; } = [];
 
     /// <summary>Explicit contract assembly paths registered in addition to the official contract assembly.</summary>
     public IReadOnlyList<string> ContractAssemblies { get; init; } = [];
 
-    /// <summary>Explicit contractId → expertPackageId bindings for the local executor.</summary>
+    /// <summary>Explicit contractId → expertPackageId bindings for the local expert composition.</summary>
     public IReadOnlyDictionary<string, string> ExpertBindings { get; init; } = EmptyBindings;
 
-    /// <summary>The OpenAI-compatible gateway endpoint used by the local expert executor.</summary>
+    /// <summary>The OpenAI-compatible gateway endpoint used by the local expert composition.</summary>
     public string? GatewayEndpoint { get; init; }
 
     /// <summary>The models configured on the local gateway; the authoritative list experts read at runtime.</summary>
@@ -58,7 +58,7 @@ public sealed record DevHostOptions
     /// </summary>
     public string GatewayApiKeyEnvironmentVariable { get; init; } = DefaultGatewayApiKeyEnvironmentVariable;
 
-    /// <summary>The platform Host base address the remote expert executor calls.</summary>
+    /// <summary>The platform Host base address the remote invocation runner calls.</summary>
     public string? RemoteEndpoint { get; init; }
 
     /// <summary>
@@ -67,7 +67,7 @@ public sealed record DevHostOptions
     /// </summary>
     public string RemoteTokenEnvironmentVariable { get; init; } = DefaultRemoteTokenEnvironmentVariable;
 
-    /// <summary>Explicit contractId → expertPackageId bindings for the remote executor.</summary>
+    /// <summary>Explicit contractId → expertPackageId bindings for the remote invocation runner.</summary>
     public IReadOnlyDictionary<string, string> RemoteBindings { get; init; } = EmptyBindings;
 
     public static DevHostOptions Parse(string[] args)

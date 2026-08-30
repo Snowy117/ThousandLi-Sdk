@@ -67,8 +67,8 @@ public sealed record PlaygroundReplayReport(
     IReadOnlyList<RecordingComparisonDivergence> Divergences);
 
 public sealed class PlaygroundService(
-    ScriptedFakeExpertExecutor fake,
-    LocalExpertExecutor? local,
+    ScriptedFakeExpertRunner fake,
+    LocalExpertComposition? local,
     ExpertContractRegistry registry,
     IExpertRecordingStore recordings,
     ILogger? logger = null,
@@ -79,7 +79,23 @@ public sealed class PlaygroundService(
     public const string StatusError = "error";
     private const int HistoryLimit = 100;
 
-    private readonly ScriptedFakeExpertExecutor _fake = fake ?? throw new ArgumentNullException(nameof(fake));
+    /// <summary>
+    /// The Playground's default input template, shaped after the long-text-writing wire parameter
+    /// pack: the required <c>worldSettings</c>/<c>playerInput</c> pair, a text <c>primaryOutput</c>
+    /// example, and one Feature sample. <see cref="LongTextWritingWireCodec.Validate"/> accepts it
+    /// verbatim, and the Playground page embeds it as the manual invocation textarea's initial
+    /// content (pinned by test to keep the two in lockstep).
+    /// </summary>
+    public const string DefaultInputJson = """
+        {
+          "worldSettings": "A quiet valley under autumn rain.",
+          "playerInput": "look around",
+          "primaryOutput": { "kind": "text", "propertyName": "narrative" },
+          "features": [{ "kind": "actionOptions", "maxCount": 3 }]
+        }
+        """;
+
+    private readonly ScriptedFakeExpertRunner _fake = fake ?? throw new ArgumentNullException(nameof(fake));
     private readonly ExpertContractRegistry _registry = registry ?? throw new ArgumentNullException(nameof(registry));
     private readonly IExpertRecordingStore _recordings = recordings ?? throw new ArgumentNullException(nameof(recordings));
     private readonly ILogger _logger = logger ?? NullLogger.Instance;
@@ -88,12 +104,12 @@ public sealed class PlaygroundService(
 
     /// <summary>
     /// The invocable contract catalog: the Fake scenario contracts, the locally loaded Expert
-    /// Packages, and — when the remote executor is configured — the live platform catalog. The
+    /// Packages, and — when the remote runner is configured — the live platform catalog. The
     /// remote merge fetches on every call so the Playground refresh reflects platform changes; an
     /// unreachable platform degrades to the local entries (logged as a warning) instead of failing
     /// the whole endpoint, and the remote invoke path itself surfaces the real diagnosis.
     /// Version/fingerprint fields always show the local descriptor; a platform drift is reported
-    /// by the remote executor precheck at invoke time with required/available details.
+    /// by the remote runner precheck at invoke time with required/available details.
     /// </summary>
     public async Task<IReadOnlyList<PlaygroundContractInfo>> GetContractsAsync(
         CancellationToken cancellationToken = default)
@@ -222,7 +238,7 @@ public sealed class PlaygroundService(
             {
                 DevHostOptions.LocalExecutorName => await local!.ExecuteAsync(
                     request, sink, command.ExpertPackageId, cancellationToken).ConfigureAwait(false),
-                DevHostOptions.RemoteExecutorName => await ResolveRemoteExecutor(command).ExecuteAsync(
+                DevHostOptions.RemoteExecutorName => await ResolveRemoteRunner(command).ExecuteAsync(
                     request, sink, cancellationToken).ConfigureAwait(false),
                 _ => await _fake.ExecuteAsync(request, sink, cancellationToken).ConfigureAwait(false)
             };
@@ -343,6 +359,16 @@ public sealed class PlaygroundService(
     /// <see cref="CancellationToken.None"/> so an aborted request still records its aborted
     /// terminal, and a storage failure surfaces through the diagnostics instead of failing the
     /// invocation it describes.
+    /// <para>
+    /// Recorded inputs are always Playground-authored wire JSON (<see cref="PlaygroundInvokeCommand.Input"/>):
+    /// the game-facing remote proxy never flows through this service, so its per-invocation <c>ref</c>
+    /// history buckets (b0, b1, … bound to a live local bucket registry) cannot enter a recording and no
+    /// record-time ref→inline promotion is needed. A hand-authored <c>ref</c> bucket cannot produce a
+    /// committed recording either — the Playground's remote tool face has no bucket registry, so a
+    /// platform <c>dataRequest</c> frame fails the invocation as a protocol violation and the recording
+    /// stores the error terminal; replay reproduces that failure deterministically. Recordings that need
+    /// bucket content therefore use hand-authored <c>inline</c> buckets by design.
+    /// </para>
     /// </summary>
     private async Task<(string? RecordingId, string? RecordingError)> PersistRecordingAsync(
         ExpertContractDescriptor descriptor,
@@ -388,7 +414,7 @@ public sealed class PlaygroundService(
                 {
                     if (local is null)
                         throw new ArgumentException(
-                            "The local expert executor is not configured; start DevHost with " +
+                            "The local expert composition is not configured; start DevHost with " +
                             $"'--experts {DevHostOptions.LocalExecutorName}' and expert artifacts.");
                     return ResolveRegisteredDescriptor(command.ContractId);
                 }
@@ -397,9 +423,9 @@ public sealed class PlaygroundService(
                 {
                     if (remote is null)
                         throw new ArgumentException(
-                            "The remote expert executor is not configured; start DevHost with " +
+                            "The remote expert runner is not configured; start DevHost with " +
                             $"'--experts {DevHostOptions.RemoteExecutorName}' and '--remote-endpoint'.");
-                    // The local registration is the invocation-side requirement; the remote executor
+                    // The local registration is the invocation-side requirement; the remote runner
                     // precheck reconciles it against the platform catalog with required/available details.
                     return ResolveRegisteredDescriptor(command.ContractId);
                 }
@@ -430,20 +456,20 @@ public sealed class PlaygroundService(
     }
 
     /// <summary>
-    /// The remote executor honors an explicit Playground package choice by deriving a per-call
-    /// executor whose single binding points at the chosen package; the configured bindings stay
-    /// untouched, mirroring the local executor's per-call override semantics.
+    /// The remote runner honors an explicit Playground package choice by deriving a per-call
+    /// runner whose single binding points at the chosen package; the configured bindings stay
+    /// untouched, mirroring the local composition's per-call override semantics.
     /// </summary>
-    private RemoteExpertExecutor ResolveRemoteExecutor(PlaygroundInvokeCommand command)
+    private RemoteInvocationRunner ResolveRemoteRunner(PlaygroundInvokeCommand command)
     {
         var composition = remote ?? throw new ArgumentException(
-            "The remote expert executor is not configured; start DevHost with " +
+            "The remote expert runner is not configured; start DevHost with " +
             $"'--experts {DevHostOptions.RemoteExecutorName}' and '--remote-endpoint'.");
         if (string.IsNullOrWhiteSpace(command.ExpertPackageId))
-            return composition.Executor;
-        return new RemoteExpertExecutor(
+            return composition.Runner;
+        return new RemoteInvocationRunner(
             composition.Client,
-            new RemoteExpertExecutorOptions(
+            new RemoteInvocationRunnerOptions(
                 new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     [command.ContractId] = command.ExpertPackageId

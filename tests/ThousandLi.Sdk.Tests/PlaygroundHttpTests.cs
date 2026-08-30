@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Net.Sockets;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
+using ThousandLi.Contracts;
 using ThousandLi.DevHost;
 
 namespace ThousandLi.Sdk.Tests;
@@ -11,7 +12,7 @@ public sealed class PlaygroundHttpTests
 {
     private const string SampleContractId = "thousandli.expert/long-text-writing";
     private const string SampleContractFingerprint =
-        "573299a67800f57dead23e7fc320857b8725440df2260e9050afb70cfe247488";
+        "8046a8ea2ca4ffbd55776315b126d870e51e335438aed82a9cd44333f8f1df76";
 
     [Fact]
     public async Task PlaygroundPageAndReadRoutesServe()
@@ -22,10 +23,9 @@ public sealed class PlaygroundHttpTests
         var page = await client.GetAsync("/playground", TestSupport.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, page.StatusCode);
         Assert.Equal("text/html", page.Content.Headers.ContentType?.MediaType);
-        Assert.Contains(
-            "ThousandLi Expert Playground",
-            await page.Content.ReadAsStringAsync(TestSupport.CancellationToken),
-            StringComparison.Ordinal);
+        var pageContent = await page.Content.ReadAsStringAsync(TestSupport.CancellationToken);
+        Assert.Contains("ThousandLi Expert Playground", pageContent, StringComparison.Ordinal);
+        Assert.Contains(PlaygroundService.DefaultInputJson, pageContent, StringComparison.Ordinal);
 
         var contracts = await client.GetFromJsonAsync<JsonElement>("/api/playground/contracts", TestSupport.CancellationToken);
         var contract = Assert.Single(contracts.EnumerateArray());
@@ -40,6 +40,42 @@ public sealed class PlaygroundHttpTests
 
         var recordings = await client.GetFromJsonAsync<JsonElement>("/api/playground/recordings", TestSupport.CancellationToken);
         Assert.Equal(0, recordings.GetArrayLength());
+    }
+
+    [Fact]
+    public void DefaultInputTemplateFollowsTheWireCodecShape()
+    {
+        using var document = JsonDocument.Parse(PlaygroundService.DefaultInputJson);
+        var input = document.RootElement.Clone();
+
+        Assert.Empty(LongTextWritingWireCodec.Default.Validate(input));
+
+        var config = LongTextWritingWireCodec.Default.DecodeInvocation(
+            input, NoOpWireEventSink.Instance, RejectBucket);
+
+        Assert.Equal("A quiet valley under autumn rain.", config.WorldSettings);
+        Assert.Equal("look around", config.PlayerInput);
+        Assert.Null(config.PlayerPersona);
+        Assert.Null(config.CurrentState);
+        Assert.Null(config.StateSchema);
+        var primaryOutput = Assert.IsType<TextPrimaryOutput>(config.PrimaryOutput);
+        Assert.Equal("narrative", primaryOutput.PropertyName);
+        var actionOptions = Assert.IsType<ActionOptionsFeature>(Assert.Single(config.Features));
+        Assert.Equal(3, actionOptions.MaxCount);
+        Assert.Empty(config.HistoryBuckets);
+    }
+
+    private static IHistoryBucket RejectBucket(string bucketId) => throw new InvalidOperationException(
+        $"The default input template must not reference history buckets (bucket '{bucketId}').");
+
+    private sealed class NoOpWireEventSink : IWireEventSink
+    {
+        public static readonly NoOpWireEventSink Instance = new();
+
+        public ValueTask SendAsync(
+            string eventType,
+            JsonElement payload,
+            CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
     }
 
     [Fact]

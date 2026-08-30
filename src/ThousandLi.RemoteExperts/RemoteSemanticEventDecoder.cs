@@ -25,12 +25,38 @@ public sealed record RemoteExpertFailedFrame(string Code, string Message) : Remo
 /// <summary>The terminal <c>cancelled</c> frame.</summary>
 public sealed record RemoteExpertCancelledFrame : RemoteExpertStreamFrame;
 
+/// <summary>The lazy history-bucket view a <c>dataRequest</c> frame asks the streaming client to serve.</summary>
+public enum RemoteExpertDataView
+{
+    /// <summary>The bucket's <c>Description</c> text.</summary>
+    Description,
+
+    /// <summary>The raw-turn view (<see cref="ThousandLi.Contracts.IHistoryBucket.GetRawTurns" />).</summary>
+    RawTurns,
+
+    /// <summary>The compressed view (<see cref="ThousandLi.Contracts.IHistoryBucket.GetCompressedView" />).</summary>
+    CompressedView
+}
+
+/// <summary>
+/// A lazy <c>dataRequest</c> frame: the platform asks the streaming client to project one registered
+/// history-bucket view and answer through <c>POST /expert-invocations/{id}/data/{requestId}</c>.
+/// Like event frames it carries the persisted ordinal, so reconnect replay and deduplication apply.
+/// </summary>
+public sealed record RemoteExpertDataRequestFrame(
+    long Ordinal,
+    string RequestId,
+    string BucketId,
+    RemoteExpertDataView View,
+    long? Cursor = null,
+    int? Limit = null) : RemoteExpertStreamFrame;
+
 /// <summary>
 /// Decodes the platform invocation SSE text stream into typed frames. Validates that event-frame
 /// ordinals are strictly monotonic within one decoded stream, skips comment lines (for example
 /// <c>: keepalive</c>), and concatenates multi-line <c>data:</c> payloads with newlines per the SSE
 /// specification. Cross-reconnect deduplication (dropping ordinals the caller has already seen) is
-/// owned by the executor, not the decoder.
+/// owned by the runner, not the decoder.
 /// </summary>
 public static class RemoteSemanticEventDecoder
 {
@@ -141,6 +167,41 @@ public static class RemoteSemanticEventDecoder
                             eventTypeElement.GetString()!,
                             payloadElement.Clone());
                     }
+                case "dataRequest":
+                    {
+                        if (id is null)
+                            throw new RemoteProtocolException(
+                                $"A dataRequest frame is missing its 'id' ordinal: {Truncate(payload)}.");
+                        if (lastOrdinal is { } previous && id.Value <= previous)
+                            throw new RemoteProtocolException(
+                                $"Event frame ordinals must be strictly monotonic, but {id.Value} followed {previous}.");
+                        if (!root.TryGetProperty("requestId", out var requestIdElement) ||
+                            requestIdElement.ValueKind != JsonValueKind.String ||
+                            string.IsNullOrWhiteSpace(requestIdElement.GetString()))
+                            throw new RemoteProtocolException(
+                                $"A dataRequest frame is missing its 'requestId' string: {Truncate(payload)}.");
+                        if (!root.TryGetProperty("bucketId", out var bucketIdElement) ||
+                            bucketIdElement.ValueKind != JsonValueKind.String ||
+                            string.IsNullOrWhiteSpace(bucketIdElement.GetString()))
+                            throw new RemoteProtocolException(
+                                $"A dataRequest frame is missing its 'bucketId' string: {Truncate(payload)}.");
+                        if (!root.TryGetProperty("view", out var viewElement) ||
+                            viewElement.ValueKind != JsonValueKind.String ||
+                            ParseView(viewElement.GetString()) is not { } view)
+                            throw new RemoteProtocolException(
+                                $"A dataRequest frame has an invalid 'view' value: {Truncate(payload)}.");
+                        var cursor = ReadNonNegativeLong(root, "cursor");
+                        var limit = ReadPositiveInt(root, "limit");
+
+                        lastOrdinal = id.Value;
+                        return new RemoteExpertDataRequestFrame(
+                            id.Value,
+                            requestIdElement.GetString()!,
+                            bucketIdElement.GetString()!,
+                            view,
+                            cursor,
+                            limit);
+                    }
                 case "completed":
                     {
                         return new RemoteExpertCompletedFrame(
@@ -177,6 +238,32 @@ public static class RemoteSemanticEventDecoder
             ordinal < 0)
             throw new RemoteProtocolException($"An SSE frame id '{value}' is not a non-negative ordinal.");
         return ordinal;
+    }
+
+    private static RemoteExpertDataView? ParseView(string? view) => view switch
+    {
+        "description" => RemoteExpertDataView.Description,
+        "rawTurns" => RemoteExpertDataView.RawTurns,
+        "compressedView" => RemoteExpertDataView.CompressedView,
+        _ => null
+    };
+
+    private static long? ReadNonNegativeLong(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var value) || value.ValueKind == JsonValueKind.Null)
+            return null;
+        if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt64(out var parsed) || parsed < 0)
+            throw new RemoteProtocolException($"A dataRequest frame has an invalid '{propertyName}' value.");
+        return parsed;
+    }
+
+    private static int? ReadPositiveInt(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var value) || value.ValueKind == JsonValueKind.Null)
+            return null;
+        if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out var parsed) || parsed < 1)
+            throw new RemoteProtocolException($"A dataRequest frame has an invalid '{propertyName}' value.");
+        return parsed;
     }
 
     private static string Truncate(string text) =>

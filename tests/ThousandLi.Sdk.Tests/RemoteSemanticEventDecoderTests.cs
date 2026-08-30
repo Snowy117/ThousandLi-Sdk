@@ -111,6 +111,111 @@ public sealed class RemoteSemanticEventDecoderTests
     }
 
     [Fact]
+    public async Task DecodeAsync_DecodesDataRequestFrames_AllThreeViews()
+    {
+        var frames = await DecodeAsync(
+            """
+            id: 0
+            data: {"type":"dataRequest","requestId":"r-1","bucketId":"b0","view":"description"}
+
+            id: 1
+            data: {"type":"dataRequest","requestId":"r-2","bucketId":"b0","view":"rawTurns","cursor":4,"limit":200}
+
+            id: 2
+            data: {"type":"dataRequest","requestId":"r-3","bucketId":"b1","view":"compressedView"}
+
+            """);
+
+        Assert.Equal(3, frames.Count);
+        var description = Assert.IsType<RemoteExpertDataRequestFrame>(frames[0]);
+        Assert.Equal(0, description.Ordinal);
+        Assert.Equal("r-1", description.RequestId);
+        Assert.Equal("b0", description.BucketId);
+        Assert.Equal(RemoteExpertDataView.Description, description.View);
+        Assert.Null(description.Cursor);
+        Assert.Null(description.Limit);
+
+        var rawTurns = Assert.IsType<RemoteExpertDataRequestFrame>(frames[1]);
+        Assert.Equal(RemoteExpertDataView.RawTurns, rawTurns.View);
+        Assert.Equal(4, rawTurns.Cursor);
+        Assert.Equal(200, rawTurns.Limit);
+
+        var compressed = Assert.IsType<RemoteExpertDataRequestFrame>(frames[2]);
+        Assert.Equal(RemoteExpertDataView.CompressedView, compressed.View);
+        Assert.Equal("b1", compressed.BucketId);
+    }
+
+    [Fact]
+    public async Task DecodeAsync_RejectsDataRequestFramesWithMissingFields()
+    {
+        _ = await Assert.ThrowsAsync<RemoteProtocolException>(() =>
+            DecodeAsync(
+                """
+                id: 0
+                data: {"type":"dataRequest","bucketId":"b0","view":"rawTurns"}
+
+                """).AsTask());
+        _ = await Assert.ThrowsAsync<RemoteProtocolException>(() =>
+            DecodeAsync(
+                """
+                id: 0
+                data: {"type":"dataRequest","requestId":"r-1","view":"rawTurns"}
+
+                """).AsTask());
+        _ = await Assert.ThrowsAsync<RemoteProtocolException>(() =>
+            DecodeAsync(
+                """
+                id: 0
+                data: {"type":"dataRequest","requestId":"r-1","bucketId":"b0"}
+
+                """).AsTask());
+        _ = await Assert.ThrowsAsync<RemoteProtocolException>(() =>
+            DecodeAsync("data: {\"type\":\"dataRequest\",\"requestId\":\"r-1\",\"bucketId\":\"b0\",\"view\":\"rawTurns\"}\n\n")
+                .AsTask());
+    }
+
+    [Fact]
+    public async Task DecodeAsync_RejectsDataRequestFramesWithBadViewOrPagingValues()
+    {
+        _ = await Assert.ThrowsAsync<RemoteProtocolException>(() =>
+            DecodeAsync(
+                """
+                id: 0
+                data: {"type":"dataRequest","requestId":"r-1","bucketId":"b0","view":"everything"}
+
+                """).AsTask());
+        _ = await Assert.ThrowsAsync<RemoteProtocolException>(() =>
+            DecodeAsync(
+                """
+                id: 0
+                data: {"type":"dataRequest","requestId":"r-1","bucketId":"b0","view":"rawTurns","cursor":-1}
+
+                """).AsTask());
+        _ = await Assert.ThrowsAsync<RemoteProtocolException>(() =>
+            DecodeAsync(
+                """
+                id: 0
+                data: {"type":"dataRequest","requestId":"r-1","bucketId":"b0","view":"rawTurns","limit":0}
+
+                """).AsTask());
+    }
+
+    [Fact]
+    public async Task DecodeAsync_EnforcesMonotonicOrdinalsAcrossEventAndDataRequestFrames()
+    {
+        _ = await Assert.ThrowsAsync<RemoteProtocolException>(() =>
+            DecodeAsync(
+                """
+                id: 3
+                data: {"type":"dataRequest","requestId":"r-1","bucketId":"b0","view":"description"}
+
+                id: 3
+                data: {"type":"event","eventType":"chunk","payload":{}}
+
+                """).AsTask());
+    }
+
+    [Fact]
     public async Task DecodeAsync_RejectsNonMonotonicOrdinals()
     {
         _ = await Assert.ThrowsAsync<RemoteProtocolException>(() =>

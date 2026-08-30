@@ -6,7 +6,7 @@ using ThousandLi.RemoteExperts;
 
 namespace ThousandLi.Sdk.Tests;
 
-public sealed class RemoteExpertExecutorTests
+public sealed class RemoteInvocationRunnerTests
 {
     private const string ContractId = "tests/story";
     private const string Fingerprint = "tests-story-v1";
@@ -26,13 +26,13 @@ public sealed class RemoteExpertExecutorTests
         "id: " + ordinal + "\ndata: {\"type\":\"event\",\"eventType\":\"delta\",\"payload\":{\"text\":\"" + text +
         "\"}}\n\n";
 
-    private static RemoteExpertExecutor CreateExecutor(
+    private static RemoteInvocationRunner CreateRunner(
         FakeRemoteHttpHandler handler,
         TimeSpan? timeout = null,
         int maxReconnects = 3) =>
         new(
             new RemoteExpertClient(new HttpClient(handler), new RemoteExpertClientOptions("http://platform.test")),
-            new RemoteExpertExecutorOptions(
+            new RemoteInvocationRunnerOptions(
                 new Dictionary<string, string> { [ContractId] = PackageId },
                 timeout,
                 maxReconnects));
@@ -58,12 +58,12 @@ public sealed class RemoteExpertExecutorTests
     public async Task ExecuteAsync_WithoutBinding_FailsDeterministicallyBeforeAnyTraffic()
     {
         var handler = new FakeRemoteHttpHandler();
-        var executor = new RemoteExpertExecutor(
+        var runner = new RemoteInvocationRunner(
             new RemoteExpertClient(new HttpClient(handler), new RemoteExpertClientOptions("http://platform.test")),
-            new RemoteExpertExecutorOptions());
+            new RemoteInvocationRunnerOptions());
 
         var exception = await Assert.ThrowsAsync<RemoteExpertException>(() =>
-            executor.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken).AsTask());
+            runner.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken).AsTask());
 
         Assert.Empty(handler.CapturedRequests);
         Assert.Contains(ContractId, exception.Message, StringComparison.Ordinal);
@@ -75,10 +75,10 @@ public sealed class RemoteExpertExecutorTests
     {
         var handler = new FakeRemoteHttpHandler();
         handler.EnqueueJson("[]");
-        var executor = CreateExecutor(handler);
+        var runner = CreateRunner(handler);
 
         var exception = await Assert.ThrowsAsync<RemoteUnknownContractException>(() =>
-            executor.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken).AsTask());
+            runner.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken).AsTask());
 
         Assert.Single(handler.CapturedRequests);
         Assert.Contains(ContractId, exception.Message, StringComparison.Ordinal);
@@ -89,10 +89,10 @@ public sealed class RemoteExpertExecutorTests
     {
         var handler = new FakeRemoteHttpHandler();
         handler.EnqueueJson(CatalogJson(fingerprint: "other-fingerprint"));
-        var executor = CreateExecutor(handler);
+        var runner = CreateRunner(handler);
 
         var exception = await Assert.ThrowsAsync<RemoteContractMismatchException>(() =>
-            executor.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken).AsTask());
+            runner.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken).AsTask());
 
         Assert.Single(handler.CapturedRequests);
         Assert.Equal(Fingerprint, exception.RequiredFingerprint);
@@ -110,10 +110,10 @@ public sealed class RemoteExpertExecutorTests
             scenarioId: null,
             input: TestSupport.Json("{}"),
             channelKey: null);
-        var executor = CreateExecutor(handler);
+        var runner = CreateRunner(handler);
 
         _ = await Assert.ThrowsAsync<RemoteContractMismatchException>(() =>
-            executor.ExecuteAsync(olderRequest, new CollectingSink(), TestSupport.CancellationToken).AsTask());
+            runner.ExecuteAsync(olderRequest, new CollectingSink(), TestSupport.CancellationToken).AsTask());
 
         Assert.Single(handler.CapturedRequests);
     }
@@ -126,10 +126,10 @@ public sealed class RemoteExpertExecutorTests
         handler.EnqueueJson(SnapshotJson(), HttpStatusCode.Accepted);
         handler.EnqueueSse(EventSse(0, "a") + EventSse(1, "b") +
             "data: {\"type\":\"completed\",\"output\":{\"done\":true}}\n\n");
-        var executor = CreateExecutor(handler);
+        var runner = CreateRunner(handler);
         var sink = new CollectingSink();
 
-        var result = await executor.ExecuteAsync(
+        var result = await runner.ExecuteAsync(
             CreateRequest(channelKey: "channel-42"), sink, TestSupport.CancellationToken);
 
         Assert.Equal(3, handler.CapturedRequests.Count);
@@ -160,9 +160,9 @@ public sealed class RemoteExpertExecutorTests
         handler.EnqueueJson(CatalogJson());
         handler.EnqueueJson(SnapshotJson(), HttpStatusCode.Accepted);
         handler.EnqueueSse("data: {\"type\":\"completed\"}\n\n");
-        var executor = CreateExecutor(handler);
+        var runner = CreateRunner(handler);
 
-        _ = await executor.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken);
+        _ = await runner.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken);
 
         var startBodyText = handler.CapturedRequests[1].Body;
         Assert.NotNull(startBodyText);
@@ -183,9 +183,9 @@ public sealed class RemoteExpertExecutorTests
             "\",\"lastEventOrdinal\":1,\"output\":\"{}\",\"createdAt\":\"2026-08-26T10:00:00Z\"}",
             HttpStatusCode.Accepted);
         handler.EnqueueSse("data: {\"type\":\"completed\",\"output\":\"{}\"}\n\n");
-        var executor = CreateExecutor(handler);
+        var runner = CreateRunner(handler);
 
-        var result = await executor.ExecuteAsync(
+        var result = await runner.ExecuteAsync(
             CreateRequest(channelKey: "stable-channel"), new CollectingSink(), TestSupport.CancellationToken);
 
         var startBodyText = handler.CapturedRequests[1].Body;
@@ -204,10 +204,10 @@ public sealed class RemoteExpertExecutorTests
         handler.EnqueueSse(EventSse(0, "a"));
         handler.EnqueueSse(EventSse(0, "a") + EventSse(1, "b") +
             "data: {\"type\":\"completed\"}\n\n");
-        var executor = CreateExecutor(handler);
+        var runner = CreateRunner(handler);
         var sink = new CollectingSink();
 
-        var result = await executor.ExecuteAsync(CreateRequest(), sink, TestSupport.CancellationToken);
+        var result = await runner.ExecuteAsync(CreateRequest(), sink, TestSupport.CancellationToken);
 
         Assert.Equal(4, handler.CapturedRequests.Count);
         Assert.Equal("0", handler.CapturedRequests[3].LastEventId);
@@ -225,10 +225,10 @@ public sealed class RemoteExpertExecutorTests
         handler.EnqueueJson(SnapshotJson(), HttpStatusCode.Accepted);
         handler.EnqueueSse(EventSse(0, "a"));
         handler.EnqueueSse(EventSse(1, "b"));
-        var executor = CreateExecutor(handler, maxReconnects: 1);
+        var runner = CreateRunner(handler, maxReconnects: 1);
 
         var exception = await Assert.ThrowsAsync<RemoteExpertException>(() =>
-            executor.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken).AsTask());
+            runner.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken).AsTask());
 
         Assert.Contains("after 2 connection attempts", exception.Message, StringComparison.Ordinal);
         Assert.NotNull(exception.InnerException);
@@ -242,10 +242,10 @@ public sealed class RemoteExpertExecutorTests
         handler.EnqueueJson(SnapshotJson(), HttpStatusCode.Accepted);
         handler.EnqueueSse(
             "data: {\"type\":\"failed\",\"code\":\"validation\",\"message\":\"schema violation\"}\n\n");
-        var executor = CreateExecutor(handler);
+        var runner = CreateRunner(handler);
 
         var exception = await Assert.ThrowsAsync<RemoteValidationException>(() =>
-            executor.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken).AsTask());
+            runner.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken).AsTask());
 
         Assert.Contains("schema violation", exception.Message, StringComparison.Ordinal);
     }
@@ -257,10 +257,10 @@ public sealed class RemoteExpertExecutorTests
         handler.EnqueueJson(CatalogJson());
         handler.EnqueueJson(SnapshotJson(), HttpStatusCode.Accepted);
         handler.EnqueueSse("data: {\"type\":\"cancelled\"}\n\n");
-        var executor = CreateExecutor(handler);
+        var runner = CreateRunner(handler);
 
         _ = await Assert.ThrowsAsync<RemoteInvocationCancelledException>(() =>
-            executor.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken).AsTask());
+            runner.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken).AsTask());
     }
 
     [Fact]
@@ -274,13 +274,13 @@ public sealed class RemoteExpertExecutorTests
         handler.EnqueueJson(
             "{\"expertInvocationId\":\"" + InvocationId +
             "\",\"status\":\"cancelled\",\"replayed\":false,\"contractId\":\"c\",\"expertPackageId\":\"p\",\"lastEventOrdinal\":0,\"createdAt\":\"2026-08-26T10:00:00Z\"}");
-        var executor = CreateExecutor(handler);
+        var runner = CreateRunner(handler);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestSupport.CancellationToken);
         var sink = new CancellingSink(cts);
 
         var exception = await Assert.ThrowsAsync<RemoteInvocationCancelledException>(() =>
-            executor.ExecuteAsync(CreateRequest(), sink, cts.Token).AsTask());
+            runner.ExecuteAsync(CreateRequest(), sink, cts.Token).AsTask());
         _ = Assert.IsType<OperationCanceledException>(exception, exactMatch: false);
 
         Assert.Equal(4, handler.CapturedRequests.Count);
@@ -303,10 +303,10 @@ public sealed class RemoteExpertExecutorTests
         handler.EnqueueJson(
             "{\"expertInvocationId\":\"" + InvocationId +
             "\",\"status\":\"cancelled\",\"replayed\":false,\"contractId\":\"c\",\"expertPackageId\":\"p\",\"lastEventOrdinal\":0,\"createdAt\":\"2026-08-26T10:00:00Z\"}");
-        var executor = CreateExecutor(handler, timeout: TimeSpan.FromMilliseconds(200));
+        var runner = CreateRunner(handler, timeout: TimeSpan.FromMilliseconds(200));
 
         var exception = await Assert.ThrowsAsync<RemoteInvocationTimeoutException>(() =>
-            executor.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken).AsTask());
+            runner.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken).AsTask());
 
         Assert.Contains("timeout", exception.Message, StringComparison.Ordinal);
         Assert.Equal(4, handler.CapturedRequests.Count);

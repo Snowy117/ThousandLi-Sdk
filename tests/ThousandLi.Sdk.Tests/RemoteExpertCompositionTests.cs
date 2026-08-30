@@ -5,25 +5,25 @@ using ThousandLi.RemoteExperts;
 namespace ThousandLi.Sdk.Tests;
 
 /// <summary>
-/// Phase G composition tests: the DevHost remote executor flags (parse + three-way executor
+/// Phase G composition tests: the DevHost remote mode flags (parse + three-way mode
 /// mutual exclusion), the composition factory, and the Playground remote merge / invoke paths
 /// driven through the queue-based fake platform handler.
 /// </summary>
-public sealed class RemoteExecutorCompositionTests
+public sealed class RemoteExpertCompositionTests
 {
     private const string LongTextWritingContractId = "thousandli.expert/long-text-writing";
     private const string LongTextWritingFingerprint =
-        "573299a67800f57dead23e7fc320857b8725440df2260e9050afb70cfe247488";
+        "8046a8ea2ca4ffbd55776315b126d870e51e335438aed82a9cd44333f8f1df76";
     private const string RemotePackageId = "official-longtextwriting@0.1.0";
     private const string RemoteInvocationId = "0199beef-1234-7556-8777-88889999aaaa";
 
-    private static DevHostOptions BaseOptions(string executor = DevHostOptions.FakeExecutorName) => new()
+    private static DevHostOptions BaseOptions(string mode = DevHostOptions.FakeExecutorName) => new()
     {
         ArtifactDirectory = ".",
         WorkspaceId = "default",
         FrontendUrl = "/game/",
         SessionId = "session",
-        Experts = executor
+        Experts = mode
     };
 
     private static string CatalogJson(string fingerprint = LongTextWritingFingerprint) =>
@@ -44,7 +44,7 @@ public sealed class RemoteExecutorCompositionTests
         "\"}}\n\n";
 
     private static RemoteExpertComposition CreateComposition(FakeRemoteHttpHandler handler) =>
-        ExpertComposition.CreateRemoteExecutor(
+        ExpertComposition.CreateRemoteInvocationRunner(
             BaseOptions(DevHostOptions.RemoteExecutorName) with
             {
                 RemoteEndpoint = "http://platform.test",
@@ -53,14 +53,14 @@ public sealed class RemoteExecutorCompositionTests
             new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan });
 
     private static PlaygroundService CreatePlayground(RemoteExpertComposition remote) => new(
-        ScriptedFakeExpertExecutor.Load(null),
+        ScriptedFakeExpertRunner.Load(null),
         local: null,
         ExpertComposition.BuildContractRegistry([]).Registry,
         new InMemoryExpertRecordingStore(),
         remote: remote);
 
     [Fact]
-    public void ParseAcceptsRemoteExecutorArguments()
+    public void ParseAcceptsRemoteModeArguments()
     {
         var options = DevHostOptions.Parse(
         [
@@ -114,17 +114,17 @@ public sealed class RemoteExecutorCompositionTests
     }
 
     [Fact]
-    public void ValidateExecutorOptionsAcceptsMatchingExecutorFlags()
+    public void ValidateExpertModeOptionsAcceptsMatchingModeFlags()
     {
-        ExpertComposition.ValidateExecutorOptions(BaseOptions());
-        ExpertComposition.ValidateExecutorOptions(BaseOptions(DevHostOptions.LocalExecutorName) with
+        ExpertComposition.ValidateExpertModeOptions(BaseOptions());
+        ExpertComposition.ValidateExpertModeOptions(BaseOptions(DevHostOptions.LocalExecutorName) with
         {
             ExpertArtifactDirectories = ["artifact"],
             ExpertBindings = new Dictionary<string, string> { ["a.b/c"] = "pkg" },
             GatewayEndpoint = "http://gateway",
             GatewayModels = ["model"]
         });
-        ExpertComposition.ValidateExecutorOptions(BaseOptions(DevHostOptions.RemoteExecutorName) with
+        ExpertComposition.ValidateExpertModeOptions(BaseOptions(DevHostOptions.RemoteExecutorName) with
         {
             RemoteEndpoint = "http://platform",
             RemoteBindings = new Dictionary<string, string> { ["a.b/c"] = "pkg" },
@@ -138,11 +138,11 @@ public sealed class RemoteExecutorCompositionTests
     [InlineData(DevHostOptions.RemoteExecutorName, "expert-artifact")]
     [InlineData(DevHostOptions.RemoteExecutorName, "expert-binding")]
     [InlineData(DevHostOptions.FakeExecutorName, "gateway-api-key-env")]
-    public void ValidateExecutorOptionsRejectsLocalOnlyFlagsUnderOtherExecutors(
-        string executor,
+    public void ValidateExpertModeOptionsRejectsLocalOnlyFlagsUnderOtherModes(
+        string mode,
         string expectedFlag)
     {
-        var options = BaseOptions(executor) with
+        var options = BaseOptions(mode) with
         {
             ExpertArtifactDirectories = expectedFlag == "expert-artifact" ? ["artifact"] : [],
             ExpertBindings = expectedFlag == "expert-binding"
@@ -156,7 +156,7 @@ public sealed class RemoteExecutorCompositionTests
         };
 
         var exception = Assert.Throws<ArgumentException>(
-            () => ExpertComposition.ValidateExecutorOptions(options));
+            () => ExpertComposition.ValidateExpertModeOptions(options));
         Assert.Contains($"'--{expectedFlag}'", exception.Message, StringComparison.Ordinal);
         Assert.Contains($"--experts {DevHostOptions.LocalExecutorName}", exception.Message,
             StringComparison.Ordinal);
@@ -165,9 +165,9 @@ public sealed class RemoteExecutorCompositionTests
     [Theory]
     [InlineData(DevHostOptions.FakeExecutorName)]
     [InlineData(DevHostOptions.LocalExecutorName)]
-    public void ValidateExecutorOptionsRejectsRemoteOnlyFlagsUnderOtherExecutors(string executor)
+    public void ValidateExpertModeOptionsRejectsRemoteOnlyFlagsUnderOtherExecutors(string mode)
     {
-        var options = BaseOptions(executor) with
+        var options = BaseOptions(mode) with
         {
             RemoteEndpoint = "http://platform",
             RemoteBindings = new Dictionary<string, string> { ["a.b/c"] = "pkg" },
@@ -175,7 +175,7 @@ public sealed class RemoteExecutorCompositionTests
         };
 
         var exception = Assert.Throws<ArgumentException>(
-            () => ExpertComposition.ValidateExecutorOptions(options));
+            () => ExpertComposition.ValidateExpertModeOptions(options));
         Assert.Contains("'--remote-endpoint'", exception.Message, StringComparison.Ordinal);
         Assert.Contains("'--remote-binding'", exception.Message, StringComparison.Ordinal);
         Assert.Contains("'--remote-token-env'", exception.Message, StringComparison.Ordinal);
@@ -184,17 +184,17 @@ public sealed class RemoteExecutorCompositionTests
     }
 
     [Fact]
-    public void ValidateExecutorOptionsAcceptsTheDefaultRemoteTokenVariableUnderAnyExecutor()
+    public void ValidateExpertModeOptionsAcceptsTheDefaultRemoteTokenVariableUnderAnyMode()
     {
-        ExpertComposition.ValidateExecutorOptions(BaseOptions());
-        ExpertComposition.ValidateExecutorOptions(BaseOptions(DevHostOptions.LocalExecutorName));
+        ExpertComposition.ValidateExpertModeOptions(BaseOptions());
+        ExpertComposition.ValidateExpertModeOptions(BaseOptions(DevHostOptions.LocalExecutorName));
     }
 
     [Fact]
-    public void CreateRemoteExecutorRequiresAnEndpoint()
+    public void CreateRemoteInvocationRunnerRequiresAnEndpoint()
     {
         var exception = Assert.Throws<ArgumentException>(
-            () => ExpertComposition.CreateRemoteExecutor(
+            () => ExpertComposition.CreateRemoteInvocationRunner(
                 BaseOptions(DevHostOptions.RemoteExecutorName),
                 new HttpClient(new FakeRemoteHttpHandler())));
         Assert.Contains("--remote-endpoint", exception.Message, StringComparison.Ordinal);
@@ -210,7 +210,7 @@ public sealed class RemoteExecutorCompositionTests
             var handler = new FakeRemoteHttpHandler();
             handler.EnqueueJson("[]");
             handler.EnqueueJson("[]");
-            var composition = ExpertComposition.CreateRemoteExecutor(
+            var composition = ExpertComposition.CreateRemoteInvocationRunner(
                 BaseOptions(DevHostOptions.RemoteExecutorName) with
                 {
                     RemoteEndpoint = "http://platform.test/base",

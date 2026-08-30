@@ -29,11 +29,11 @@ public sealed class PlaygroundServiceRecordingTests
     private static ExpertContractRegistry Registry() =>
         new([typeof(AbstractLongTextWritingExpert).Assembly]);
 
-    private static ScriptedFakeExpertExecutor MultiEventFake(DirectoryInfo root)
+    private static ScriptedFakeExpertRunner MultiEventFake(DirectoryInfo root)
     {
         var scenarioPath = Path.Combine(root.FullName, "scenarios.json");
         File.WriteAllText(scenarioPath, MultiEventScenario);
-        return ScriptedFakeExpertExecutor.Load(scenarioPath);
+        return ScriptedFakeExpertRunner.Load(scenarioPath);
     }
 
     [Fact]
@@ -248,12 +248,12 @@ public sealed class PlaygroundServiceRecordingTests
                 TestSupport.FindRepositoryRoot(),
                 "tests", "ThousandLi.LocalExpertFixture", "bin", "Debug", "net10.0", "PackageArtifact"));
             var playground = new PlaygroundService(
-                ScriptedFakeExpertExecutor.Load(scenarioPath),
-                new LocalExpertExecutor(
+                ScriptedFakeExpertRunner.Load(scenarioPath),
+                new LocalExpertComposition(
                     Registry(),
                     [package],
                     null,
-                    new LocalExpertExecutorOptions(
+                    new LocalExpertCompositionOptions(
                         new RecordedBasicAi(
                             ["test-model"],
                             [],
