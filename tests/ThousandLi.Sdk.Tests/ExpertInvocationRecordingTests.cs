@@ -21,9 +21,7 @@ public sealed class ExpertInvocationRecordingTests
 
         var roundTripped = ExpertInvocationRecording.FromJson(recording.ToJson());
 
-        Assert.Equal(recording.Contract.Id, roundTripped.Contract.Id);
-        Assert.Equal(recording.Contract.Version, roundTripped.Contract.Version);
-        Assert.Equal(recording.Contract.Fingerprint, roundTripped.Contract.Fingerprint);
+        Assert.Equal(recording.ContractId, roundTripped.ContractId);
         Assert.True(JsonElement.DeepEquals(recording.Input, roundTripped.Input));
         var recordedEvent = Assert.Single(roundTripped.Events);
         Assert.Equal("narrative", recordedEvent.EventType);
@@ -108,7 +106,7 @@ public sealed class ExpertInvocationRecordingTests
 
     [Theory]
     [InlineData("formatMajor")]
-    [InlineData("contract")]
+    [InlineData("contractId")]
     [InlineData("input")]
     [InlineData("terminal")]
     public void FromJsonRejectsDocumentsWithMissingRequiredSections(string missingSection)
@@ -121,19 +119,14 @@ public sealed class ExpertInvocationRecordingTests
     }
 
     [Fact]
-    public void FromJsonRejectsBlankContractIdentityAndMissingContractVersion()
+    public void FromJsonRejectsBlankContractId()
     {
-        var blankId = SetProperty(TestSupport.CreateRecording().ToJson(), "contract", node => node["id"] = " ");
-        var missingMajor = SetProperty(
+        var blankId = Mutate(
             TestSupport.CreateRecording().ToJson(),
-            "contract",
-            node => ((JsonObject)node["version"]!).Remove("major"));
+            node => node["contractId"] = " ");
 
         var blankException = Assert.Throws<ExpertRecordingException>(() => ExpertInvocationRecording.FromJson(blankId));
-        Assert.Contains("contract.id", blankException.Message, StringComparison.Ordinal);
-
-        var versionException = Assert.Throws<ExpertRecordingException>(() => ExpertInvocationRecording.FromJson(missingMajor));
-        Assert.Contains("contract.version.major", versionException.Message, StringComparison.Ordinal);
+        Assert.Contains("contractId", blankException.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -197,21 +190,21 @@ public sealed class ExpertInvocationRecordingTests
         Assert.Throws<ArgumentNullException>(
             () => new ExpertInvocationRecording(null!, TestSupport.Json("{}"), events, terminal));
         Assert.Throws<ArgumentException>(
-            () => new ExpertInvocationRecording(TestSupport.Contract, default, events, terminal));
+            () => new ExpertInvocationRecording(TestSupport.ContractId, default, events, terminal));
         Assert.Throws<ArgumentNullException>(
-            () => new ExpertInvocationRecording(TestSupport.Contract, TestSupport.Json("{}"), null!, terminal));
+            () => new ExpertInvocationRecording(TestSupport.ContractId, TestSupport.Json("{}"), null!, terminal));
         Assert.Throws<ArgumentException>(
             () => new ExpertInvocationRecording(
-                TestSupport.Contract, TestSupport.Json("{}"),
+                TestSupport.ContractId, TestSupport.Json("{}"),
                 [events[0], null!], terminal));
         Assert.Throws<ArgumentNullException>(
-            () => new ExpertInvocationRecording(TestSupport.Contract, TestSupport.Json("{}"), events, null!));
+            () => new ExpertInvocationRecording(TestSupport.ContractId, TestSupport.Json("{}"), events, null!));
         Assert.Throws<ArgumentOutOfRangeException>(
             () => new ExpertInvocationRecording(
-                TestSupport.Contract, TestSupport.Json("{}"), events, terminal, durationMs: -1));
+                TestSupport.ContractId, TestSupport.Json("{}"), events, terminal, durationMs: -1));
         Assert.Throws<ArgumentException>(
             () => new ExpertInvocationRecording(
-                TestSupport.Contract, TestSupport.Json("{}"), events, terminal, formatMajor: 0));
+                TestSupport.ContractId, TestSupport.Json("{}"), events, terminal, formatMajor: 0));
     }
 
     [Fact]
@@ -222,7 +215,7 @@ public sealed class ExpertInvocationRecordingTests
         var events = new[] { new ExpertSemanticEvent("narrative", payloadDocument.RootElement) };
 
         var recording = new ExpertInvocationRecording(
-            TestSupport.Contract,
+            TestSupport.ContractId,
             inputDocument.RootElement,
             events,
             new ExpertRecordingTerminal(ExpertRecordingTerminal.Committed, payloadDocument.RootElement));

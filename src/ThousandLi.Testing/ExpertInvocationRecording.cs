@@ -64,8 +64,8 @@ public sealed record ExpertRecordingTerminal
 }
 
 /// <summary>
-/// One semantic expert invocation recording: the contract descriptor, the structured input, the
-/// ordered semantic event stream, the terminal result, and deterministic correlation metadata.
+/// One semantic expert invocation recording: the contract id, the structured input, the ordered
+/// semantic event stream, the terminal result, and deterministic correlation metadata.
 ///
 /// Recordings live at the expert invocation seam (contract-level expert behavior). They are
 /// deliberately separate from <c>RecordedBasicAi</c> (ThousandLi.ExpertAuthoring), which replays
@@ -76,11 +76,12 @@ public sealed record ExpertRecordingTerminal
 ///
 /// The JSON format is SDK-internal development data, not a public archive contract: the format
 /// major is versioned, and loading an incompatible file fails with explicit reset guidance
-/// instead of degrading silently.
+/// instead of degrading silently. Recordings written by the pre-contract-id format (embedded
+/// version/fingerprint descriptors) are rejected as a different SDK generation.
 /// </summary>
 public sealed record ExpertInvocationRecording
 {
-    public const int CurrentFormatMajor = 1;
+    public const int CurrentFormatMajor = 2;
 
     private static readonly JsonSerializerOptions SJsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -88,7 +89,7 @@ public sealed record ExpertInvocationRecording
     };
 
     public ExpertInvocationRecording(
-        ExpertContractDescriptor contract,
+        string contractId,
         JsonElement input,
         IReadOnlyList<ExpertSemanticEvent> events,
         ExpertRecordingTerminal terminal,
@@ -101,7 +102,7 @@ public sealed record ExpertInvocationRecording
         long durationMs = 0,
         int formatMajor = CurrentFormatMajor)
     {
-        Contract = contract ?? throw new ArgumentNullException(nameof(contract));
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
         JsonContractGuardForTesting.ThrowIfUndefined(input, nameof(input));
         ArgumentNullException.ThrowIfNull(events);
         for (var index = 0; index < events.Count; index++)
@@ -118,6 +119,7 @@ public sealed record ExpertInvocationRecording
         if (durationMs < 0)
             throw new ArgumentOutOfRangeException(nameof(durationMs), durationMs, "Duration cannot be negative.");
 
+        ContractId = contractId;
         Input = input.Clone();
         Events = new ReadOnlyCollection<ExpertSemanticEvent>([.. events]);
         ScenarioId = scenarioId;
@@ -130,7 +132,7 @@ public sealed record ExpertInvocationRecording
         FormatMajor = formatMajor;
     }
 
-    public ExpertContractDescriptor Contract { get; }
+    public string ContractId { get; }
 
     public JsonElement Input { get; }
 
@@ -146,7 +148,7 @@ public sealed record ExpertInvocationRecording
 
     public string? InvocationId { get; }
 
-    /// <summary>The executor that produced the recording ('fake' or 'local').</summary>
+    /// <summary>The executor that produced the recording ('fake', 'local', or 'remote').</summary>
     public string? Executor { get; }
 
     public string? ExpertPackageId { get; }
@@ -187,21 +189,10 @@ public sealed record ExpertInvocationRecording
             throw new ExpertRecordingException(
                 $"The recording uses format major {formatMajor}, but this SDK supports {CurrentFormatMajor}. "
                 + "The recording was written by a different SDK generation; delete it and record a new one.");
-        if (document.Contract is null)
-            throw new ExpertRecordingException("The recording document is missing 'contract'.");
         if (document.Input is not { } input || input.ValueKind == JsonValueKind.Undefined)
             throw new ExpertRecordingException("The recording document is missing 'input'.");
         if (document.Terminal is null)
             throw new ExpertRecordingException("The recording document is missing 'terminal'.");
-
-        var contract = new ExpertContractDescriptor(
-            RequireString(document.Contract.Id, "contract.id"),
-            new ContractVersion(
-                document.Contract.Version?.Major
-                    ?? throw new ExpertRecordingException("The recording document is missing 'contract.version.major'."),
-                document.Contract.Version?.Minor
-                    ?? throw new ExpertRecordingException("The recording document is missing 'contract.version.minor'.")),
-            RequireString(document.Contract.Fingerprint, "contract.fingerprint"));
 
         var events = new List<ExpertSemanticEvent>();
         foreach (var semanticEvent in document.Events ?? [])
@@ -221,7 +212,7 @@ public sealed record ExpertInvocationRecording
                 document.Terminal.Output,
                 document.Terminal.Error);
             return new ExpertInvocationRecording(
-                contract,
+                RequireString(document.ContractId, "contractId"),
                 input,
                 events,
                 terminal,
@@ -251,7 +242,7 @@ public sealed record ExpertInvocationRecording
     {
         public int? FormatMajor { get; init; }
 
-        public ContractDocument? Contract { get; init; }
+        public string? ContractId { get; init; }
 
         public JsonElement? Input { get; init; }
 
@@ -272,26 +263,6 @@ public sealed record ExpertInvocationRecording
         public DateTimeOffset? RecordedAtUtc { get; init; }
 
         public long? DurationMs { get; init; }
-    }
-
-    // Deserialized through System.Text.Json reflection; members are set by the serializer.
-    [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
-    private sealed class ContractDocument
-    {
-        public string? Id { get; init; }
-
-        public VersionDocument? Version { get; init; }
-
-        public string? Fingerprint { get; init; }
-    }
-
-    // Deserialized through System.Text.Json reflection; members are set by the serializer.
-    [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
-    private sealed class VersionDocument
-    {
-        public int? Major { get; init; }
-
-        public int? Minor { get; init; }
     }
 
     // Deserialized through System.Text.Json reflection; members are set by the serializer.

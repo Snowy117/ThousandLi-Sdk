@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text.Json;
-using ThousandLi.Contracts;
 using ThousandLi.RemoteExperts;
 
 namespace ThousandLi.Sdk.Tests;
@@ -23,16 +22,12 @@ public sealed class RemoteExpertClientTests
                 "contractId": "official/long-text-writing",
                 "name": "Long Text Writing",
                 "description": "Narrates stories",
-                "version": { "major": 1, "minor": 2 },
-                "fingerprint": "abc123",
                 "inputSchema": { "type": "object" }
               },
               {
                 "contractId": "other/second",
                 "name": "Other",
-                "description": "",
-                "version": { "major": 2, "minor": 0 },
-                "fingerprint": "def456"
+                "description": ""
               }
             ]
             """);
@@ -46,8 +41,6 @@ public sealed class RemoteExpertClientTests
         Assert.Equal($"Bearer {Token}", request.Authorization);
         Assert.Equal(2, contracts.Count);
         Assert.Equal("official/long-text-writing", contracts[0].ContractId);
-        Assert.Equal(new ContractVersion(1, 2), contracts[0].Version);
-        Assert.Equal("abc123", contracts[0].Fingerprint);
         Assert.NotNull(contracts[0].InputSchema);
         Assert.Null(contracts[1].InputSchema);
     }
@@ -101,7 +94,7 @@ public sealed class RemoteExpertClientTests
 
         var snapshot = await client.StartInvocationAsync(
             new RemoteInvocationStartRequest(
-                new ExpertContractDescriptor("official/long-text-writing", new ContractVersion(1, 2), "abc123"),
+                "official/long-text-writing",
                 "official/long-text-writing-pro@1",
                 TestSupport.Json("""{"prompt":"hi"}"""),
                 idempotencyKey: "channel-key-1",
@@ -116,9 +109,6 @@ public sealed class RemoteExpertClientTests
         using var body = JsonDocument.Parse(request.Body!);
         var root = body.RootElement;
         Assert.Equal("official/long-text-writing", root.GetProperty("contractId").GetString());
-        Assert.Equal(1, root.GetProperty("version").GetProperty("major").GetInt32());
-        Assert.Equal(2, root.GetProperty("version").GetProperty("minor").GetInt32());
-        Assert.Equal("abc123", root.GetProperty("fingerprint").GetString());
         Assert.Equal("official/long-text-writing-pro@1", root.GetProperty("expertPackageId").GetString());
         Assert.Equal("hi", root.GetProperty("input").GetProperty("prompt").GetString());
         Assert.Equal("channel-key-1", root.GetProperty("idempotencyKey").GetString());
@@ -157,7 +147,7 @@ public sealed class RemoteExpertClientTests
 
         var snapshot = await client.StartInvocationAsync(
             new RemoteInvocationStartRequest(
-                new ExpertContractDescriptor("official/long-text-writing", new ContractVersion(1, 2), "abc123"),
+                "official/long-text-writing",
                 "official/long-text-writing-pro@1",
                 TestSupport.Json("{}")),
             TestSupport.CancellationToken);

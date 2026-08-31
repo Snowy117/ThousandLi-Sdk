@@ -32,8 +32,7 @@ public sealed class RemoteExpertFacadeTests
         var handler = new FakeRemoteHttpHandler();
         handler.EnqueueJson(
             "[{\"contractId\":\"thousandli.expert/long-text-writing\",\"name\":\"LongTextWriting\"," +
-            "\"description\":\"\",\"version\":{\"major\":1,\"minor\":0},\"fingerprint\":\"" +
-            AbstractLongTextWritingExpert.Descriptor.Fingerprint + "\"}]");
+            "\"description\":\"\"}]");
         handler.EnqueueJson(
             "{\"expertInvocationId\":\"inv-1\",\"status\":\"running\",\"replayed\":false," +
             "\"contractId\":\"thousandli.expert/long-text-writing\",\"expertPackageId\":\"pkg\"," +

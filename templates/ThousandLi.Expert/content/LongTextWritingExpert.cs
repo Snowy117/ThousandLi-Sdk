@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json;
 using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
 
@@ -9,31 +8,11 @@ namespace ThousandLi.TemplateName;
 /// Concrete long-text-writing expert bound to the official
 /// <c>thousandli.expert/long-text-writing</c> category contract through
 /// <see cref="AbstractLongTextWritingExpert" />. It streams the model's narrative JSON string
-/// chunks from the locally configured gateway model to the configured text primary output and
-/// (on protocol invocations) as <c>chunk</c> semantic events, returning the accumulated narration.
+/// chunks from the locally configured gateway model to the configured text primary output.
 /// </summary>
-public sealed class LongTextWritingExpert : AbstractLongTextWritingExpert, IInvocableExpert
+public sealed class LongTextWritingExpert : AbstractLongTextWritingExpert
 {
-    private IExpertSemanticEventSink? _events;
     private readonly StringBuilder _text = new();
-
-    /// <summary>
-    /// Protocol-facing entry (Playground / recording): projects the category input JSON onto the
-    /// fluent configuration, executes one streaming pass, and returns the accumulated narration.
-    /// </summary>
-    public async Task<JsonElement> InvokeAsync(
-        JsonElement input,
-        IExpertSemanticEventSink events,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(events);
-        _events = events;
-        _text.Clear();
-        WithWorldSettings(RequiredInputString(input, "worldSettings"));
-        WithPlayerInput(RequiredInputString(input, "playerInput"));
-        await StreamAsync(cancellationToken).ConfigureAwait(false);
-        return JsonSerializer.SerializeToElement(new { narrative = _text.ToString() });
-    }
 
     /// <inheritdoc />
     protected override Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken) =>
@@ -46,6 +25,7 @@ public sealed class LongTextWritingExpert : AbstractLongTextWritingExpert, IInvo
     private async Task<ExpertCompletionResult> StreamOnceAsync(CancellationToken cancellationToken)
     {
         ValidateCategoryInputs();
+        _text.Clear();
         var request = new BasicAiRequest(
             RuntimeContext.BasicAi.AvailableModels[0].ModelId,
             [BasicAiMessage.User(
@@ -67,29 +47,10 @@ public sealed class LongTextWritingExpert : AbstractLongTextWritingExpert, IInvo
                 await textOutput.OnDelta(new TextDeltaEvent(chunk.Value), cancellationToken)
                     .ConfigureAwait(false);
             }
-
-            if (_events is not null)
-            {
-                await _events.WriteAsync(
-                    new ExpertSemanticEvent("chunk", JsonSerializer.SerializeToElement(new { text = chunk.Value })),
-                    cancellationToken).ConfigureAwait(false);
-            }
         }
 
         if (ConfiguredPrimaryOutput is TextPrimaryOutput { OnCompleted: { } onCompleted } completedOutput)
             await onCompleted(new TextCompletedEvent(_text.ToString()), cancellationToken).ConfigureAwait(false);
         return new ExpertCompletionResult();
     }
-
-    /// <summary>
-    /// Binds one contract-required input property with an actionable diagnostic instead of a bare
-    /// <see cref="KeyNotFoundException" /> when the invocation input is incomplete.
-    /// </summary>
-    private static string RequiredInputString(JsonElement input, string name) =>
-        input.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String &&
-        value.GetString() is { Length: > 0 } text
-            ? text
-            : throw new ArgumentException(
-                $"The invocation input is missing the required property '{name}' for contract " +
-                $"'{Descriptor.Id}'. Required input shape: worldSettings:string, playerInput:string.");
 }

@@ -1,9 +1,6 @@
 [
   {
-    "contract": {
-      "id": "thousandli.expert/long-text-writing",
-      "version": { "major": 1, "minor": 0 }
-    },
+    "contract": "thousandli.expert/long-text-writing",
     "scenarioId": "advance",
     "events": [
       { "eventType": "chunk", "payload": { "text": "A new path opens." } }
@@ -12,10 +9,7 @@
     "output": { "narrative": "A new path opens." }
   },
   {
-    "contract": {
-      "id": "thousandli.expert/long-text-writing",
-      "version": { "major": 1, "minor": 0 }
-    },
+    "contract": "thousandli.expert/long-text-writing",
     "scenarioId": "reflect",
     "result": { "text": "You pause and consider how far you have come." },
     "output": {

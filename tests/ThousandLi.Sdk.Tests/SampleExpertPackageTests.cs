@@ -6,9 +6,8 @@ using ThousandLi.ExpertAuthoring;
 namespace ThousandLi.Sdk.Tests;
 
 /// <summary>
-/// Regression tests for the Phase 6 sample migration: the sample game declares the official
-/// <c>thousandli.expert/long-text-writing</c> contract from ThousandLi.Contracts (never a private
-/// copy), and the sample expert package binds that same contract through the local composition.
+/// Regression tests for the sample migration: the sample game and the sample expert package bind
+/// the official <c>thousandli.expert/long-text-writing</c> contract through the local composition.
 /// </summary>
 public sealed class SampleExpertPackageTests
 {
@@ -23,14 +22,13 @@ public sealed class SampleExpertPackageTests
             "samples", "ThousandLi.SampleExpert", "bin", "Debug", "net10.0", "PackageArtifact");
 
     [Fact]
-    public void SampleGameManifestRequiresTheOfficialLongTextWritingContract()
+    public void SampleGameManifestCarriesRuntimeAndFrontendCompatibility()
     {
         var manifest = GamePackageManifest.Load(SampleGameArtifact);
 
-        var required = Assert.Single(manifest.Compatibility.ExpertContracts);
-        Assert.Equal(AbstractLongTextWritingExpert.Descriptor.Id, required.Id);
-        Assert.Equal(AbstractLongTextWritingExpert.Descriptor.Version, required.Version);
-        Assert.Equal(AbstractLongTextWritingExpert.Descriptor.Fingerprint, required.Fingerprint);
+        Assert.Equal("thousandli_sample-game@0.1.0", manifest.PackageId);
+        Assert.Equal(new PackageVersion(1, 0), manifest.Compatibility.Runtime);
+        Assert.Equal(new PackageVersion(1, 0), manifest.Compatibility.Frontend);
     }
 
     [Fact]
@@ -39,10 +37,8 @@ public sealed class SampleExpertPackageTests
         using var package = ExpertPackageLoader.Load(SampleExpertArtifact);
 
         Assert.Equal("thousandli_sample-expert@0.1.0", package.Manifest.PackageId);
-        Assert.Equal(AbstractLongTextWritingExpert.Descriptor.Id, package.Contract.Id);
-        Assert.Equal(AbstractLongTextWritingExpert.Descriptor.Version, package.Contract.Version);
-        Assert.Equal(AbstractLongTextWritingExpert.Descriptor.Fingerprint, package.Contract.Fingerprint);
-        Assert.Same(typeof(AbstractLongTextWritingExpert).Assembly, package.AbstractExpertType.Assembly);
+        Assert.Equal(AbstractLongTextWritingExpert.ContractId, package.Shape.ContractId);
+        Assert.Same(typeof(AbstractLongTextWritingExpert).Assembly, package.Shape.AbstractExpertType.Assembly);
         Assert.Equal(
             "ThousandLi.SampleExpert.SampleLongTextWritingExpert",
             package.ExpertFactory().GetType().FullName);
@@ -56,7 +52,6 @@ public sealed class SampleExpertPackageTests
         Assert.True(File.Exists(Path.Combine(bin, "ThousandLi.SampleExpert.dll")));
         Assert.False(File.Exists(Path.Combine(bin, "ThousandLi.Contracts.dll")));
         Assert.False(File.Exists(Path.Combine(bin, "ThousandLi.ExpertAuthoring.dll")));
-        Assert.False(File.Exists(Path.Combine(bin, "ThousandLi.ExpertAuthoring.dll")));
         Assert.False(File.Exists(Path.Combine(bin, "Microsoft.Extensions.Logging.Abstractions.dll")));
     }
 
@@ -65,7 +60,6 @@ public sealed class SampleExpertPackageTests
     {
         using var package = ExpertPackageLoader.Load(SampleExpertArtifact);
         var composition = new LocalExpertComposition(
-            new ExpertContractRegistry([typeof(AbstractLongTextWritingExpert).Assembly]),
             [package],
             null,
             new LocalExpertCompositionOptions(
@@ -84,7 +78,7 @@ public sealed class SampleExpertPackageTests
 
         var result = await composition.ExecuteAsync(
             new ExpertInvocationRequest(
-                AbstractLongTextWritingExpert.Descriptor,
+                AbstractLongTextWritingExpert.ContractId,
                 "advance",
                 TestSupport.Json("""{"worldSettings":"A quiet valley.","playerInput":"advance"}""")),
             sink,
@@ -94,7 +88,7 @@ public sealed class SampleExpertPackageTests
             [("chunk", """{"text":"The road "}"""), ("chunk", """{"text":"narrows."}""")],
             sink.Events.Select(semanticEvent =>
                 (semanticEvent.EventType, JsonSerializer.Serialize(semanticEvent.Payload))));
-        Assert.Equal("The road narrows.", result.Output.GetProperty("narrative").GetString());
+        Assert.Equal("The road narrows.", result.Output.GetProperty("primary").GetString());
     }
 
     [Fact]
@@ -102,7 +96,6 @@ public sealed class SampleExpertPackageTests
     {
         using var package = ExpertPackageLoader.Load(SampleExpertArtifact);
         var composition = new LocalExpertComposition(
-            new ExpertContractRegistry([typeof(AbstractLongTextWritingExpert).Assembly]),
             [package],
             null,
             new LocalExpertCompositionOptions(
@@ -113,15 +106,13 @@ public sealed class SampleExpertPackageTests
         var exception = await Assert.ThrowsAsync<ArgumentException>(
             async () => await composition.ExecuteAsync(
                 new ExpertInvocationRequest(
-                    AbstractLongTextWritingExpert.Descriptor,
+                    AbstractLongTextWritingExpert.ContractId,
                     "advance",
                     TestSupport.Json("""{"worldSettings":"A quiet valley"}""")),
                 sink,
                 TestSupport.CancellationToken));
 
-        Assert.Contains("'playerInput'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains(AbstractLongTextWritingExpert.Descriptor.Id, exception.Message, StringComparison.Ordinal);
-        Assert.Contains("worldSettings:string, playerInput:string", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("playerInput", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -129,7 +120,6 @@ public sealed class SampleExpertPackageTests
     {
         using var expertPackage = ExpertPackageLoader.Load(SampleExpertArtifact);
         var composition = new LocalExpertComposition(
-            new ExpertContractRegistry([typeof(AbstractLongTextWritingExpert).Assembly]),
             [expertPackage],
             null,
             new LocalExpertCompositionOptions(
@@ -144,8 +134,7 @@ public sealed class SampleExpertPackageTests
                             new BasicAiJsonStreamEvent(JsonStreamEvent.StringChunk("/narrative", "narrows."))
                         ])]),
                 new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "Curious explorer")));
-        using var gamePackage = GamePackageLoader.Load(
-            SampleGameArtifact, [AbstractLongTextWritingExpert.Descriptor]);
+        using var gamePackage = GamePackageLoader.Load(SampleGameArtifact);
         var runtime = await LocalGameRuntime.CreateAsync(
             gamePackage.Manifest.PackageId,
             gamePackage.Backend,

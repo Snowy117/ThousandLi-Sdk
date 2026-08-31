@@ -18,12 +18,10 @@
     <ProjectReference Include="../../src/ThousandLi.RemoteExperts/ThousandLi.RemoteExperts.csproj" />
     <ProjectReference Include="../../src/ThousandLi.Testing/ThousandLi.Testing.csproj" />
     <ProjectReference Include="../../samples/ThousandLi.SampleGame/ThousandLi.SampleGame.csproj" />
-    <ProjectReference Include="../ThousandLi.BrokenContractFixtures/ThousandLi.BrokenContractFixtures.csproj" />
     <ProjectReference Include="../ThousandLi.LocalExpertBadAnchorFixture/ThousandLi.LocalExpertBadAnchorFixture.csproj" />
     <ProjectReference Include="../ThousandLi.LocalExpertFixture/ThousandLi.LocalExpertFixture.csproj" />
     <ProjectReference Include="../ThousandLi.LocalExpertMultiEntryFixture/ThousandLi.LocalExpertMultiEntryFixture.csproj" />
     <ProjectReference Include="../ThousandLi.LocalExpertNoContractFixture/ThousandLi.LocalExpertNoContractFixture.csproj" />
-    <ProjectReference Include="../ThousandLi.LocalExpertNonInvocableFixture/ThousandLi.LocalExpertNonInvocableFixture.csproj" />
     <ProjectReference Include="../ThousandLi.LocalExpertWrongShapeFixture/ThousandLi.LocalExpertWrongShapeFixture.csproj" />
     <ProjectReference Include="../ThousandLi.UnregisteredContractFixture/ThousandLi.UnregisteredContractFixture.csproj" />
     <ProjectReference Include="../ThousandLi.UserConfigurableSettingsFixture/ThousandLi.UserConfigurableSettingsFixture.csproj" />

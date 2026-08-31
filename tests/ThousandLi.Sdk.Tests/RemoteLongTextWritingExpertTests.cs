@@ -15,39 +15,31 @@ namespace ThousandLi.Sdk.Tests;
 public sealed class RemoteLongTextWritingExpertTests
 {
     private const string ContractId = "tests/long-text";
-    private const string Fingerprint = "tests-fingerprint-v1";
     private const string PackageId = "tests/remote-expert@1";
     private const string InvocationId = "0199feed-aaaa-7bbb-8ccc-ddddddddeeee";
-
-    private static ExpertContractDescriptor Descriptor => new(ContractId, new ContractVersion(1, 0), Fingerprint);
 
     private static RemoteInvocationRunnerOptions Options() => new(
         new Dictionary<string, string> { [ContractId] = PackageId });
 
     private static RemoteInvocationRunnerOptions OfficialOptions() => new(
-        new Dictionary<string, string> { [AbstractLongTextWritingExpert.Descriptor.Id] = PackageId });
+        new Dictionary<string, string> { [AbstractLongTextWritingExpert.ContractId] = PackageId });
 
-    private static string OfficialCatalogJson()
-    {
-        var descriptor = AbstractLongTextWritingExpert.Descriptor;
-        return "[{\"contractId\":\"" + descriptor.Id + "\",\"name\":\"LongTextWriting\",\"description\":\"\"," +
-            "\"version\":{\"major\":" + descriptor.Version.Major + ",\"minor\":" + descriptor.Version.Minor +
-            "},\"fingerprint\":\"" + descriptor.Fingerprint + "\"}]";
-    }
+    private static string OfficialCatalogJson() =>
+        "[{\"contractId\":\"" + AbstractLongTextWritingExpert.ContractId +
+        "\",\"name\":\"LongTextWriting\",\"description\":\"\"}]";
 
     private static RemoteLongTextWritingExpert CreateExpert(FakeRemoteHttpHandler handler)
     {
         var expert = new RemoteLongTextWritingExpert(
             new RemoteExpertClient(new HttpClient(handler), new RemoteExpertClientOptions("http://platform.test")),
             Options(),
-            Descriptor);
+            ContractId);
         expert.Bind(new RemoteExpertExecutionContext());
         return expert;
     }
 
     private static string CatalogJson() =>
-        "[{\"contractId\":\"" + ContractId + "\",\"name\":\"LongTextWriting\",\"description\":\"\"," +
-        "\"version\":{\"major\":1,\"minor\":0},\"fingerprint\":\"" + Fingerprint + "\"}]";
+        "[{\"contractId\":\"" + ContractId + "\",\"name\":\"LongTextWriting\",\"description\":\"\"}]";
 
     private static string SnapshotJson() =>
         "{\"expertInvocationId\":\"" + InvocationId + "\",\"status\":\"running\",\"replayed\":false,\"contractId\":\"" +

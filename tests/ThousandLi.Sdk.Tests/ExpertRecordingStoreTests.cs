@@ -23,9 +23,7 @@ public sealed class ExpertRecordingStoreTests
         Assert.Equal(2, summaries.Count);
         Assert.Equal(firstId, summaries[0].RecordingId);
         Assert.Equal(secondId, summaries[1].RecordingId);
-        Assert.Equal(first.Contract.Id, summaries[0].ContractId);
-        Assert.Equal("1.0", summaries[0].ContractVersion);
-        Assert.Equal(first.Contract.Fingerprint, summaries[0].Fingerprint);
+        Assert.Equal(first.ContractId, summaries[0].ContractId);
         Assert.Equal("fake", summaries[0].Executor);
         Assert.Equal("advance", summaries[0].ScenarioId);
         Assert.Equal("channel-a", summaries[0].ChannelKey);
@@ -66,7 +64,7 @@ public sealed class ExpertRecordingStoreTests
 
             var loaded = await store.LoadAsync(recordingId, TestSupport.CancellationToken);
             Assert.NotNull(loaded);
-            Assert.Equal(recording.Contract.Id, loaded.Contract.Id);
+            Assert.Equal(recording.ContractId, loaded.ContractId);
             Assert.Equal(recording.ChannelKey, loaded.ChannelKey);
             Assert.Equal(recording.InvocationId, loaded.InvocationId);
             Assert.Equal("local", loaded.Executor);

@@ -4,15 +4,12 @@ using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
 using System.Text.Json;
-using ThousandLi.BrokenContractFixtures;
 using ThousandLi.Contracts;
 using ThousandLi.DevHost;
 using ThousandLi.ExpertAuthoring;
 using ThousandLi.LocalExpertBadAnchorFixture;
 using ThousandLi.LocalExpertNoContractFixture;
-using ThousandLi.LocalExpertNonInvocableFixture;
 using ThousandLi.GameAuthoring;
-using ThousandLi.UnregisteredContractFixture;
 
 namespace ThousandLi.Sdk.Tests;
 
@@ -34,9 +31,6 @@ public sealed class LocalExpertCompositionTests
     private static string UnregisteredContractArtifact =>
         Path.Combine(RepositoryRoot, "tests", "ThousandLi.UnregisteredContractFixture", "bin", "Debug", "net10.0",
             "PackageArtifact");
-
-    private static ExpertContractRegistry OfficialRegistry() =>
-        new([typeof(AbstractLongTextWritingExpert).Assembly]);
 
     private static LocalExpertCompositionOptions OptionsWith(RecordedBasicAi basicAi) => new(
         basicAi,
@@ -61,15 +55,37 @@ public sealed class LocalExpertCompositionTests
 
     private static JsonElement Input() => TestSupport.Json("""{"worldSettings":"A quiet valley.","playerInput":"advance"}""");
 
+    private static ExpertInvocationRequest Request(string? channelKey = null) => new(
+        AbstractLongTextWritingExpert.ContractId,
+        scenarioId: null,
+        input: Input(),
+        channelKey: channelKey);
+
+    private static PlaygroundService CreatePlayground(
+        ScriptedFakeExpertRunner? fake,
+        LocalExpertComposition? local,
+        InMemoryExpertRecordingStore store)
+    {
+        var runners = new Dictionary<string, IExpertRunner>(StringComparer.Ordinal);
+        if (fake is not null)
+            runners[DevHostOptions.FakeExecutorName] = fake;
+        if (local is not null)
+            runners[DevHostOptions.LocalExecutorName] = local;
+        return new PlaygroundService(
+            fake ?? ScriptedFakeExpertRunner.Load(null),
+            local,
+            runners,
+            store);
+    }
+
     [Fact]
     public void LoadReadsManifestAndDeclaresRegisteredContract()
     {
         using var package = ExpertPackageLoader.Load(ValidArtifact);
 
         Assert.Equal("thousandli_local-expert-fixture@0.1.0", package.Manifest.PackageId);
-        Assert.Equal("thousandli.expert/long-text-writing", package.Contract.Id);
-        Assert.Equal(AbstractLongTextWritingExpert.Descriptor.Fingerprint, package.Contract.Fingerprint);
-        Assert.True(typeof(AbstractLongTextWritingExpert).IsAssignableFrom(package.AbstractExpertType));
+        Assert.Equal("thousandli.expert/long-text-writing", package.Shape.ContractId);
+        Assert.True(typeof(AbstractLongTextWritingExpert).IsAssignableFrom(package.Shape.AbstractExpertType));
         // The package assembly is loaded inside its own ALC, so the concrete type shares the
         // contract base (resolved from the shared Contracts assembly) but is a distinct
         // runtime identity from any compile-time reference; assert by full name.
@@ -81,7 +97,7 @@ public sealed class LocalExpertCompositionTests
     {
         using var package = ExpertPackageLoader.Load(ValidArtifact);
 
-        Assert.Same(typeof(AbstractLongTextWritingExpert).Assembly, package.AbstractExpertType.Assembly);
+        Assert.Same(typeof(AbstractLongTextWritingExpert).Assembly, package.Shape.AbstractExpertType.Assembly);
     }
 
     [Fact]
@@ -89,17 +105,15 @@ public sealed class LocalExpertCompositionTests
     {
         using var package = ExpertPackageLoader.Load(ValidArtifact);
         var composition = new LocalExpertComposition(
-            OfficialRegistry(), [package], null, OptionsWith(RecordedGateway("Hello ", "world")));
+            [package], null, OptionsWith(RecordedGateway("Hello ", "world")));
         var sink = new RecordingSemanticSink();
 
         var result = await composition.ExecuteAsync(
-            new ExpertInvocationRequest(AbstractLongTextWritingExpert.Descriptor, "advance", Input()),
-            sink,
-            TestSupport.CancellationToken);
+            Request(), sink, TestSupport.CancellationToken);
 
         Assert.StartsWith("local-", result.InvocationId, StringComparison.Ordinal);
-        Assert.Equal("Hello world", result.Output.GetProperty("text").GetString());
-        Assert.Equal("hi", result.Output.GetProperty("greeting").GetString());
+        Assert.Equal("Hello world", result.Output.GetProperty("primary").GetString());
+        Assert.Equal("hi", result.Output.GetProperty("metadata").GetProperty("greeting").GetString());
         Assert.Equal(2, sink.Events.Count);
         Assert.All(sink.Events, semanticEvent => Assert.Equal("chunk", semanticEvent.EventType));
         Assert.Equal("Hello ", sink.Events[0].Payload.GetProperty("text").GetString());
@@ -111,18 +125,16 @@ public sealed class LocalExpertCompositionTests
     {
         using var package = ExpertPackageLoader.Load(ValidArtifact);
         var composition = new LocalExpertComposition(
-            OfficialRegistry(), [package], null, OptionsWith(RecordedGatewayTurns("a", "b")));
+            [package], null, OptionsWith(RecordedGatewayTurns("a", "b")));
 
         var first = await composition.ExecuteAsync(
-            new ExpertInvocationRequest(AbstractLongTextWritingExpert.Descriptor, null, Input(), "channel-1"),
-            new RecordingSemanticSink(), TestSupport.CancellationToken);
+            Request("channel-1"), new RecordingSemanticSink(), TestSupport.CancellationToken);
         var second = await composition.ExecuteAsync(
-            new ExpertInvocationRequest(AbstractLongTextWritingExpert.Descriptor, null, Input(), "channel-2"),
-            new RecordingSemanticSink(), TestSupport.CancellationToken);
+            Request("channel-2"), new RecordingSemanticSink(), TestSupport.CancellationToken);
 
         Assert.NotEqual(
-            first.Output.GetProperty("instanceId").GetString(),
-            second.Output.GetProperty("instanceId").GetString());
+            first.Output.GetProperty("metadata").GetProperty("instanceId").GetString(),
+            second.Output.GetProperty("metadata").GetProperty("instanceId").GetString());
     }
 
     [Fact]
@@ -131,7 +143,7 @@ public sealed class LocalExpertCompositionTests
         using var package = ExpertPackageLoader.Load(ValidArtifact);
         var gateway = RecordedGateway("Hello world");
         var localComposition = new LocalExpertComposition(
-            OfficialRegistry(), [package], null, OptionsWith(gateway));
+            [package], null, OptionsWith(gateway));
         var backend = new DelegateBackend(handleAction: async (_, context, _) =>
         {
             var narrative = new StringBuilder();
@@ -171,7 +183,7 @@ public sealed class LocalExpertCompositionTests
         using var second = ExpertPackageLoader.Load(CopyAsSecondPackage());
 
         var exception = Assert.Throws<LocalExpertException>(() => new LocalExpertComposition(
-            OfficialRegistry(), [first, second], null, OptionsWith(RecordedGateway("x"))));
+            [first, second], null, OptionsWith(RecordedGateway("x"))));
 
         Assert.Contains("multiple Expert Packages without an explicit binding", exception.Message, StringComparison.Ordinal);
         Assert.Contains("thousandli_local-expert-fixture@0.1.0", exception.Message, StringComparison.Ordinal);
@@ -186,16 +198,14 @@ public sealed class LocalExpertCompositionTests
         using var second = ExpertPackageLoader.Load(CopyAsSecondPackage());
 
         var composition = new LocalExpertComposition(
-            OfficialRegistry(),
             [first, second],
             new Dictionary<string, string> { ["thousandli.expert/long-text-writing"] = "thousandli_local-expert-fixture-b@0.1.0" },
             OptionsWith(RecordedGateway("bound")));
 
         var result = await composition.ExecuteAsync(
-            new ExpertInvocationRequest(AbstractLongTextWritingExpert.Descriptor, null, Input(), "channel"),
-            new RecordingSemanticSink(), TestSupport.CancellationToken);
+            Request("channel"), new RecordingSemanticSink(), TestSupport.CancellationToken);
 
-        Assert.Equal("bound", result.Output.GetProperty("text").GetString());
+        Assert.Equal("bound", result.Output.GetProperty("primary").GetString());
     }
 
     [Fact]
@@ -204,7 +214,6 @@ public sealed class LocalExpertCompositionTests
         using var package = ExpertPackageLoader.Load(ValidArtifact);
 
         var exception = Assert.Throws<LocalExpertException>(() => new LocalExpertComposition(
-            OfficialRegistry(),
             [package],
             new Dictionary<string, string> { ["thousandli.expert/long-text-writing"] = "missing_pkg@9.9.9" },
             OptionsWith(RecordedGateway("x"))));
@@ -220,7 +229,6 @@ public sealed class LocalExpertCompositionTests
         using var package = ExpertPackageLoader.Load(ValidArtifact);
 
         var exception = Assert.Throws<LocalExpertException>(() => new LocalExpertComposition(
-            OfficialRegistry(),
             [package],
             new Dictionary<string, string> { ["tests/missing-contract"] = "thousandli_local-expert-fixture@0.1.0" },
             OptionsWith(RecordedGateway("x"))));
@@ -231,22 +239,22 @@ public sealed class LocalExpertCompositionTests
     }
 
     [Fact]
-    public void PackageForUnregisteredContractIsRejected()
+    public void PackageWithoutAStructuredInvokerIsRejectedAtConstruction()
     {
         using var package = ExpertPackageLoader.Load(UnregisteredContractArtifact);
 
         var exception = Assert.Throws<LocalExpertException>(() => new LocalExpertComposition(
-            OfficialRegistry(), [package], null, OptionsWith(RecordedGateway("x"))));
+            [package], null, OptionsWith(RecordedGateway("x"))));
 
-        Assert.Contains("tests.unregistered/story", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("which is not registered", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("No structured invoker is available", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("UnregisteredLongTextWritingExpert", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void ZeroEntryPointsAreRejected()
     {
         var artifact = BuildArtifactFromAssembly(
-            typeof(FixtureAssembly).Assembly.Location,
+            typeof(LocalExpertCompositionTests).Assembly.Location,
             "no-entry-fixture");
 
         var exception = Assert.Throws<InvalidOperationException>(() => ExpertPackageLoader.Load(artifact));
@@ -281,30 +289,16 @@ public sealed class LocalExpertCompositionTests
 
         var exception = Assert.Throws<InvalidOperationException>(() => ExpertPackageLoader.Load(artifact));
 
-        Assert.Contains("must inherit from the category anchor", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("must inherit from", exception.Message, StringComparison.Ordinal);
         Assert.Contains("ForeignAbstractExpert", exception.Message, StringComparison.Ordinal);
-        Assert.Contains(nameof(AbstractLongTextWritingExpert), exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ConcreteEntryWithoutTheInvocableInterfaceIsRejected()
-    {
-        var artifact = BuildArtifactFromAssembly(
-            typeof(NonInvocableConcreteExpert).Assembly.Location,
-            "non-invocable-fixture");
-
-        var exception = Assert.Throws<InvalidOperationException>(() => ExpertPackageLoader.Load(artifact));
-
-        Assert.Contains("must implement", exception.Message, StringComparison.Ordinal);
-        Assert.Contains(nameof(IInvocableExpert), exception.Message, StringComparison.Ordinal);
-        Assert.Contains("NonInvocableConcreteExpert", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(nameof(ExpertBase), exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void EntryWithoutContractAttributeIsRejected()
     {
         var artifact = BuildArtifactFromAssembly(
-            typeof(LocalConcreteExpert).Assembly.Location,
+            typeof(NoContractConcreteExpert).Assembly.Location,
             "no-contract-fixture");
 
         var exception = Assert.Throws<InvalidOperationException>(() => ExpertPackageLoader.Load(artifact));
@@ -353,12 +347,12 @@ public sealed class LocalExpertCompositionTests
     {
         using var package = ExpertPackageLoader.Load(ValidArtifact);
         var composition = new LocalExpertComposition(
-            OfficialRegistry(), [package], null, OptionsWith(RecordedGateway("never-reached")));
+            [package], null, OptionsWith(RecordedGateway("never-reached")));
         using var cancelled = new CancellationTokenSource();
         await cancelled.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await composition.ExecuteAsync(
-            new ExpertInvocationRequest(AbstractLongTextWritingExpert.Descriptor, null, Input(), "channel"),
+            Request("channel"),
             new RecordingSemanticSink(),
             cancelled.Token));
     }
@@ -368,9 +362,8 @@ public sealed class LocalExpertCompositionTests
     {
         using var package = ExpertPackageLoader.Load(ValidArtifact);
         var localComposition = new LocalExpertComposition(
-            OfficialRegistry(), [package], null, OptionsWith(RecordedGateway("once")));
-        var playground = new PlaygroundService(
-            ScriptedFakeExpertRunner.Load(null), localComposition, OfficialRegistry(), new InMemoryExpertRecordingStore());
+            [package], null, OptionsWith(RecordedGateway("once")));
+        var playground = CreatePlayground(null, localComposition, new InMemoryExpertRecordingStore());
 
         var committed = await playground.InvokeAsync(
             new PlaygroundInvokeCommand(
@@ -446,7 +439,6 @@ public sealed class LocalExpertCompositionTests
 
         Assert.False(File.Exists(Path.Combine(bin, "ThousandLi.Contracts.dll")));
         Assert.False(File.Exists(Path.Combine(bin, "ThousandLi.ExpertAuthoring.dll")));
-        Assert.False(File.Exists(Path.Combine(bin, "ThousandLi.ExpertAuthoring.dll")));
         Assert.True(File.Exists(Path.Combine(bin, "ThousandLi.LocalExpertFixture.dll")));
     }
 
@@ -455,11 +447,8 @@ public sealed class LocalExpertCompositionTests
     {
         using var officialPackage = ExpertPackageLoader.Load(ValidArtifact);
         using var other = ExpertPackageLoader.Load(UnregisteredContractArtifact);
-        var registry = new ExpertContractRegistry(
-            [typeof(AbstractLongTextWritingExpert).Assembly, typeof(UnregisteredLongTextWritingExpert).Assembly]);
 
         var exception = Assert.Throws<LocalExpertException>(() => new LocalExpertComposition(
-            registry,
             [officialPackage, other],
             new Dictionary<string, string> { ["tests.unregistered/story"] = officialPackage.Manifest.PackageId },
             OptionsWith(RecordedGateway("x"))));
@@ -474,10 +463,10 @@ public sealed class LocalExpertCompositionTests
     {
         using var package = ExpertPackageLoader.Load(ValidArtifact);
         var composition = new LocalExpertComposition(
-            OfficialRegistry(), [package], null, OptionsWith(RecordedGateway("x")));
+            [package], null, OptionsWith(RecordedGateway("x")));
 
         var exception = await Assert.ThrowsAsync<LocalExpertException>(async () => await composition.ExecuteAsync(
-            new ExpertInvocationRequest(AbstractLongTextWritingExpert.Descriptor, null, Input(), "channel"),
+            Request("channel"),
             new RecordingSemanticSink(),
             expertPackageIdOverride: "missing_pkg@9.9.9",
             cancellationToken: TestSupport.CancellationToken));
@@ -485,26 +474,6 @@ public sealed class LocalExpertCompositionTests
         Assert.Contains("'missing_pkg@9.9.9'", exception.Message, StringComparison.Ordinal);
         Assert.Contains("not loaded", exception.Message, StringComparison.Ordinal);
         Assert.Contains(package.Manifest.PackageId, exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task PackageOverrideServingDifferentContractIsRejected()
-    {
-        using var officialPackage = ExpertPackageLoader.Load(ValidArtifact);
-        using var other = ExpertPackageLoader.Load(UnregisteredContractArtifact);
-        var registry = new ExpertContractRegistry(
-            [typeof(AbstractLongTextWritingExpert).Assembly, typeof(UnregisteredLongTextWritingExpert).Assembly]);
-        var composition = new LocalExpertComposition(registry, [officialPackage, other], null, OptionsWith(RecordedGateway("x")));
-
-        var exception = await Assert.ThrowsAsync<LocalExpertException>(async () => await composition.ExecuteAsync(
-            new ExpertInvocationRequest(AbstractLongTextWritingExpert.Descriptor, null, Input(), "channel"),
-            new RecordingSemanticSink(),
-            expertPackageIdOverride: other.Manifest.PackageId,
-            cancellationToken: TestSupport.CancellationToken));
-
-        Assert.Contains(other.Manifest.PackageId, exception.Message, StringComparison.Ordinal);
-        Assert.Contains("'tests.unregistered/story'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("'thousandli.expert/long-text-writing'", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -522,13 +491,12 @@ public sealed class LocalExpertCompositionTests
             {
                 SettingsOverrideFile = new FileInfo(overridePath)
             };
-            var composition = new LocalExpertComposition(OfficialRegistry(), [package], null, options);
+            var composition = new LocalExpertComposition([package], null, options);
 
             var result = await composition.ExecuteAsync(
-                new ExpertInvocationRequest(AbstractLongTextWritingExpert.Descriptor, null, Input(), "channel"),
-                new RecordingSemanticSink(), TestSupport.CancellationToken);
+                Request("channel"), new RecordingSemanticSink(), TestSupport.CancellationToken);
 
-            Assert.Equal("hello", result.Output.GetProperty("greeting").GetString());
+            Assert.Equal("hello", result.Output.GetProperty("metadata").GetProperty("greeting").GetString());
         }
         finally
         {
@@ -548,9 +516,8 @@ public sealed class LocalExpertCompositionTests
                 "test-model",
                 streamEvents: [new BasicAiJsonStreamEvent(JsonStreamEvent.StringChunk("/narrative", "parallel"))]))]);
         var localComposition = new LocalExpertComposition(
-            OfficialRegistry(), [package], null, OptionsWith(gateway));
-        var playground = new PlaygroundService(
-            ScriptedFakeExpertRunner.Load(null), localComposition, OfficialRegistry(), new InMemoryExpertRecordingStore());
+            [package], null, OptionsWith(gateway));
+        var playground = CreatePlayground(null, localComposition, new InMemoryExpertRecordingStore());
 
         var outcomes = await Task.WhenAll(Enumerable.Range(0, count).Select(_ => playground.InvokeAsync(
             new PlaygroundInvokeCommand("thousandli.expert/long-text-writing", DevHostOptions.LocalExecutorName, Input()),
@@ -572,8 +539,7 @@ public sealed class LocalExpertCompositionTests
     [Fact]
     public async Task PlaygroundInvokeRejectsUnavailableLocalUnknownModesAndScenariolessFake()
     {
-        var playground = new PlaygroundService(
-            ScriptedFakeExpertRunner.Load(null), null, OfficialRegistry(), new InMemoryExpertRecordingStore());
+        var playground = CreatePlayground(null, null, new InMemoryExpertRecordingStore());
 
         var unavailableLocal = await Assert.ThrowsAsync<ArgumentException>(() => playground.InvokeAsync(
             new PlaygroundInvokeCommand("thousandli.expert/long-text-writing", DevHostOptions.LocalExecutorName, Input()),
@@ -600,7 +566,8 @@ public sealed class LocalExpertCompositionTests
     public async Task FakeRunnerRejectsInvocationWithoutScenarioKey()
     {
         var runner = ScriptedFakeExpertRunner.Load(null);
-        var request = new ExpertInvocationRequest(AbstractLongTextWritingExpert.Descriptor, null, Input(), "channel");
+        var request = new ExpertInvocationRequest(
+            AbstractLongTextWritingExpert.ContractId, null, Input(), "channel");
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () => await runner.ExecuteAsync(
             request, new RecordingSemanticSink(), TestSupport.CancellationToken));

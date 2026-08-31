@@ -669,7 +669,7 @@ public sealed class LongTextWritingWireCodecTests
 
         public string? ExposedStateSchema => StateSchema;
 
-        public IExpertPrimaryOutput? ExposedPrimaryOutput => ConfiguredPrimaryOutput;
+        public IExpertPrimaryOutput ExposedPrimaryOutput => ConfiguredPrimaryOutput;
 
         public IReadOnlyList<ILongTextWritingFeature> ExposedFeatures => ConfiguredFeatures;
 

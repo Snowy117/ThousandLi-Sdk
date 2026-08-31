@@ -56,6 +56,7 @@ public sealed record RemoteInvocationRunnerOptions
 /// well; this runner is the Playground/protocol tool face over raw semantic events.
 /// </summary>
 public sealed class RemoteInvocationRunner(RemoteExpertClient client, RemoteInvocationRunnerOptions options)
+    : IExpertRunner
 {
     private static readonly JsonElement NullOutput = CreateNullElement();
 
@@ -74,7 +75,7 @@ public sealed class RemoteInvocationRunner(RemoteExpertClient client, RemoteInvo
 
         var session = new RemoteInvocationSession(_client, _options);
         return await session.ExecuteAsync(
-            request.Contract,
+            request.ContractId,
             request.Input,
             request.ChannelKey,
             request.ScenarioId,

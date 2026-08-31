@@ -17,7 +17,7 @@ public sealed class RecordingReplayExpertRunnerTests
 
         var sink = new RecordingSemanticSink();
         var result = await runner.ExecuteAsync(
-            new ExpertInvocationRequest(TestSupport.Contract, "advance", TestSupport.Json("""{"prompt":"hello"}"""), "live-channel"),
+            new ExpertInvocationRequest(TestSupport.ContractId, "advance", TestSupport.Json("""{"prompt":"hello"}"""), "live-channel"),
             sink,
             TestSupport.CancellationToken);
 
@@ -42,7 +42,7 @@ public sealed class RecordingReplayExpertRunnerTests
         var sink = new RecordingSemanticSink();
 
         var result = await runner.ExecuteAsync(
-            new ExpertInvocationRequest(TestSupport.Contract, null, TestSupport.Json("{}"), "channel"),
+            new ExpertInvocationRequest(TestSupport.ContractId, null, TestSupport.Json("{}"), "channel"),
             sink,
             TestSupport.CancellationToken);
 
@@ -79,7 +79,7 @@ public sealed class RecordingReplayExpertRunnerTests
         static ExpertInvocationRequest Request()
         {
             return new ExpertInvocationRequest(
-                TestSupport.Contract, null, TestSupport.Json("{}"), "channel");
+                TestSupport.ContractId, null, TestSupport.Json("{}"), "channel");
         }
     }
 
@@ -93,62 +93,34 @@ public sealed class RecordingReplayExpertRunnerTests
             () => runner.ExecuteAsync(Request(), new RecordingSemanticSink(), TestSupport.CancellationToken).AsTask());
 
         Assert.Contains("No recorded invocations remain", exception.Message, StringComparison.Ordinal);
-        Assert.Contains(TestSupport.Contract.Id, exception.Message, StringComparison.Ordinal);
+        Assert.Contains(TestSupport.ContractId, exception.Message, StringComparison.Ordinal);
         return;
 
         static ExpertInvocationRequest Request()
         {
             return new ExpertInvocationRequest(
-                TestSupport.Contract, null, TestSupport.Json("{}"), "channel");
+                TestSupport.ContractId, null, TestSupport.Json("{}"), "channel");
         }
     }
 
     [Fact]
     public async Task ContractMismatchFailsWithBothSidesInTheDiagnostic()
     {
-        var recording = TestSupport.CreateRecording(
-            contract: new ExpertContractDescriptor("tests/other", new ContractVersion(1, 0), "other-fp"));
+        var recording = TestSupport.CreateRecording(contractId: "tests/other");
         var runner = new RecordingReplayExpertRunner([recording]);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => runner.ExecuteAsync(Request(), new RecordingSemanticSink(), TestSupport.CancellationToken).AsTask());
 
         Assert.Contains("tests/other", exception.Message, StringComparison.Ordinal);
-        Assert.Contains(TestSupport.Contract.Id, exception.Message, StringComparison.Ordinal);
-        Assert.Contains("other-fp", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(TestSupport.ContractId, exception.Message, StringComparison.Ordinal);
         return;
 
         static ExpertInvocationRequest Request()
         {
             return new ExpertInvocationRequest(
-                TestSupport.Contract, null, TestSupport.Json("{}"), "channel");
+                TestSupport.ContractId, null, TestSupport.Json("{}"), "channel");
         }
-    }
-
-    [Fact]
-    public async Task ContractVersionFollowsSupportsSemantics()
-    {
-        var olderRequestRunner = new RecordingReplayExpertRunner(
-        [
-            TestSupport.CreateRecording(contract: new ExpertContractDescriptor(
-                TestSupport.Contract.Id, new ContractVersion(1, 1), TestSupport.Contract.Fingerprint))
-        ]);
-        await olderRequestRunner.ExecuteAsync(
-            new ExpertInvocationRequest(TestSupport.Contract, null, TestSupport.Json("{}"), "channel"),
-            new RecordingSemanticSink(),
-            TestSupport.CancellationToken);
-
-        var newerRequestRunner = new RecordingReplayExpertRunner(
-        [
-            TestSupport.CreateRecording(contract: new ExpertContractDescriptor(
-                TestSupport.Contract.Id, new ContractVersion(1, 0), TestSupport.Contract.Fingerprint))
-        ]);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => newerRequestRunner.ExecuteAsync(
-            new ExpertInvocationRequest(
-                new ExpertContractDescriptor(TestSupport.Contract.Id, new ContractVersion(1, 1), TestSupport.Contract.Fingerprint),
-                null, TestSupport.Json("{}"), "channel"),
-            new RecordingSemanticSink(),
-            TestSupport.CancellationToken).AsTask());
     }
 
     [Theory]
@@ -165,7 +137,7 @@ public sealed class RecordingReplayExpertRunnerTests
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => runner.ExecuteAsync(
-                new ExpertInvocationRequest(TestSupport.Contract, null, TestSupport.Json("{}"), "channel"),
+                new ExpertInvocationRequest(TestSupport.ContractId, null, TestSupport.Json("{}"), "channel"),
                 sink,
                 TestSupport.CancellationToken).AsTask());
 
@@ -185,7 +157,7 @@ public sealed class RecordingReplayExpertRunnerTests
         var sink = new RecordingSemanticSink();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runner.ExecuteAsync(
-            new ExpertInvocationRequest(TestSupport.Contract, null, TestSupport.Json("{}"), "channel"),
+            new ExpertInvocationRequest(TestSupport.ContractId, null, TestSupport.Json("{}"), "channel"),
             sink,
             cancelled.Token).AsTask());
 
@@ -204,7 +176,7 @@ public sealed class RecordingReplayExpertRunnerTests
         var sink = new CancellingSink(cancellation, cancelAfterEvents: 1);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runner.ExecuteAsync(
-            new ExpertInvocationRequest(TestSupport.Contract, null, TestSupport.Json("{}"), "channel"),
+            new ExpertInvocationRequest(TestSupport.ContractId, null, TestSupport.Json("{}"), "channel"),
             sink,
             cancellation.Token).AsTask());
 
@@ -224,7 +196,7 @@ public sealed class RecordingReplayExpertRunnerTests
         await Assert.ThrowsAsync<ArgumentNullException>(() => runner.ExecuteAsync(
             null!, new RecordingSemanticSink(), TestSupport.CancellationToken).AsTask());
         await Assert.ThrowsAsync<ArgumentNullException>(() => runner.ExecuteAsync(
-            new ExpertInvocationRequest(TestSupport.Contract, null, TestSupport.Json("{}"), "channel"),
+            new ExpertInvocationRequest(TestSupport.ContractId, null, TestSupport.Json("{}"), "channel"),
             null!,
             TestSupport.CancellationToken).AsTask());
     }

@@ -1,5 +1,4 @@
 using System.Text.Json;
-using ThousandLi.Contracts;
 
 namespace ThousandLi.Sdk.Tests;
 
@@ -68,33 +67,25 @@ public sealed class TemplatePackageTests
     }
 
     [Fact]
-    public void ExpertTemplateBindsRequiredInputPropertiesWithActionableDiagnostics()
+    public void ExpertTemplateIsPureCoreImplementationWithoutInvocationBoilerplate()
     {
         var expertSource = ReadTemplateFile("ThousandLi.Expert", "LongTextWritingExpert.cs");
 
-        Assert.Contains("RequiredInputString(input, \"worldSettings\")", expertSource, StringComparison.Ordinal);
-        Assert.Contains("RequiredInputString(input, \"playerInput\")", expertSource, StringComparison.Ordinal);
-        Assert.Contains("worldSettings:string, playerInput:string", expertSource, StringComparison.Ordinal);
+        Assert.Contains(": AbstractLongTextWritingExpert", expertSource);
+        Assert.DoesNotContain("IInvocableExpert", expertSource);
+        Assert.DoesNotContain("RequiredInputString", expertSource);
+        Assert.DoesNotContain("IExpertSemanticEventSink", expertSource);
     }
 
     [Fact]
-    public void GeneratedGameAndExpertPairOnTheSameOfficialLongTextWritingContract()
+    public void GeneratedGameManifestDeclaresRuntimeAndFrontendCompatibilityOnly()
     {
         using var gameManifest = JsonDocument.Parse(ReadTemplateFile("ThousandLi.Game", "package.json"));
-        var required = gameManifest.RootElement
-            .GetProperty("compatibility")
-            .GetProperty("expertContracts")[0];
+        var compatibility = gameManifest.RootElement.GetProperty("compatibility");
 
-        Assert.Equal(AbstractLongTextWritingExpert.Descriptor.Id, required.GetProperty("id").GetString());
-        Assert.Equal(
-            AbstractLongTextWritingExpert.Descriptor.Fingerprint,
-            required.GetProperty("fingerprint").GetString());
-        Assert.Equal(
-            AbstractLongTextWritingExpert.Descriptor.Version.Major,
-            required.GetProperty("version").GetProperty("major").GetInt32());
-        Assert.Equal(
-            AbstractLongTextWritingExpert.Descriptor.Version.Minor,
-            required.GetProperty("version").GetProperty("minor").GetInt32());
+        Assert.Equal(1, compatibility.GetProperty("runtime").GetProperty("major").GetInt32());
+        Assert.Equal(1, compatibility.GetProperty("frontend").GetProperty("major").GetInt32());
+        Assert.False(compatibility.TryGetProperty("expertContracts", out _));
     }
 
     [Fact]
@@ -104,8 +95,8 @@ public sealed class TemplatePackageTests
 
         Assert.Contains("<IsThousandLiPackageArtifact>true</IsThousandLiPackageArtifact>", project);
         Assert.Contains("<IsThousandLiExpertPackageArtifact>true</IsThousandLiExpertPackageArtifact>", project);
-        Assert.Contains("<PackageReference Include=\"ThousandLi.Contracts\" Version=\"0.4.0-preview.3\" />", project);
-        Assert.Contains("<PackageReference Include=\"ThousandLi.ExpertAuthoring\" Version=\"0.4.0-preview.3\" />", project);
+        Assert.Contains("<PackageReference Include=\"ThousandLi.Contracts\" Version=\"0.5.0-preview.1\" />", project);
+        Assert.Contains("<PackageReference Include=\"ThousandLi.ExpertAuthoring\" Version=\"0.5.0-preview.1\" />", project);
     }
 
     [Fact]

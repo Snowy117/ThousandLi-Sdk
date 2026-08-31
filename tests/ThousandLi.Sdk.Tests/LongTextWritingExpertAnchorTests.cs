@@ -124,7 +124,19 @@ public sealed class LongTextWritingExpertAnchorTests
         Assert.Equal([feature], expert.DeclaredFeatures);
         var storedBucket = Assert.Single(expert.DeclaredBuckets);
         Assert.Equal("bucket", storedBucket.Description);
-        Assert.Equal("narrative", expert.DeclaredOutput!.PropertyName);
+        Assert.Equal("narrative", expert.DeclaredOutput.PropertyName);
+    }
+
+    [Fact]
+    public void WithFeaturesAppendsAcrossCalls()
+    {
+        var expert = new ProbeExpert();
+        var first = new TimeTagsFeature(null, null);
+        var second = new TimeTagsFeature(null, null);
+
+        expert.WithFeatures(first).WithFeatures(second);
+
+        Assert.Equal([first, second], expert.DeclaredFeatures);
     }
 
     [Fact]
@@ -350,7 +362,7 @@ public sealed class LongTextWritingExpertAnchorTests
     {
         public Func<ProbeExpert, CancellationToken, Task>? OnStream { get; init; }
 
-        public IExpertPrimaryOutput? DeclaredOutput => ConfiguredPrimaryOutput;
+        public IExpertPrimaryOutput DeclaredOutput => ConfiguredPrimaryOutput;
 
         public IReadOnlyList<ILongTextWritingFeature> DeclaredFeatures => ConfiguredFeatures;
 

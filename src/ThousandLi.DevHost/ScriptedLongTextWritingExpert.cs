@@ -125,11 +125,11 @@ public sealed class ScriptedLongTextWritingExpertFacade : IExpertFacade
             JsonSerializer.SerializeToElement(new Dictionary<string, object?>(StringComparer.Ordinal)))]);
 
     /// <inheritdoc />
-    public TAbstract Use<TAbstract>() where TAbstract : AbstractLongTextWritingExpert
+    public TAbstract Use<TAbstract>() where TAbstract : ExpertBase
     {
         var expert = new ScriptedLongTextWritingExpert(_scenarios);
         expert.Bind(ScriptedExpertExecutionContext.Instance);
-        return (TAbstract)(AbstractLongTextWritingExpert)expert;
+        return (TAbstract)(ExpertBase)expert;
     }
 
     private static Dictionary<string, string>? ReadStringMetadata(JsonElement item)
@@ -152,8 +152,8 @@ public sealed class ScriptedLongTextWritingExpertFacade : IExpertFacade
 /// 脚本化长文本写作专家（DevHost 假场景）：重放 <see cref="ScriptedLongTextWritingScenario" /> 的
 /// 确定性输出，把主输出与 Feature 的语义 callback 驱动起来，让使用
 /// <c>context.Experts.Use&lt;AbstractLongTextWritingExpert&gt;()</c> 的 Game 在本地
-/// 无 AI 端到端跑通。执行期间读取 <see cref="AbstractLongTextWritingExpert.ConfiguredHistoryBuckets" />
-/// （只读视图）并把回合数摘要写入结果 metadata，证明专家确实消费了历史桶。
+/// 无 AI 端到端跑通。执行期间读取配置的历史桶（只读视图）并把回合数摘要写入结果 metadata，
+/// 证明专家确实消费了历史桶。
 /// </summary>
 public sealed class ScriptedLongTextWritingExpert : AbstractLongTextWritingExpert
 {

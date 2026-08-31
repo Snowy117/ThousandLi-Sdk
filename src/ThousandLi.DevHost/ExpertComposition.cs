@@ -6,12 +6,11 @@ using ThousandLi.RemoteExperts;
 namespace ThousandLi.DevHost;
 
 /// <summary>
-/// The registry plus the explicitly loaded trusted contract assemblies. The assemblies are loaded
-/// once into the default context and shared with every Expert assembly load context so contract
-/// type identities stay unified.
+/// The explicitly loaded trusted contract assemblies. The assemblies are loaded once into the
+/// default context and shared with every Expert assembly load context so contract type identities
+/// stay unified.
 /// </summary>
 internal sealed record ExpertContractComposition(
-    ExpertContractRegistry Registry,
     IReadOnlyDictionary<string, Assembly> ContractAssemblies);
 
 /// <summary>
@@ -31,13 +30,7 @@ internal static class ExpertComposition
     public static ExpertContractComposition BuildContractRegistry(IReadOnlyList<string> contractAssemblyPaths)
     {
         ArgumentNullException.ThrowIfNull(contractAssemblyPaths);
-        var officialAssembly = typeof(ExpertContractAttribute).Assembly;
-        var officialAssemblyName = officialAssembly.GetName().Name ?? officialAssembly.FullName ?? officialAssembly.ToString();
-        var contractAssemblies = new Dictionary<string, Assembly>(StringComparer.Ordinal)
-        {
-            [officialAssemblyName] = officialAssembly
-        };
-        var assemblies = new List<Assembly> { officialAssembly };
+        var contractAssemblies = new Dictionary<string, Assembly>(StringComparer.Ordinal);
         foreach (var path in contractAssemblyPaths)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -45,12 +38,11 @@ internal static class ExpertComposition
             if (!File.Exists(fullPath))
                 throw new FileNotFoundException("Contract assembly does not exist.", fullPath);
             var assembly = Assembly.LoadFrom(fullPath);
-            assemblies.Add(assembly);
             var name = assembly.GetName().Name ?? assembly.FullName ?? assembly.ToString();
             contractAssemblies.TryAdd(name, assembly);
         }
 
-        return new ExpertContractComposition(new ExpertContractRegistry(assemblies), contractAssemblies);
+        return new ExpertContractComposition(contractAssemblies);
     }
 
     public static LocalExpertComposition CreateLocalExpertComposition(
@@ -88,7 +80,6 @@ internal static class ExpertComposition
         loadedPackages.AddRange(options.ExpertArtifactDirectories.Select(
             directory => ExpertPackageLoader.Load(directory, contracts.ContractAssemblies)));
         return new LocalExpertComposition(
-            contracts.Registry,
             loadedPackages,
             options.ExpertBindings.Count == 0 ? null : options.ExpertBindings,
             compositionOptions);

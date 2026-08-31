@@ -16,13 +16,13 @@ public sealed class FakeExpertFacade(IExpertExecutionContext? executionContext =
     private readonly IExpertExecutionContext _executionContext =
         executionContext ?? FakeExpertExecutionContext.Instance;
 
-    private readonly Dictionary<Type, Func<AbstractLongTextWritingExpert>> _factories = [];
+    private readonly Dictionary<Type, Func<ExpertBase>> _factories = [];
 
     /// <summary>为抽象专家类别 <typeparamref name="TAbstract" /> 注册实例工厂。</summary>
     /// <typeparam name="TAbstract">抽象专家类别（如 <c>AbstractLongTextWritingExpert</c>）。</typeparam>
     /// <param name="factory">每次 <c>Use</c> 调用时执行；返回 null 会在 <c>Use</c> 时抛出。</param>
     public void Register<TAbstract>(Func<TAbstract> factory)
-        where TAbstract : AbstractLongTextWritingExpert
+        where TAbstract : ExpertBase
     {
         ArgumentNullException.ThrowIfNull(factory);
         _factories[typeof(TAbstract)] = factory;
@@ -32,7 +32,7 @@ public sealed class FakeExpertFacade(IExpertExecutionContext? executionContext =
     /// <typeparam name="TAbstract">抽象专家类别。</typeparam>
     /// <typeparam name="TConcrete">具体专家实现（须有公共无参构造）。</typeparam>
     public void Register<TAbstract, TConcrete>()
-        where TAbstract : AbstractLongTextWritingExpert
+        where TAbstract : ExpertBase
         where TConcrete : TAbstract, new()
     {
         Register<TAbstract>(() =>
@@ -45,7 +45,7 @@ public sealed class FakeExpertFacade(IExpertExecutionContext? executionContext =
 
     /// <inheritdoc />
     public TAbstract Use<TAbstract>()
-        where TAbstract : AbstractLongTextWritingExpert
+        where TAbstract : ExpertBase
     {
         if (!_factories.TryGetValue(typeof(TAbstract), out var factory))
         {
@@ -110,7 +110,7 @@ public sealed class ThrowingExpertFacade : IExpertFacade
 
     /// <inheritdoc />
     public TAbstract Use<TAbstract>()
-        where TAbstract : AbstractLongTextWritingExpert
+        where TAbstract : ExpertBase
     {
         throw new InvalidOperationException(
             $"Typed expert facade '{typeof(TAbstract).FullName}' is not configured for this test context.");

@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Text.Json;
 using ThousandLi.Contracts;
 
@@ -141,39 +140,19 @@ public sealed record GamePackageManifest
             throw new CompatibilityException("package.json property 'compatibility' is required and must be an object.");
 
         var runtime = ReadVersion(compatibility, "runtime");
-        ContractVersion? frontend = frontendRoot is null ? null : ReadVersion(compatibility, "frontend");
+        PackageVersion? frontend = frontendRoot is null ? null : ReadVersion(compatibility, "frontend");
         return new GamePackageManifest(
             $"{authorId}_{packageName}@{packageVersion}",
             entryAssembly,
             frontendRoot,
-            new GamePackageCompatibility(runtime, frontend, ReadExpertContracts(compatibility)));
+            new GamePackageCompatibility(runtime, frontend));
     }
 
-    private static ReadOnlyCollection<ExpertContractDescriptor> ReadExpertContracts(JsonElement compatibility)
-    {
-        if (!compatibility.TryGetProperty("expertContracts", out var property))
-            return new ReadOnlyCollection<ExpertContractDescriptor>([]);
-        if (property.ValueKind != JsonValueKind.Array)
-            throw new CompatibilityException("package.json compatibility.expertContracts must be an array.");
-
-        var contracts = new List<ExpertContractDescriptor>();
-        foreach (var item in property.EnumerateArray())
-        {
-            if (item.ValueKind != JsonValueKind.Object)
-                throw new CompatibilityException("Each compatibility.expertContracts item must be an object.");
-            contracts.Add(new ExpertContractDescriptor(
-                PackageManifestParser.RequiredString(item, "id"),
-                ReadVersion(item, "version"),
-                PackageManifestParser.RequiredString(item, "fingerprint")));
-        }
-        return new ReadOnlyCollection<ExpertContractDescriptor>(contracts);
-    }
-
-    private static ContractVersion ReadVersion(JsonElement parent, string propertyName)
+    private static PackageVersion ReadVersion(JsonElement parent, string propertyName)
     {
         if (!parent.TryGetProperty(propertyName, out var property) || property.ValueKind != JsonValueKind.Object)
             throw new CompatibilityException($"package.json compatibility property '{propertyName}' must be an object.");
-        return new ContractVersion(RequiredInt(property, "major"), RequiredInt(property, "minor", allowZero: true));
+        return new PackageVersion(RequiredInt(property, "major"), RequiredInt(property, "minor", allowZero: true));
     }
 
     private static int RequiredInt(JsonElement parent, string propertyName, bool allowZero = false)
@@ -252,22 +231,7 @@ public sealed record ExpertPackageManifest
     }
 }
 
-public sealed record DevHostCompatibility
-{
-    public DevHostCompatibility(
-        ContractVersion runtime,
-        ContractVersion frontend,
-        IReadOnlyList<ExpertContractDescriptor>? expertContracts = null)
-    {
-        Runtime = runtime;
-        Frontend = frontend;
-        ExpertContracts = new ReadOnlyCollection<ExpertContractDescriptor>([.. expertContracts ?? []]);
-    }
-
-    public ContractVersion Runtime { get; }
-    public ContractVersion Frontend { get; }
-    public IReadOnlyList<ExpertContractDescriptor> ExpertContracts { get; }
-}
+public sealed record DevHostCompatibility(PackageVersion Runtime, PackageVersion Frontend);
 
 public static class CompatibilityValidator
 {
@@ -278,27 +242,9 @@ public static class CompatibilityValidator
         ValidateVersion("runtime", manifest.Compatibility.Runtime, available.Runtime);
         if (manifest.Compatibility.Frontend is { } requiredFrontend)
             ValidateVersion("frontend", requiredFrontend, available.Frontend);
-
-        foreach (var requiredExpert in manifest.Compatibility.ExpertContracts)
-        {
-            var availableExpert = available.ExpertContracts.FirstOrDefault(candidate =>
-                    string.Equals(candidate.Id, requiredExpert.Id, StringComparison.Ordinal))
-                ?? throw new CompatibilityException(
-                    $"Expert contract '{requiredExpert.Id}' is required at version {requiredExpert.Version} " +
-                    $"with fingerprint '{requiredExpert.Fingerprint}', but no configured expert source provides it. " +
-                    "Provide a matching fake scenario (--fake-scenarios), a local expert artifact " +
-                    "(--experts local), or a remote platform binding (--experts remote).");
-            ValidateVersion($"Expert contract '{requiredExpert.Id}'", requiredExpert.Version, availableExpert.Version);
-            if (!string.Equals(requiredExpert.Fingerprint, availableExpert.Fingerprint, StringComparison.Ordinal))
-            {
-                throw new CompatibilityException(
-                    $"Expert contract '{requiredExpert.Id}' requires fingerprint '{requiredExpert.Fingerprint}', " +
-                    $"but the available fingerprint is '{availableExpert.Fingerprint}'.");
-            }
-        }
     }
 
-    private static void ValidateVersion(string contractName, ContractVersion required, ContractVersion available)
+    private static void ValidateVersion(string contractName, PackageVersion required, PackageVersion available)
     {
         if (!available.Supports(required))
             throw new CompatibilityException($"Package requires {contractName} contract {required}, but DevHost provides {available}.");

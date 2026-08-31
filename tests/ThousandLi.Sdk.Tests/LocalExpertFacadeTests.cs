@@ -14,12 +14,10 @@ public sealed class LocalExpertFacadeTests
             "tests", "ThousandLi.LocalExpertFixture", "bin", "Debug", "net10.0", "PackageArtifact");
 
     private static LocalExpertComposition CompositionWithLoadedPackage(
-        ExpertContractRegistry? registry = null,
         LoadedExpertPackage? package = null)
     {
         package ??= ExpertPackageLoader.Load(ValidArtifact);
         return new LocalExpertComposition(
-            registry ?? new ExpertContractRegistry([typeof(AbstractLongTextWritingExpert).Assembly]),
             [package],
             null,
             new LocalExpertCompositionOptions(
@@ -41,27 +39,27 @@ public sealed class LocalExpertFacadeTests
     }
 
     [Fact]
-    public void UseResolvesTheCategoryContractThroughInheritedAnchorAttributes()
+    public void UseRequiresTheCategoryAnchorToCarryTheContractAttribute()
     {
-        // The cast failure (not an attribute-lookup failure) proves the category identity is
-        // inherited from the anchor: implementing the contract by inheritance (design D1.1).
+        // The attribute is resolved on the exact category type (inherit: false), so an anchor
+        // subtype without its own [ExpertContract] fails fast instead of silently resolving
+        // through the base anchor.
         using var package = ExpertPackageLoader.Load(ValidArtifact);
         var facade = new LocalExpertFacade(CompositionWithLoadedPackage(package: package));
 
-        Assert.Throws<InvalidCastException>(facade.Use<LocalAbstractExpert>);
+        var exception = Assert.Throws<InvalidOperationException>(facade.Use<NoContractAbstractExpert>);
+        Assert.Contains("[ExpertContract]", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void UseFailsFastWhenNoPackageIsBoundForTheContract()
     {
         using var package = ExpertPackageLoader.Load(ValidArtifact);
-        var registry = new ExpertContractRegistry(
-            [typeof(AbstractLongTextWritingExpert).Assembly, typeof(UnregisteredLongTextWritingExpert).Assembly]);
-        var facade = new LocalExpertFacade(CompositionWithLoadedPackage(registry, package));
+        var facade = new LocalExpertFacade(CompositionWithLoadedPackage(package: package));
 
-        var exception = Assert.Throws<LocalExpertException>(facade.Use<UnregisteredLongTextWritingExpert>);
+        var exception = Assert.ThrowsAny<InvalidOperationException>(facade.Use<UnregisteredLongTextWritingExpert>);
 
         Assert.Contains("tests.unregistered/story", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("No local Expert Package is bound", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("No expert binding is registered", exception.Message, StringComparison.Ordinal);
     }
 }

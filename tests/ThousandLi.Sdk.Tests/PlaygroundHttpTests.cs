@@ -5,14 +5,13 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using ThousandLi.Contracts;
 using ThousandLi.DevHost;
+using ThousandLi.Testing;
 
 namespace ThousandLi.Sdk.Tests;
 
 public sealed class PlaygroundHttpTests
 {
     private const string SampleContractId = "thousandli.expert/long-text-writing";
-    private const string SampleContractFingerprint =
-        "8046a8ea2ca4ffbd55776315b126d870e51e335438aed82a9cd44333f8f1df76";
 
     [Fact]
     public async Task PlaygroundPageAndReadRoutesServe()
@@ -30,8 +29,6 @@ public sealed class PlaygroundHttpTests
         var contracts = await client.GetFromJsonAsync<JsonElement>("/api/playground/contracts", TestSupport.CancellationToken);
         var contract = Assert.Single(contracts.EnumerateArray());
         Assert.Equal(SampleContractId, contract.GetProperty("contractId").GetString());
-        Assert.Equal("1.0", contract.GetProperty("version").GetString());
-        Assert.Equal(SampleContractFingerprint, contract.GetProperty("fingerprint").GetString());
         Assert.Equal(["fake"], contract.GetProperty("executors").EnumerateArray().Select(entry => entry.GetString()));
 
         var history = await client.GetFromJsonAsync<JsonElement>("/api/playground/history", TestSupport.CancellationToken);
@@ -138,8 +135,8 @@ public sealed class PlaygroundHttpTests
 
             var recording = await client.GetFromJsonAsync<JsonElement>(
                 $"/api/playground/recordings/{recordingId}", TestSupport.CancellationToken);
-            Assert.Equal(1, recording.GetProperty("formatMajor").GetInt32());
-            Assert.Equal(SampleContractId, recording.GetProperty("contract").GetProperty("id").GetString());
+            Assert.Equal(ExpertInvocationRecording.CurrentFormatMajor, recording.GetProperty("formatMajor").GetInt32());
+            Assert.Equal(SampleContractId, recording.GetProperty("contractId").GetString());
             Assert.Equal("committed", recording.GetProperty("terminal").GetProperty("status").GetString());
 
             var recordingsDirectory = Path.Combine(root.FullName, "recordings", workspaceId);
@@ -408,8 +405,6 @@ public sealed class PlaygroundHttpTests
                 "/api/playground/contracts", TestSupport.CancellationToken);
             var contract = Assert.Single(contracts.EnumerateArray());
             Assert.Equal(SampleContractId, contract.GetProperty("contractId").GetString());
-            Assert.Equal("1.0", contract.GetProperty("version").GetString());
-            Assert.Equal(SampleContractFingerprint, contract.GetProperty("fingerprint").GetString());
             Assert.Equal(
                 ["fake", "remote"],
                 contract.GetProperty("executors").EnumerateArray().Select(entry => entry.GetString()));
@@ -455,9 +450,7 @@ public sealed class PlaygroundHttpTests
     }
 
     private static string RemoteCatalogJson =>
-        "[{\"contractId\":\"" + SampleContractId +
-        "\",\"name\":\"LongTextWriting\",\"description\":\"\",\"version\":{\"major\":1,\"minor\":0},\"fingerprint\":\"" +
-        SampleContractFingerprint + "\"}]";
+        "[{\"contractId\":\"" + SampleContractId + "\",\"name\":\"LongTextWriting\",\"description\":\"\"}]";
 
     private static string RemotePackagesJson =>
         "[{\"expertPackageId\":\"official-longtextwriting@0.1.0\",\"displayName\":\"Official Long Text Writing\"," +

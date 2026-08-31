@@ -1,8 +1,6 @@
 using JetBrains.Annotations;
 using System.Text;
-using System.Text.Json;
 using ThousandLi.Contracts;
-using ThousandLi.ExpertAuthoring;
 
 [assembly: ExpertPackageEntryPoint(
     typeof(AbstractLongTextWritingExpert),
@@ -11,10 +9,10 @@ using ThousandLi.ExpertAuthoring;
 namespace ThousandLi.LocalExpertFixture;
 
 /// <summary>
-/// Test-fixture long-text-writing expert. Binds the structured invocation input, executes through
-/// the category anchor's streaming entry (which enforces the bind-once and execute-once lifecycle),
-/// streams narrative JSON string chunks from the injected runtime BasicAi as 'chunk' semantic
-/// events, and returns the accumulated text plus a per-invocation instance id (the id differs
+/// Test-fixture long-text-writing expert. Executes through the category anchor's streaming entry
+/// (which enforces the bind-once and execute-once lifecycle), streams narrative JSON string chunks
+/// from the injected runtime BasicAi as 'chunk' semantic events (via the structured invoker's wire
+/// callbacks), and returns the accumulated text plus a per-invocation instance id (the id differs
 /// across invocations, proving the per-invocation instance lifecycle). Doubles as a local
 /// two-layer settings probe: the POCO defaults are the schema-default layer; a local
 /// override file wired through the executor options replaces individual values.
@@ -26,43 +24,24 @@ public sealed class RecordedLongTextWritingSettings
     public string Greeting { get; init; } = "hi";
 }
 
-public sealed class RecordedLongTextWritingExpert : AbstractLongTextWritingExpert, IInvocableExpert
+public sealed class RecordedLongTextWritingExpert : AbstractLongTextWritingExpert
 {
-    private JsonElement _input;
-    private IExpertSemanticEventSink _events = null!;
     private readonly StringBuilder _text = new();
 
-    public async Task<JsonElement> InvokeAsync(
-        JsonElement input,
-        IExpertSemanticEventSink events,
-        CancellationToken cancellationToken = default)
-    {
-        _input = input.Clone();
-        _events = events;
-        _text.Clear();
-        WithWorldSettings(RequiredString("worldSettings"));
-        WithPlayerInput(RequiredString("playerInput"));
-        var settings = await RuntimeContext.GetExpertSettingsAsync<RecordedLongTextWritingSettings>(cancellationToken)
-            .ConfigureAwait(false);
-        var greeting = settings.Greeting;
-        await StreamAsync(cancellationToken).ConfigureAwait(false);
-        return JsonSerializer.SerializeToElement(new
-        {
-            text = _text.ToString(),
-            greeting,
-            instanceId = Guid.NewGuid().ToString("N")
-        });
-    }
-
+    /// <inheritdoc />
     protected override Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken) =>
         StreamOnceAsync(cancellationToken);
 
+    /// <inheritdoc />
     protected override Task<ExpertCompletionResult> CompleteAsyncCore(CancellationToken cancellationToken) =>
         StreamOnceAsync(cancellationToken);
 
     private async Task<ExpertCompletionResult> StreamOnceAsync(CancellationToken cancellationToken)
     {
         ValidateCategoryInputs();
+        _text.Clear();
+        var settings = await RuntimeContext.GetExpertSettingsAsync<RecordedLongTextWritingSettings>(cancellationToken)
+            .ConfigureAwait(false);
         var request = new BasicAiRequest(
             RuntimeContext.BasicAi.AvailableModels[0].ModelId,
             [BasicAiMessage.User($"world: {WorldSettings}{Environment.NewLine}input: {PlayerInput}")],
@@ -77,22 +56,22 @@ public sealed class RecordedLongTextWritingExpert : AbstractLongTextWritingExper
                 })
                 continue;
             _text.Append(chunk.Value);
-            if (_events is not null)
+            if (ConfiguredPrimaryOutput is TextPrimaryOutput textOutput)
             {
-                await _events.WriteAsync(
-                    new ExpertSemanticEvent("chunk", JsonSerializer.SerializeToElement(new { text = chunk.Value })),
-                    cancellationToken).ConfigureAwait(false);
+                await textOutput.OnDelta(new TextDeltaEvent(chunk.Value), cancellationToken)
+                    .ConfigureAwait(false);
             }
         }
 
-        return new ExpertCompletionResult();
-    }
+        if (ConfiguredPrimaryOutput is TextPrimaryOutput { OnCompleted: { } onCompleted })
+            await onCompleted(new TextCompletedEvent(_text.ToString()), cancellationToken).ConfigureAwait(false);
 
-    private string RequiredString(string name) =>
-        _input.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
-        && value.GetString() is { Length: > 0 } text
-            ? text
-            : throw new ArgumentException(
-                $"The invocation input is missing the required property '{name}'. " +
-                "Required input shape: worldSettings:string, playerInput:string.");
+        // The structured invoker aggregates the completion frame from the primary output, so the
+        // settings probe and the per-invocation instance id travel as turn metadata.
+        return new ExpertCompletionResult(metadata: new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["greeting"] = settings.Greeting,
+            ["instanceId"] = Guid.NewGuid().ToString("N")
+        });
+    }
 }

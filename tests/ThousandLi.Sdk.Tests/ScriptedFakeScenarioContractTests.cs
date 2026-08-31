@@ -4,145 +4,98 @@ using ThousandLi.DevHost;
 namespace ThousandLi.Sdk.Tests;
 
 /// <summary>
-/// Fake 场景文件的契约解析规则：官方类别契约可省略 fingerprint（从锚 Descriptor 解析补全），
-/// 第三方契约必须显式声明；显式声明走 Supports+指纹比对，同契约场景必须版本与指纹一致。
+/// Fake 场景文件的契约解析规则：场景按纯契约 id 声明（无版本协商、无指纹比对），
+/// 重复的 (契约 id, 场景 id) 组合在装载期即失败。
 /// </summary>
 public sealed class ScriptedFakeScenarioContractTests
 {
     [Fact]
-    public void OfficialContractOmittingTheFingerprintResolvesItFromTheAnchorDescriptor()
+    public void ScenariosAreKeyedByContractId()
     {
-        var runner = Load(
+        var path = Path.Combine(
+            Path.GetTempPath(), $"thousandli-fake-scenarios-{Guid.NewGuid():N}.json");
+        File.WriteAllText(
+            path,
             """
             [
               {
-                "contract": { "id": "thousandli.expert/long-text-writing", "version": { "major": 1, "minor": 0 } },
+                "contract": "thousandli.expert/long-text-writing",
                 "scenarioId": "advance",
-                "events": [],
-                "result": { "text": "resolved" }
+                "events": [{ "eventType": "chunk", "payload": { "text": "hi" } }],
+                "result": { "done": true }
               }
             ]
             """);
-
-        var contract = Assert.Single(runner.Contracts);
-        Assert.Equal(AbstractLongTextWritingExpert.Descriptor.Id, contract.Id);
-        Assert.Equal(AbstractLongTextWritingExpert.Descriptor.Fingerprint, contract.Fingerprint);
-    }
-
-    [Fact]
-    public async Task OmittedOfficialFingerprintExecutesAgainstTheAnchorDescriptor()
-    {
-        var runner = Load(
-            """
-            [
-              {
-                "contract": { "id": "thousandli.expert/long-text-writing", "version": { "major": 1, "minor": 0 } },
-                "scenarioId": "advance",
-                "events": [],
-                "result": { "text": "resolved" }
-              }
-            ]
-            """);
-
-        var result = await runner.ExecuteAsync(
-            new ExpertInvocationRequest(AbstractLongTextWritingExpert.Descriptor, "advance", TestSupport.Json("{}")),
-            new RecordingSemanticSink(),
-            TestSupport.CancellationToken);
-
-        Assert.Equal("resolved", result.Output.GetProperty("text").GetString());
-    }
-
-    [Fact]
-    public void ThirdPartyContractOmittingTheFingerprintIsRejectedAtLoadTime()
-    {
-        var exception = Assert.Throws<InvalidOperationException>(() => Load(
-            """
-            [
-              {
-                "contract": { "id": "tests/third-party", "version": { "major": 1, "minor": 0 } },
-                "scenarioId": "advance",
-                "events": [],
-                "result": { "text": "no" }
-              }
-            ]
-            """));
-
-        Assert.Contains("tests/third-party", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("must declare an explicit fingerprint", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task ExplicitFingerprintMismatchIsRejectedAtExecutionTime()
-    {
-        var runner = Load(
-            """
-            [
-              {
-                "contract": {
-                  "id": "thousandli.expert/long-text-writing",
-                  "version": { "major": 1, "minor": 0 },
-                  "fingerprint": "deadbeef"
-                },
-                "scenarioId": "advance",
-                "events": [],
-                "result": { "text": "never" }
-              }
-            ]
-            """);
-
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () => await runner.ExecuteAsync(
-            new ExpertInvocationRequest(AbstractLongTextWritingExpert.Descriptor, "advance", TestSupport.Json("{}")),
-            new RecordingSemanticSink(),
-            TestSupport.CancellationToken));
-
-        Assert.Contains("contract mismatch", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void MixedVersionsOrFingerprintsForOneContractAreRejectedAtLoadTime()
-    {
-        var exception = Assert.Throws<InvalidOperationException>(() => Load(
-            """
-            [
-              {
-                "contract": {
-                  "id": "tests/story",
-                  "version": { "major": 1, "minor": 0 },
-                  "fingerprint": "fp-a"
-                },
-                "scenarioId": "advance",
-                "events": [],
-                "result": {}
-              },
-              {
-                "contract": {
-                  "id": "tests/story",
-                  "version": { "major": 1, "minor": 1 },
-                  "fingerprint": "fp-a"
-                },
-                "scenarioId": "reflect",
-                "events": [],
-                "result": {}
-              }
-            ]
-            """));
-
-        Assert.Contains("tests/story", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("one version and fingerprint", exception.Message, StringComparison.Ordinal);
-    }
-
-    private static ScriptedFakeExpertRunner Load(string json)
-    {
-        var directory = Directory.CreateTempSubdirectory("thousandli-fake-scenarios-");
         try
         {
-            var path = Path.Combine(directory.FullName, "scenarios.json");
-            File.WriteAllText(path, json);
-            return ScriptedFakeExpertRunner.Load(path);
+            var runner = ScriptedFakeExpertRunner.Load(path);
+
+            var contractId = Assert.Single(runner.Contracts);
+            Assert.Equal(AbstractLongTextWritingExpert.ContractId, contractId);
         }
         finally
         {
-            directory.Delete(recursive: true);
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task ExecutionResolvesScenariosByContractId()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(), $"thousandli-fake-scenarios-{Guid.NewGuid():N}.json");
+        await File.WriteAllTextAsync(
+            path,
+            """
+            [
+              {
+                "contract": "tests/third-party",
+                "scenarioId": "advance",
+                "result": { "done": true }
+              }
+            ]
+            """,
+            TestSupport.CancellationToken);
+        try
+        {
+            var runner = ScriptedFakeExpertRunner.Load(path);
+
+            var result = await runner.ExecuteAsync(
+                new ExpertInvocationRequest("tests/third-party", "advance", TestSupport.Json("{}")),
+                new RecordingSemanticSink(),
+                TestSupport.CancellationToken);
+
+            Assert.True(result.Output.GetProperty("done").GetBoolean());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void DuplicateScenarioKeysForOneContractAreRejectedAtLoadTime()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(), $"thousandli-fake-scenarios-{Guid.NewGuid():N}.json");
+        File.WriteAllText(
+            path,
+            """
+            [
+              { "contract": "tests/dup", "scenarioId": "advance", "result": {} },
+              { "contract": "tests/dup", "scenarioId": "advance", "result": {} }
+            ]
+            """);
+        try
+        {
+            var exception = Assert.Throws<InvalidOperationException>(() => ScriptedFakeExpertRunner.Load(path));
+
+            Assert.Contains("Duplicate Fake scenario", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("tests/dup", exception.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(path);
         }
     }
 }

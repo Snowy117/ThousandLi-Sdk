@@ -139,11 +139,11 @@ public sealed class ExpertFacadeContractTests
 
     private sealed class ContextSupportFakeFacade : IExpertFacade
     {
-        public TAbstract Use<TAbstract>() where TAbstract : AbstractLongTextWritingExpert
+        public TAbstract Use<TAbstract>() where TAbstract : ExpertBase
         {
             var expert = new RecordingLongTextWritingExpert();
             expert.Bind(FakeExpertExecutionContext.Instance);
-            return (TAbstract)(AbstractLongTextWritingExpert)expert;
+            return (TAbstract)(ExpertBase)expert;
         }
     }
 

@@ -5,9 +5,10 @@ namespace ThousandLi.DevHost;
 
 /// <summary>
 /// Game-facing typed expert facade for the local DevHost mode. Structurally identical to the
-/// production Host facade: <see cref="Use{TAbstract}"/> resolves the abstract category anchor's
-/// contract id, asks the local composition to create and bind a fresh expert instance from the
-/// configured Expert Package, and returns the fluent instance to game code.
+/// production Host facade: <see cref="Use{TAbstract}"/> reads the abstract category anchor's
+/// <c>[ExpertContract]</c> id, asks the local composition to create and bind a fresh expert
+/// instance from the configured Expert Package, and returns the fluent instance to game code.
+/// The generic constraint is category-agnostic (<see cref="ExpertBase"/>).
 /// </summary>
 public sealed class LocalExpertFacade : IExpertFacade
 {
@@ -22,11 +23,11 @@ public sealed class LocalExpertFacade : IExpertFacade
     }
 
     /// <summary>
-    /// 解析类别锚类型：读取其 <c>[ExpertContract]</c> 契约身份，交由本地组合创建并绑定
+    /// 解析类别锚类型：读取其 <c>[ExpertContract]</c> 契约 id，交由本地组合创建并绑定
     /// 一个新的具体专家实例，返回给游戏代码继续 fluent 配置。
     /// </summary>
-    /// <typeparam name="TAbstract">抽象类别锚类型（必须带 <c>[ExpertContract]</c>）。</typeparam>
-    public TAbstract Use<TAbstract>() where TAbstract : AbstractLongTextWritingExpert
+    /// <typeparam name="TAbstract">抽象类别锚类型（必须带 <c>[ExpertContract]</c> 且继承 ExpertBase）。</typeparam>
+    public TAbstract Use<TAbstract>() where TAbstract : ExpertBase
     {
         var contractId = typeof(TAbstract).GetCustomAttribute<ExpertContractAttribute>()?.Id
             ?? throw new InvalidOperationException(

@@ -1,6 +1,4 @@
-using System.Text.Json;
 using ThousandLi.Contracts;
-using ThousandLi.ExpertAuthoring;
 
 [assembly: ExpertPackageEntryPoint(
     typeof(AbstractLongTextWritingExpert),
@@ -11,14 +9,8 @@ using ThousandLi.ExpertAuthoring;
 
 namespace ThousandLi.LocalExpertMultiEntryFixture;
 
-public sealed class FirstLongTextWritingExpert : AbstractLongTextWritingExpert, IInvocableExpert
+public sealed class FirstLongTextWritingExpert : AbstractLongTextWritingExpert
 {
-    public Task<JsonElement> InvokeAsync(
-        JsonElement input,
-        IExpertSemanticEventSink events,
-        CancellationToken cancellationToken = default) =>
-        throw new NotImplementedException();
-
     protected override Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken) =>
         throw new NotImplementedException();
 
@@ -26,14 +18,8 @@ public sealed class FirstLongTextWritingExpert : AbstractLongTextWritingExpert, 
         throw new NotImplementedException();
 }
 
-public sealed class SecondLongTextWritingExpert : AbstractLongTextWritingExpert, IInvocableExpert
+public sealed class SecondLongTextWritingExpert : AbstractLongTextWritingExpert
 {
-    public Task<JsonElement> InvokeAsync(
-        JsonElement input,
-        IExpertSemanticEventSink events,
-        CancellationToken cancellationToken = default) =>
-        throw new NotImplementedException();
-
     protected override Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken) =>
         throw new NotImplementedException();
 

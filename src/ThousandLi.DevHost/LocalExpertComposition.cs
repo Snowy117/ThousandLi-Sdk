@@ -21,33 +21,31 @@ public sealed record LocalExpertCompositionOptions(
 /// <summary>
 /// Executes expert invocations against trusted locally loaded Expert Packages. Contract-to-package
 /// resolution uses explicit bindings when configured and rejects ambiguous multi-package contracts
-/// with a deterministic error listing the candidates. Expert instances and sinks are created fresh
-/// per invocation. This is the Playground/protocol tool surface; game code reaches the same
-/// packages through <see cref="LocalExpertFacade"/>.
+/// with a deterministic error listing the candidates. This is a thin adapter over the shared
+/// <see cref="ExpertSessionComposition"/> engine: binding validation, instance creation, context
+/// binding, and structured invocation all live in the engine; this class contributes the loaded
+/// package set and the per-slot execution context factory. Game code reaches the same packages
+/// through <see cref="LocalExpertFacade"/>.
 /// </summary>
-public sealed class LocalExpertComposition
+public sealed class LocalExpertComposition : IExpertRunner
 {
-    private readonly ExpertContractRegistry _registry;
     private readonly IReadOnlyDictionary<string, LoadedExpertPackage> _packagesById;
     private readonly LocalExpertCompositionOptions _options;
     private readonly IReadOnlyDictionary<string, LoadedExpertPackage> _resolvedContracts;
-    private long _sequence;
+    private readonly ExpertSessionComposition _engine;
 
     /// <summary>
-    /// 以注册表、已加载的 Expert Package 集合与组合配置构造本地专家组合。要求至少一个已加载包；
+    /// 以已加载的 Expert Package 集合与组合配置构造本地专家组合。要求至少一个已加载包；
     /// 重复的包 id、无法唯一解析的契约绑定在构造期即失败。
     /// </summary>
-    /// <param name="registry">契约注册表（提供平台侧契约身份与指纹）。</param>
     /// <param name="expertPackages">已加载的本地 Expert Package 集合。</param>
     /// <param name="explicitContractBindings">可选的契约 id → 包 id 显式绑定。</param>
     /// <param name="options">本地执行组合配置（BasicAi、玩家档案、可选设置覆盖文件）。</param>
     public LocalExpertComposition(
-        ExpertContractRegistry registry,
         IReadOnlyList<LoadedExpertPackage> expertPackages,
         IReadOnlyDictionary<string, string>? explicitContractBindings,
         LocalExpertCompositionOptions options)
     {
-        ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(expertPackages);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(options.BasicAi);
@@ -55,7 +53,6 @@ public sealed class LocalExpertComposition
         if (expertPackages.Count == 0)
             throw new LocalExpertException("Local expert execution requires at least one loaded Expert Package.");
 
-        _registry = registry;
         _options = options;
         var explicitBindings = explicitContractBindings ?? new Dictionary<string, string>();
         var duplicates = expertPackages
@@ -66,25 +63,6 @@ public sealed class LocalExpertComposition
                 $"Expert Package '{duplicates.Key}' was loaded more than once; Expert Package ids must be unique.");
 
         var errors = new List<string>();
-        foreach (var package in expertPackages)
-        {
-            if (!registry.TryGetContract(package.Contract.Id, out var registered))
-            {
-                errors.Add(
-                    $"Expert Package '{package.Manifest.PackageId}' declares contract '{package.Contract.Id}' ({package.Contract.Version}), " +
-                    "which is not registered.");
-                continue;
-            }
-            if (!string.Equals(registered.Fingerprint, package.Contract.Fingerprint, StringComparison.Ordinal) ||
-                registered.Version != package.Contract.Version)
-            {
-                errors.Add(
-                    $"Expert Package '{package.Manifest.PackageId}' declares contract '{package.Contract.Id}' {package.Contract.Version} " +
-                    $"with fingerprint '{package.Contract.Fingerprint}', but the registry active line is {registered.Version} " +
-                    $"with fingerprint '{registered.Fingerprint}'. Rebuild the package against the active contract line.");
-            }
-        }
-
         foreach (var binding in explicitBindings)
         {
             if (!expertPackages.Any(package =>
@@ -95,7 +73,8 @@ public sealed class LocalExpertComposition
                     "Loaded Expert Packages: " + PackageList(expertPackages) + ".");
                 continue;
             }
-            if (!expertPackages.Any(package => string.Equals(package.Contract.Id, binding.Key, StringComparison.Ordinal)))
+            if (!expertPackages.Any(package =>
+                    string.Equals(package.Shape.ContractId, binding.Key, StringComparison.Ordinal)))
             {
                 errors.Add(
                     $"the binding for contract '{binding.Key}' points to a contract that no loaded Expert Package serves. " +
@@ -105,7 +84,7 @@ public sealed class LocalExpertComposition
 
         var resolved = new Dictionary<string, LoadedExpertPackage>(StringComparer.Ordinal);
         foreach (var contractGroup in expertPackages.GroupBy(
-                     package => package.Contract.Id, StringComparer.Ordinal))
+                     package => package.Shape.ContractId, StringComparer.Ordinal))
         {
             var explicitBinding = explicitBindings.GetValueOrDefault(contractGroup.Key);
             if (explicitBinding is null)
@@ -136,7 +115,7 @@ public sealed class LocalExpertComposition
                 {
                     errors.Add(
                         $"the binding for contract '{contractGroup.Key}' points to Expert Package " +
-                        $"'{explicitBinding}', which serves contract '{boundPackage.Contract.Id}', " +
+                        $"'{explicitBinding}', which serves contract '{boundPackage.Shape.ContractId}', " +
                         $"not '{contractGroup.Key}'.");
                 }
             }
@@ -152,20 +131,26 @@ public sealed class LocalExpertComposition
         _packagesById = expertPackages.ToDictionary(
             package => package.Manifest.PackageId, package => package, StringComparer.Ordinal);
         _resolvedContracts = resolved;
+        _engine = new ExpertSessionComposition(
+            resolved.Values.Select(package => new ExpertSessionBinding(
+                package.Shape.ContractId,
+                package.Shape.AbstractExpertType,
+                package.ExpertFactory,
+                ResolveInvoker(package.Shape.AbstractExpertType))),
+            _ => CreateContext(),
+            invocationPrefix: "local");
     }
 
-    /// <summary>已解析契约的描述符列表（按 id 去重排序；Playground 契约展示用）。</summary>
-    public IReadOnlyList<ExpertContractDescriptor> ContractDescriptors =>
-        [.. _resolvedContracts.Values.Select(package => package.Contract)
-            .DistinctBy(contract => contract.Id)
-            .OrderBy(contract => contract.Id, StringComparer.Ordinal)];
+    /// <summary>已解析契约 id 列表（按 id 排序；Playground 契约展示用）。</summary>
+    public IReadOnlyList<string> ContractIds =>
+        [.. _resolvedContracts.Keys.Order(StringComparer.Ordinal)];
 
     /// <summary>All loaded Expert Package ids serving the contract, ordered by id (Playground listing).</summary>
     public IReadOnlyList<string> PackageIdsForContract(string contractId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
         return [.. _packagesById.Values
-            .Where(package => string.Equals(package.Contract.Id, contractId, StringComparison.Ordinal))
+            .Where(package => string.Equals(package.Shape.ContractId, contractId, StringComparison.Ordinal))
             .Select(package => package.Manifest.PackageId)
             .Order(StringComparer.Ordinal)];
     }
@@ -173,30 +158,14 @@ public sealed class LocalExpertComposition
     /// <summary>
     /// Creates and binds a fresh expert instance for the game-facing local facade: resolves the
     /// contract-to-package binding, runs the package factory, and binds a per-invocation execution
-    /// context. Mirrors the production RuntimeExpertFacade flow (resolver → factory → Bind).
+    /// context. Mirrors the production facade flow (resolver → factory → Bind).
     /// </summary>
-    public AbstractLongTextWritingExpert CreateExpert(string contractId, string? expertPackageIdOverride = null)
+    public ExpertBase CreateExpert(string contractId, string? expertPackageIdOverride = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
-        var package = ResolvePackage(contractId, expertPackageIdOverride);
-        var contract = _registry.GetRequiredContract(contractId);
-        if (!string.Equals(contract.Fingerprint, package.Contract.Fingerprint, StringComparison.Ordinal) ||
-            contract.Version != package.Contract.Version)
-        {
-            throw new LocalExpertException(
-                $"Contract mismatch for '{contractId}': the package declares {package.Contract.Version} " +
-                $"with fingerprint '{package.Contract.Fingerprint}', but the registered contract is {contract.Version} " +
-                $"with fingerprint '{contract.Fingerprint}'.");
-        }
-
-        var expert = package.ExpertFactory();
-        expert.Bind(new LocalExpertExecutionContext(
-            _options.BasicAi,
-            _options.PlayerProfile,
-            _options.Logger ?? NullLogger.Instance,
-            schemaDefaults: null,
-            _options.SettingsOverrideFile));
-        return expert;
+        return expertPackageIdOverride is null
+            ? _engine.CreateExpert(contractId)
+            : _engine.CreateExpert(contractId, ResolvePackage(contractId, expertPackageIdOverride).ExpertFactory);
     }
 
     /// <summary>以配置的契约绑定执行一次调用（便捷重载；不做包覆盖）。</summary>
@@ -210,7 +179,7 @@ public sealed class LocalExpertComposition
     /// Executes one invocation, optionally overriding the configured contract binding for this
     /// call only (used by the Playground); the override never mutates the global binding state.
     /// </summary>
-    public async ValueTask<ExpertInvocationResult> ExecuteAsync(
+    public ValueTask<ExpertInvocationResult> ExecuteAsync(
         ExpertInvocationRequest request,
         IExpertSemanticEventSink events,
         string? expertPackageIdOverride,
@@ -218,31 +187,27 @@ public sealed class LocalExpertComposition
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(events);
-        cancellationToken.ThrowIfCancellationRequested();
-        var package = ResolvePackage(request.Contract.Id, expertPackageIdOverride);
-        var contract = _registry.GetRequiredContract(request.Contract.Id);
-        if (!contract.Version.Supports(request.Contract.Version) ||
-            !string.Equals(contract.Fingerprint, request.Contract.Fingerprint, StringComparison.Ordinal))
-        {
-            throw new LocalExpertException(
-                $"Contract mismatch for '{request.Contract.Id}': the invocation requires {request.Contract.Version} " +
-                $"with fingerprint '{request.Contract.Fingerprint}', but the registered contract is {contract.Version} " +
-                $"with fingerprint '{contract.Fingerprint}'.");
-        }
-
-        var expert = package.ExpertFactory();
-        var context = new LocalExpertExecutionContext(
-            _options.BasicAi,
-            _options.PlayerProfile,
-            _options.Logger ?? NullLogger.Instance,
-            schemaDefaults: null,
-            _options.SettingsOverrideFile);
-        expert.Bind(context);
-        var invocationId = $"local-{Interlocked.Increment(ref _sequence):D8}";
-        var output = await ((IInvocableExpert)expert).InvokeAsync(request.Input, events, cancellationToken)
-            .ConfigureAwait(false);
-        return new ExpertInvocationResult(invocationId, output);
+        return expertPackageIdOverride is null
+            ? _engine.ExecuteAsync(request, events, cancellationToken)
+            : _engine.ExecuteAsync(
+                request,
+                events,
+                ResolvePackage(request.ContractId, expertPackageIdOverride).ExpertFactory,
+                cancellationToken);
     }
+
+    private static ExpertStructuredInvoker ResolveInvoker(Type abstractExpertType) =>
+        abstractExpertType == typeof(AbstractLongTextWritingExpert)
+            ? LongTextWritingExpertInvoker.InvokeBindingAsync
+            : throw new LocalExpertException(
+                $"No structured invoker is available for abstract expert type '{abstractExpertType.FullName}'.");
+
+    private LocalExpertExecutionContext CreateContext() => new(
+        _options.BasicAi,
+        _options.PlayerProfile,
+        _options.Logger ?? NullLogger.Instance,
+        schemaDefaults: null,
+        _options.SettingsOverrideFile);
 
     private LoadedExpertPackage ResolvePackage(string contractId, string? expertPackageIdOverride)
     {
@@ -259,10 +224,10 @@ public sealed class LocalExpertComposition
             throw new LocalExpertException(
                 $"The Expert Package override '{expertPackageIdOverride}' is not loaded. Loaded Expert Packages: " +
                 PackageList([.. _packagesById.Values]) + ".");
-        if (!string.Equals(overridePackage.Contract.Id, contractId, StringComparison.Ordinal))
+        if (!string.Equals(overridePackage.Shape.ContractId, contractId, StringComparison.Ordinal))
             throw new LocalExpertException(
                 $"The Expert Package override '{expertPackageIdOverride}' serves contract " +
-                $"'{overridePackage.Contract.Id}', not '{contractId}'.");
+                $"'{overridePackage.Shape.ContractId}', not '{contractId}'.");
         return overridePackage;
     }
 
@@ -275,7 +240,7 @@ public sealed class LocalExpertComposition
         packages.Count == 0
             ? "none"
             : string.Join(", ", packages
-                .Select(package => package.Contract.Id)
+                .Select(package => package.Shape.ContractId)
                 .Distinct(StringComparer.Ordinal)
                 .Order(StringComparer.Ordinal)
                 .Select(id => $"'{id}'"));

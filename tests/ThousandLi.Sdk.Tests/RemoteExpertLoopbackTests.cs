@@ -15,7 +15,6 @@ namespace ThousandLi.Sdk.Tests;
 public sealed class RemoteExpertLoopbackTests
 {
     private const string ContractId = "tests/story";
-    private const string Fingerprint = "tests-story-v1";
     private const string PackageId = "tests/story-pro@1";
     private const string InvocationId = "0199def0-aaaa-7bbb-8ccc-dddd00001111";
     private const string Token = "loopback-token";
@@ -41,7 +40,7 @@ public sealed class RemoteExpertLoopbackTests
 
         var result = await runner.ExecuteAsync(
             new ExpertInvocationRequest(
-                new ExpertContractDescriptor(ContractId, new ContractVersion(1, 0), Fingerprint),
+                ContractId,
                 scenarioId: "loopback-scenario",
                 input: TestSupport.Json("""{"prompt":"hello"}"""),
                 channelKey: "loopback-channel"),
@@ -97,7 +96,7 @@ public sealed class RemoteExpertLoopbackTests
 
         var result = await runner.ExecuteAsync(
             new ExpertInvocationRequest(
-                new ExpertContractDescriptor(ContractId, new ContractVersion(1, 0), Fingerprint),
+                ContractId,
                 scenarioId: null,
                 input: TestSupport.Json("""{"prompt":"hello"}"""),
                 channelKey: null),
@@ -152,7 +151,7 @@ public sealed class RemoteExpertLoopbackTests
         _ = await Assert.ThrowsAsync<RemoteInvocationCancelledException>(() =>
             runner.ExecuteAsync(
                 new ExpertInvocationRequest(
-                    new ExpertContractDescriptor(ContractId, new ContractVersion(1, 0), Fingerprint),
+                    ContractId,
                     scenarioId: null,
                     input: TestSupport.Json("""{"prompt":"hello"}"""),
                     channelKey: null),
@@ -166,8 +165,7 @@ public sealed class RemoteExpertLoopbackTests
     }
 
     private static string CatalogJson =>
-        "[{\"contractId\":\"" + ContractId + "\",\"name\":\"LongTextWriting\",\"description\":\"\",\"version\":{\"major\":1,\"minor\":0},\"fingerprint\":\"" +
-        Fingerprint + "\"}]";
+        "[{\"contractId\":\"" + ContractId + "\",\"name\":\"LongTextWriting\",\"description\":\"\"}]";
 
     private static string SnapshotJson =>
         "{\"expertInvocationId\":\"" + InvocationId + "\",\"status\":\"running\",\"replayed\":false,\"contractId\":\"" +

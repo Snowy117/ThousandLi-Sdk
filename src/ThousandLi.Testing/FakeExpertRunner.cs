@@ -9,25 +9,29 @@ public sealed record FakeExpertScenario
 {
     public FakeExpertScenario(
         string scenarioId,
-        ExpertContractDescriptor contract,
+        string contractId,
         IReadOnlyList<ExpertSemanticEvent> events,
         JsonElement result)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(scenarioId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
         JsonContractGuardForTesting.ThrowIfUndefined(result, nameof(result));
         ScenarioId = scenarioId;
-        Contract = contract ?? throw new ArgumentNullException(nameof(contract));
+        ContractId = contractId;
         Events = new ReadOnlyCollection<ExpertSemanticEvent>([.. events ?? throw new ArgumentNullException(nameof(events))]);
         Result = result.Clone();
     }
 
     public string ScenarioId { get; }
-    public ExpertContractDescriptor Contract { get; }
+
+    public string ContractId { get; }
+
     public IReadOnlyList<ExpertSemanticEvent> Events { get; }
+
     public JsonElement Result { get; }
 }
 
-public sealed class FakeExpertRunner
+public sealed class FakeExpertRunner : IExpertRunner
 {
     private readonly Dictionary<string, FakeExpertScenario> _scenarios;
     private readonly ConcurrentQueue<ExpertInvocationRecord> _invocations = new();
@@ -37,7 +41,7 @@ public sealed class FakeExpertRunner
     {
         ArgumentNullException.ThrowIfNull(scenarios);
         _scenarios = scenarios.ToDictionary(
-            scenario => CreateKey(scenario.Contract.Id, scenario.ScenarioId),
+            scenario => CreateKey(scenario.ContractId, scenario.ScenarioId),
             StringComparer.Ordinal);
     }
 
@@ -52,14 +56,13 @@ public sealed class FakeExpertRunner
         ArgumentNullException.ThrowIfNull(events);
         if (request.ScenarioId is null)
             throw new InvalidOperationException(
-                $"Fake Expert execution requires a scenario key, but the invocation for contract '{request.Contract.Id}' does not provide one.");
-        if (!_scenarios.TryGetValue(CreateKey(request.Contract.Id, request.ScenarioId), out var scenario))
+                $"Fake Expert execution requires a scenario key, but the invocation for contract '{request.ContractId}' does not provide one.");
+        if (!_scenarios.TryGetValue(CreateKey(request.ContractId, request.ScenarioId), out var scenario))
         {
             throw new InvalidOperationException(
-                $"Fake Expert scenario '{request.ScenarioId}' is not registered for contract '{request.Contract.Id}'.");
+                $"Fake Expert scenario '{request.ScenarioId}' is not registered for contract '{request.ContractId}'.");
         }
 
-        ValidateContract(request.Contract, scenario.Contract);
         var invocationId = $"fake-{Interlocked.Increment(ref _invocationSequence):D4}";
         _invocations.Enqueue(new ExpertInvocationRecord(request, invocationId));
         foreach (var semanticEvent in scenario.Events)
@@ -70,18 +73,6 @@ public sealed class FakeExpertRunner
                 cancellationToken).ConfigureAwait(false);
         }
         return new ExpertInvocationResult(invocationId, scenario.Result);
-    }
-
-    private static void ValidateContract(ExpertContractDescriptor required, ExpertContractDescriptor available)
-    {
-        if (!string.Equals(required.Id, available.Id, StringComparison.Ordinal) ||
-            !available.Version.Supports(required.Version) ||
-            !string.Equals(required.Fingerprint, available.Fingerprint, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException(
-                $"Fake Expert contract mismatch for '{required.Id}': required {required.Version}/" +
-                $"{required.Fingerprint}, available {available.Version}/{available.Fingerprint}.");
-        }
     }
 
     private static string CreateKey(string contractId, string scenarioId) => $"{contractId}\n{scenarioId}";

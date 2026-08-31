@@ -9,7 +9,7 @@ namespace ThousandLi.DevHost;
 /// is a tool surface, not a game-authoring API; game code reaches experts through the typed facade.
 /// </summary>
 [JetBrains.Annotations.PublicAPI]
-public sealed class ScriptedFakeExpertRunner
+public sealed class ScriptedFakeExpertRunner : IExpertRunner
 {
     private readonly IReadOnlyDictionary<string, ScriptedScenario> _scenarios;
     private readonly ConcurrentQueue<ExpertInvocationRecord> _invocations = new();
@@ -20,11 +20,17 @@ public sealed class ScriptedFakeExpertRunner
         _scenarios = scenarios;
     }
 
-    public IReadOnlyList<ExpertContractDescriptor> Contracts =>
-        [.. _scenarios.Values.Select(value => value.Contract).DistinctBy(value => value.Id).OrderBy(value => value.Id, StringComparer.Ordinal)];
+    /// <summary>已注册场景覆盖的契约 id 列表（确定性排序）。</summary>
+    public IReadOnlyList<string> Contracts =>
+        [.. _scenarios.Values.Select(value => value.ContractId).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
 
     public IReadOnlyList<ExpertInvocationRecord> Invocations => [.. _invocations];
 
+    /// <summary>
+    /// 从 <c>--fake-scenarios</c> JSON 数组加载脚本化场景：每项为
+    /// <c>{ contract: "id", scenarioId, events?: [...], result }</c>。
+    /// </summary>
+    /// <param name="path">场景文件路径；null/空白时返回空 runner。</param>
     public static ScriptedFakeExpertRunner Load(string? path)
     {
         if (string.IsNullOrWhiteSpace(path)) return new ScriptedFakeExpertRunner(new Dictionary<string, ScriptedScenario>());
@@ -36,43 +42,15 @@ public sealed class ScriptedFakeExpertRunner
         {
             if (item.ValueKind != JsonValueKind.Object)
                 throw new InvalidOperationException("Each Fake scenario must be a JSON object.");
-            var contractElement = item.GetProperty("contract");
-            var versionElement = contractElement.GetProperty("version");
-            var contractId = contractElement.GetProperty("id").GetString()!;
-            var fingerprintElement = contractElement.TryGetProperty("fingerprint", out var explicitFingerprint)
-                ? explicitFingerprint.GetString()
-                : null;
-            if (string.IsNullOrWhiteSpace(fingerprintElement))
-            {
-                // Official category contracts resolve their fingerprint from the anchor type so
-                // scenario files never hand-copy a value that silently drifts from the assembly.
-                if (contractId != AbstractLongTextWritingExpert.Descriptor.Id)
-                    throw new InvalidOperationException(
-                        $"Fake scenario contract '{contractId}' must declare an explicit fingerprint; " +
-                        "only official category contracts may omit it.");
-                fingerprintElement = AbstractLongTextWritingExpert.Descriptor.Fingerprint;
-            }
-
-            var contract = new ExpertContractDescriptor(
-                contractId,
-                new ContractVersion(
-                    versionElement.GetProperty("major").GetInt32(),
-                    versionElement.GetProperty("minor").GetInt32()),
-                fingerprintElement);
+            var contractId = item.GetProperty("contract").GetString()!;
             var scenarioId = item.GetProperty("scenarioId").GetString()!;
             var events = item.TryGetProperty("events", out var eventsElement)
                 ? eventsElement.EnumerateArray().Select(value => new ExpertSemanticEvent(
                     value.GetProperty("eventType").GetString()!, value.GetProperty("payload"))).ToArray()
                 : [];
-            var scenario = new ScriptedScenario(contract, events, item.GetProperty("result"));
-            if (!scenarios.TryAdd(Key(contract.Id, scenarioId), scenario))
-                throw new InvalidOperationException($"Duplicate Fake scenario '{scenarioId}' for contract '{contract.Id}'.");
-        }
-        foreach (var contractGroup in scenarios.Values.GroupBy(scenario => scenario.Contract.Id, StringComparer.Ordinal))
-        {
-            var contracts = contractGroup.Select(scenario => scenario.Contract).Distinct().ToArray();
-            if (contracts.Length != 1)
-                throw new InvalidOperationException($"Fake scenarios for contract '{contractGroup.Key}' must use one version and fingerprint.");
+            var scenario = new ScriptedScenario(contractId, scenarioId, events, item.GetProperty("result"));
+            if (!scenarios.TryAdd(Key(scenario.ContractId, scenario.ScenarioId), scenario))
+                throw new InvalidOperationException($"Duplicate Fake scenario '{scenario.ScenarioId}' for contract '{scenario.ContractId}'.");
         }
         return new ScriptedFakeExpertRunner(scenarios);
     }
@@ -87,14 +65,9 @@ public sealed class ScriptedFakeExpertRunner
         cancellationToken.ThrowIfCancellationRequested();
         if (request.ScenarioId is null)
             throw new InvalidOperationException(
-                $"Fake Expert execution requires a scenario key, but the invocation for contract '{request.Contract.Id}' does not provide one.");
-        if (!_scenarios.TryGetValue(Key(request.Contract.Id, request.ScenarioId), out var scenario))
-            throw new InvalidOperationException($"No Fake scenario '{request.ScenarioId}' for '{request.Contract.Id}'.");
-        if (!scenario.Contract.Version.Supports(request.Contract.Version) ||
-            !string.Equals(scenario.Contract.Fingerprint, request.Contract.Fingerprint, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException($"Fake scenario contract mismatch for '{request.Contract.Id}'.");
-        }
+                $"Fake Expert execution requires a scenario key, but the invocation for contract '{request.ContractId}' does not provide one.");
+        if (!_scenarios.TryGetValue(Key(request.ContractId, request.ScenarioId), out var scenario))
+            throw new InvalidOperationException($"No Fake scenario '{request.ScenarioId}' for '{request.ContractId}'.");
         var invocationId = $"fake-{Interlocked.Increment(ref _sequence):D8}";
         _invocations.Enqueue(new ExpertInvocationRecord(request, invocationId));
         foreach (var semanticEvent in scenario.Events)
@@ -109,7 +82,8 @@ public sealed class ScriptedFakeExpertRunner
     private static string Key(string contractId, string scenarioId) => $"{contractId}\n{scenarioId}";
 
     private sealed record ScriptedScenario(
-        ExpertContractDescriptor Contract,
+        string ContractId,
+        string ScenarioId,
         IReadOnlyList<ExpertSemanticEvent> Events,
         JsonElement Result)
     {

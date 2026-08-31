@@ -58,14 +58,7 @@ public static class DevHostApplication
         var useLocalExperts = options.Experts == DevHostOptions.LocalExecutorName;
         var useRemoteExperts = options.Experts == DevHostOptions.RemoteExecutorName;
 
-        var gamePackage = GamePackageLoader.Load(
-            options.ArtifactDirectory,
-            useLocalExperts || useRemoteExperts
-                ? [.. fakeExperts.Contracts, .. contracts.Registry.Contracts
-                    .Select(contract => contract.ToDescriptor())
-                    .Where(descriptor => fakeExperts.Contracts.All(
-                        existing => existing.Id != descriptor.Id))]
-                : fakeExperts.Contracts);
+        var gamePackage = GamePackageLoader.Load(options.ArtifactDirectory);
         try
         {
             var sessionId = new SessionId(options.SessionId);
@@ -129,10 +122,20 @@ public static class DevHostApplication
                 // The playground logger comes from the host's own logging pipeline. Both state
                 // objects are plain locals: the web host only maps routes against them, and the
                 // application-stopped callback owns their disposal.
+                // The runner table is resolved once here (the composition root): the Fake runner
+                // is always present; local and remote join when their modes are configured.
+                var runners = new Dictionary<string, IExpertRunner>(StringComparer.Ordinal)
+                {
+                    [DevHostOptions.FakeExecutorName] = fakeExperts
+                };
+                if (localExperts is not null)
+                    runners[DevHostOptions.LocalExecutorName] = localExperts;
+                if (remoteExperts is not null)
+                    runners[DevHostOptions.RemoteExecutorName] = remoteExperts.Runner;
                 var playground = new PlaygroundService(
                     fakeExperts,
                     localExperts,
-                    contracts.Registry,
+                    runners,
                     recordingStore,
                     app.Services.GetRequiredService<ILoggerFactory>().CreateLogger<PlaygroundService>(),
                     remoteExperts);

@@ -54,7 +54,7 @@ public sealed class RemoteExpertExecutionContext(BoundPlayerProfile? playerProfi
 public sealed class RemoteLongTextWritingExpert(
     RemoteExpertClient client,
     RemoteInvocationRunnerOptions options,
-    ExpertContractDescriptor contract,
+    string contractId,
     LongTextWritingWireCodec? codec = null) : AbstractLongTextWritingExpert
 {
     /// <summary>The dataResponse page size when the platform does not request one explicitly.</summary>
@@ -63,7 +63,9 @@ public sealed class RemoteLongTextWritingExpert(
     private readonly RemoteExpertClient _client = client ?? throw new ArgumentNullException(nameof(client));
     private readonly RemoteInvocationRunnerOptions _options =
         options ?? throw new ArgumentNullException(nameof(options));
-    private readonly ExpertContractDescriptor _contract = contract ?? throw new ArgumentNullException(nameof(contract));
+    private readonly string _contractId = !string.IsNullOrWhiteSpace(contractId)
+        ? contractId
+        : throw new ArgumentException("Contract id must be non-empty.", nameof(contractId));
     private readonly LongTextWritingWireCodec _codec = codec ?? LongTextWritingWireCodec.Default;
 
     /// <summary>
@@ -97,11 +99,11 @@ public sealed class RemoteLongTextWritingExpert(
             cancellationToken: cancellationToken).ConfigureAwait(false);
         // The platform defaults an omitted primary output to a text output; a game that never
         // configured one has no callback to deliver to, so dispatch targets a silent drop.
-        var dispatchOutput = ConfiguredPrimaryOutput ?? new TextPrimaryOutput(static (_, _) => ValueTask.CompletedTask);
+        var dispatchOutput = ConfiguredPrimaryOutput;
 
         var session = new RemoteInvocationSession(_client, _options);
         return await session.ExecuteAsync(
-            _contract,
+            _contractId,
             invocation.Input,
             idempotencyKey: null,
             clientCorrelation: null,
@@ -237,7 +239,7 @@ public sealed class RemoteExpertFacade(
     /// configuration.
     /// </summary>
     /// <typeparam name="TAbstract">The abstract category anchor type (must carry <c>[ExpertContract]</c>).</typeparam>
-    public TAbstract Use<TAbstract>() where TAbstract : AbstractLongTextWritingExpert
+    public TAbstract Use<TAbstract>() where TAbstract : ExpertBase
     {
         var attribute = typeof(TAbstract).GetCustomAttribute<ExpertContractAttribute>()
             ?? throw new InvalidOperationException(
@@ -246,7 +248,7 @@ public sealed class RemoteExpertFacade(
         var expert = new RemoteLongTextWritingExpert(
             _client,
             _options,
-            new ExpertContractDescriptor(attribute.Id, attribute.Version, attribute.Fingerprint));
+            attribute.Id);
         expert.Bind(_context);
         return (TAbstract)(object)expert;
     }

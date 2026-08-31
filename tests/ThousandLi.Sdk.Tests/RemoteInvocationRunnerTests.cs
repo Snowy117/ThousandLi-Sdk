@@ -9,13 +9,11 @@ namespace ThousandLi.Sdk.Tests;
 public sealed class RemoteInvocationRunnerTests
 {
     private const string ContractId = "tests/story";
-    private const string Fingerprint = "tests-story-v1";
     private const string PackageId = "tests/story-pro@1";
     private const string InvocationId = "0199abc0-1111-7222-8333-444455556666";
 
-    private static string CatalogJson(string versionMajor = "1", string versionMinor = "0", string fingerprint = Fingerprint) =>
-        "[{\"contractId\":\"" + ContractId + "\",\"name\":\"LongTextWriting\",\"description\":\"\",\"version\":{\"major\":" +
-        versionMajor + ",\"minor\":" + versionMinor + "},\"fingerprint\":\"" + fingerprint + "\"}]";
+    private static string CatalogJson() =>
+        "[{\"contractId\":\"" + ContractId + "\",\"name\":\"LongTextWriting\",\"description\":\"\"}]";
 
     private static string SnapshotJson() =>
         "{\"expertInvocationId\":\"" + InvocationId + "\",\"status\":\"running\",\"replayed\":false,\"contractId\":\"" +
@@ -38,7 +36,7 @@ public sealed class RemoteInvocationRunnerTests
                 maxReconnects));
 
     private static ExpertInvocationRequest CreateRequest(string? channelKey = null) => new(
-        TestSupport.Contract,
+        ContractId,
         scenarioId: "scenario-1",
         input: TestSupport.Json("""{"prompt":"hi"}"""),
         channelKey: channelKey);
@@ -82,40 +80,6 @@ public sealed class RemoteInvocationRunnerTests
 
         Assert.Single(handler.CapturedRequests);
         Assert.Contains(ContractId, exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_WithMismatchedCatalogContract_FailsPrecheckWithDetails()
-    {
-        var handler = new FakeRemoteHttpHandler();
-        handler.EnqueueJson(CatalogJson(fingerprint: "other-fingerprint"));
-        var runner = CreateRunner(handler);
-
-        var exception = await Assert.ThrowsAsync<RemoteContractMismatchException>(() =>
-            runner.ExecuteAsync(CreateRequest(), new CollectingSink(), TestSupport.CancellationToken).AsTask());
-
-        Assert.Single(handler.CapturedRequests);
-        Assert.Equal(Fingerprint, exception.RequiredFingerprint);
-        Assert.Equal("other-fingerprint", exception.AvailableFingerprint);
-        Assert.Contains("Contract mismatch", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_WithUnsupportedMinorVersion_FailsPrecheck()
-    {
-        var handler = new FakeRemoteHttpHandler();
-        handler.EnqueueJson(CatalogJson(versionMinor: "0"));
-        var olderRequest = new ExpertInvocationRequest(
-            new ExpertContractDescriptor(ContractId, new ContractVersion(2, 0), Fingerprint),
-            scenarioId: null,
-            input: TestSupport.Json("{}"),
-            channelKey: null);
-        var runner = CreateRunner(handler);
-
-        _ = await Assert.ThrowsAsync<RemoteContractMismatchException>(() =>
-            runner.ExecuteAsync(olderRequest, new CollectingSink(), TestSupport.CancellationToken).AsTask());
-
-        Assert.Single(handler.CapturedRequests);
     }
 
     [Fact]

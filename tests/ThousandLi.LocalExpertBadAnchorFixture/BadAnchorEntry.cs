@@ -1,6 +1,4 @@
-using System.Text.Json;
 using ThousandLi.Contracts;
-using ThousandLi.ExpertAuthoring;
 
 [assembly: ExpertPackageEntryPoint(
     typeof(ThousandLi.LocalExpertBadAnchorFixture.ForeignAbstractExpert),
@@ -8,20 +6,9 @@ using ThousandLi.ExpertAuthoring;
 
 namespace ThousandLi.LocalExpertBadAnchorFixture;
 
-[ExpertContract("tests.bad/anchor", 1, 0, "0000000000000000000000000000000000000000000000000000000000000000")]
-public abstract class ForeignAbstractExpert : IInvocableExpert
-{
-    public abstract Task<JsonElement> InvokeAsync(
-        JsonElement input,
-        IExpertSemanticEventSink events,
-        CancellationToken cancellationToken = default);
-}
+/// <summary>不继承 <see cref="ExpertBase"/> 的坏形状锚（装载校验应拒绝）。</summary>
+[ExpertContract("tests.bad/anchor")]
+public abstract class ForeignAbstractExpert;
 
-public sealed class ForeignConcreteExpert : ForeignAbstractExpert
-{
-    public override Task<JsonElement> InvokeAsync(
-        JsonElement input,
-        IExpertSemanticEventSink events,
-        CancellationToken cancellationToken = default) =>
-        throw new NotImplementedException();
-}
+/// <summary>坏形状锚的具体类（同样不在专家类型树内）。</summary>
+public sealed class ForeignConcreteExpert : ForeignAbstractExpert;

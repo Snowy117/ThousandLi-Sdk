@@ -39,17 +39,11 @@ public static class ExpertRecordingComparison
         ArgumentNullException.ThrowIfNull(actual);
         var divergences = new List<RecordingComparisonDivergence>();
 
-        var expectedContract = expected.Contract;
-        var actualContract = actual.Contract;
-        if (!string.Equals(expectedContract.Id, actualContract.Id, StringComparison.Ordinal) ||
-            !actualContract.Version.Supports(expectedContract.Version) ||
-            !string.Equals(expectedContract.Fingerprint, actualContract.Fingerprint, StringComparison.Ordinal))
+        if (!string.Equals(expected.ContractId, actual.ContractId, StringComparison.Ordinal))
         {
             divergences.Add(new RecordingComparisonDivergence(
                 ContractLayer,
-                $"expected contract '{expectedContract.Id}' {expectedContract.Version} with fingerprint " +
-                $"'{expectedContract.Fingerprint}', actual '{actualContract.Id}' {actualContract.Version} with " +
-                $"fingerprint '{actualContract.Fingerprint}'."));
+                $"expected contract '{expected.ContractId}', actual '{actual.ContractId}'."));
             return new RecordingComparisonResult(false, divergences);
         }
 

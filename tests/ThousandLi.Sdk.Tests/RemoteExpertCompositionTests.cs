@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ThousandLi.Contracts;
 using ThousandLi.DevHost;
 using ThousandLi.RemoteExperts;
 
@@ -12,8 +13,6 @@ namespace ThousandLi.Sdk.Tests;
 public sealed class RemoteExpertCompositionTests
 {
     private const string LongTextWritingContractId = "thousandli.expert/long-text-writing";
-    private const string LongTextWritingFingerprint =
-        "8046a8ea2ca4ffbd55776315b126d870e51e335438aed82a9cd44333f8f1df76";
     private const string RemotePackageId = "official-longtextwriting@0.1.0";
     private const string RemoteInvocationId = "0199beef-1234-7556-8777-88889999aaaa";
 
@@ -26,9 +25,8 @@ public sealed class RemoteExpertCompositionTests
         Experts = mode
     };
 
-    private static string CatalogJson(string fingerprint = LongTextWritingFingerprint) =>
-        "[{\"contractId\":\"" + LongTextWritingContractId + "\",\"name\":\"LongTextWriting\",\"description\":\"long text\"," +
-        "\"version\":{\"major\":1,\"minor\":0},\"fingerprint\":\"" + fingerprint + "\"}]";
+    private static string CatalogJson() =>
+        "[{\"contractId\":\"" + LongTextWritingContractId + "\",\"name\":\"LongTextWriting\",\"description\":\"long text\"}]";
 
     private static string PackagesJson() =>
         "[{\"expertPackageId\":\"" + RemotePackageId + "\",\"displayName\":\"Official Long Text Writing\"," +
@@ -55,7 +53,10 @@ public sealed class RemoteExpertCompositionTests
     private static PlaygroundService CreatePlayground(RemoteExpertComposition remote) => new(
         ScriptedFakeExpertRunner.Load(null),
         local: null,
-        ExpertComposition.BuildContractRegistry([]).Registry,
+        new Dictionary<string, IExpertRunner>(StringComparer.Ordinal)
+        {
+            [DevHostOptions.RemoteExecutorName] = remote.Runner
+        },
         new InMemoryExpertRecordingStore(),
         remote: remote);
 
@@ -244,8 +245,6 @@ public sealed class RemoteExpertCompositionTests
         var contracts = await playground.GetContractsAsync(TestSupport.CancellationToken);
 
         var contract = Assert.Single(contracts, entry => entry.ContractId == LongTextWritingContractId);
-        Assert.Equal("1.0", contract.Version);
-        Assert.Equal(LongTextWritingFingerprint, contract.Fingerprint);
         Assert.Equal([DevHostOptions.RemoteExecutorName], contract.Executors);
         Assert.Equal([RemotePackageId], contract.ExpertPackageIds);
     }
@@ -330,7 +329,9 @@ public sealed class RemoteExpertCompositionTests
     public async Task InvokeSurfacesRemoteFailuresThroughTheErrorDiagnostics()
     {
         var handler = new FakeRemoteHttpHandler();
-        handler.EnqueueJson(CatalogJson(fingerprint: "drifted-fingerprint"));
+        handler.EnqueueProblem(
+            "{\"title\":\"Unauthorized\",\"status\":401}",
+            System.Net.HttpStatusCode.Unauthorized);
         var playground = CreatePlayground(CreateComposition(handler));
 
         var outcome = await playground.InvokeAsync(
@@ -339,7 +340,7 @@ public sealed class RemoteExpertCompositionTests
             TestSupport.CancellationToken);
 
         Assert.Equal(PlaygroundService.StatusError, outcome.Diagnostics.Status);
-        Assert.IsType<RemoteContractMismatchException>(outcome.Error);
+        Assert.IsType<RemoteExpertException>(outcome.Error, exactMatch: false);
         var historyEntry = Assert.Single(playground.History);
         Assert.Equal(PlaygroundService.StatusError, historyEntry.Status);
         Assert.Null(historyEntry.InvocationId);

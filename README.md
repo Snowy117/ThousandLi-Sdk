@@ -16,9 +16,17 @@ Open `http://127.0.0.1:5180`. Omit `--ephemeral` to persist local development st
 `--reset` to clear only the selected local session before startup.
 
 Both the sample game and the game template require the official long-text-writing category
-contract `thousandli.expert/long-text-writing` (1.0, fingerprint `8046a8ea…`) declared on the
-category anchor in the `ThousandLi.Contracts` package. Games consume the category through the
-typed expert facade (`context.Experts.Use<AbstractLongTextWritingExpert>()`).
+contract `thousandli.expert/long-text-writing` — the stable id carried by the category anchor in
+the `ThousandLi.Contracts` package (`AbstractLongTextWritingExpert.ContractId`). There is no
+version negotiation and no fingerprint: the type is the contract. Games consume the category
+through the typed expert facade (`context.Experts.Use<AbstractLongTextWritingExpert>()`).
+
+> **Compatibility note (0.5.0-preview.1).** The `0.5.0-preview` line is a preview-breaking
+> refactor of the expert contract surface (type-as-contract: `ExpertBase` CRTP anchors, pure-id
+> `[ExpertContract]`, structured invokers, composition engine). The former slice-1 binary
+> compatibility promise — pinned by `Slice1CompatFixture` against pre-compiled DLLs — is
+> **retired** with this line; recompile expert and game packages against the new packages
+> instead of expecting binary drop-in compatibility.
 
 ## Create a game
 
@@ -66,35 +74,42 @@ See "Run an expert locally with a real gateway" below for the full flag referenc
 
 ## Author a concrete expert
 
-A concrete expert derives from the abstract base shipped with its contract package. For the official
-long-text-writing category contract, derive from `AbstractLongTextWritingExpert` (`ThousandLi.Contracts`) and
-implement `InvokeAsync`:
+A concrete expert derives from the abstract category anchor shipped with its contract package. For the official
+long-text-writing category, derive from `AbstractLongTextWritingExpert` (`ThousandLi.Contracts`) and override the
+two execution cores:
 
 ```csharp
 [assembly: ExpertPackageEntryPoint(typeof(AbstractLongTextWritingExpert), typeof(MyExpert))]
 
-public sealed class MyExpert : AbstractLongTextWritingExpert, IInvocableExpert
+public sealed class MyExpert : AbstractLongTextWritingExpert
 {
-    public async Task<JsonElement> InvokeAsync(
-        JsonElement input, IExpertSemanticEventSink events, CancellationToken cancellationToken = default)
+    protected override Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken)
     {
-        // Bind the structured input, call RuntimeContext.BasicAi, forward semantic events through
-        // the sink, and return the output JSON required by the contract.
+        // Call RuntimeContext.BasicAi, stream the model output through the configured primary
+        // output / feature callbacks, and return the turn metadata.
+    }
+
+    protected override Task<ExpertCompletionResult> CompleteAsyncCore(CancellationToken cancellationToken)
+    {
+        // Non-streaming variant; most experts reuse the streaming core.
     }
 }
 ```
 
 Key points:
 
-- **Contract identity lives in the category anchor.** `AbstractLongTextWritingExpert.Descriptor` carries the stable
-  id, `ContractVersion`, and deterministic fingerprint; a package never re-declares them.
+- **The type is the contract.** `AbstractLongTextWritingExpert.ContractId` is the stable id
+  (`thousandli.expert/long-text-writing`); the anchor's `[ExpertContract]` attribute carries it. There is no
+  version negotiation and no fingerprint — the shared `LongTextWritingExpertInvoker` decodes structured
+  invocation JSON onto the fluent API and aggregates the completion frame, so experts contain no JSON parsing
+  boilerplate.
 - **`RuntimeContext` exposes exactly four capabilities**: `BasicAi`, `GetExpertSettingsAsync<TSettings>()`
   (local policy: schema defaults plus an optional `expert-settings.json` override file), `PlayerProfile`,
   and `Logger`.
 - **Credentials stay in the composition root.** The gateway API key is read from an environment variable
   by DevHost; expert code and frontend JS only ever see an authenticated `ILocalBasicAi`.
-- **Per-invocation lifecycle.** The executor creates a fresh expert instance and sink for every
-  invocation; never reuse instances across calls.
+- **Per-invocation lifecycle.** The composition creates a fresh expert instance for every invocation and the
+  base class enforces bind-once plus single-execution; never reuse instances across calls.
 
 The `samples/ThousandLi.SampleExpert` project is a complete, minimal example: mark the project with
 `IsThousandLiExpertPackageArtifact` and its build produces a loadable Expert Package Artifact

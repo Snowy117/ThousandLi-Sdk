@@ -10,7 +10,7 @@ public sealed class FakeExpertRunnerTests
         var runner = TestSupport.FakeExpert();
         var firstSink = new RecordingSemanticSink();
         var secondSink = new RecordingSemanticSink();
-        var request = new ExpertInvocationRequest(TestSupport.Contract, "default", TestSupport.Json("{\"value\":1}"));
+        var request = new ExpertInvocationRequest(TestSupport.ContractId, "default", TestSupport.Json("{\"value\":1}"));
 
         var first = await runner.ExecuteAsync(request, firstSink, TestSupport.CancellationToken);
         var second = await runner.ExecuteAsync(request, secondSink, TestSupport.CancellationToken);
@@ -28,7 +28,7 @@ public sealed class FakeExpertRunnerTests
     public async Task MissingScenarioIsRejectedBeforeRecordingInvocation()
     {
         var runner = TestSupport.FakeExpert();
-        var request = new ExpertInvocationRequest(TestSupport.Contract, "missing", TestSupport.Json("{}"));
+        var request = new ExpertInvocationRequest(TestSupport.ContractId, "missing", TestSupport.Json("{}"));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await runner.ExecuteAsync(request, new RecordingSemanticSink(), TestSupport.CancellationToken));
@@ -42,7 +42,7 @@ public sealed class FakeExpertRunnerTests
     {
         var runner = TestSupport.FakeExpert();
         var request = new ExpertInvocationRequest(
-            TestSupport.Contract, "default", TestSupport.Json("{\"value\":1}"), "channel-7");
+            TestSupport.ContractId, "default", TestSupport.Json("{\"value\":1}"), "channel-7");
 
         var result = await runner.ExecuteAsync(request, new RecordingSemanticSink(), TestSupport.CancellationToken);
 
@@ -52,27 +52,11 @@ public sealed class FakeExpertRunnerTests
         Assert.Equal("channel-7", invocation.Request.ChannelKey);
     }
 
-    [Theory]
-    [InlineData(2, 0, "tests-story-v1")]
-    [InlineData(1, 0, "different")]
-    public async Task IncompatibleContractIsRejected(int major, int minor, string fingerprint)
-    {
-        var runner = TestSupport.FakeExpert();
-        var required = new ExpertContractDescriptor("tests/story", new ContractVersion(major, minor), fingerprint);
-        var request = new ExpertInvocationRequest(required, "default", TestSupport.Json("{}"));
-
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await runner.ExecuteAsync(request, new RecordingSemanticSink(), TestSupport.CancellationToken));
-
-        Assert.Contains("contract mismatch", exception.Message, StringComparison.Ordinal);
-        Assert.Empty(runner.Invocations);
-    }
-
     [Fact]
     public void UndefinedJsonIsRejectedAtContractBoundary()
     {
         Assert.Throws<ArgumentException>(() =>
-            new ExpertInvocationRequest(TestSupport.Contract, "default", default));
+            new ExpertInvocationRequest(TestSupport.ContractId, "default", default));
         Assert.Throws<ArgumentException>(() =>
             new PlayerActionEnvelope(TestSupport.PlayerId, default));
     }

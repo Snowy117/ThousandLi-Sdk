@@ -10,7 +10,7 @@ namespace ThousandLi.Testing;
 /// failure. Use <see cref="ExpertRecordingComparison"/> to compare a fresh live invocation
 /// against a recording with layered determinism.
 /// </summary>
-public sealed class RecordingReplayExpertRunner
+public sealed class RecordingReplayExpertRunner : IExpertRunner
 {
     private readonly Queue<ExpertInvocationRecording> _recordings;
     private readonly List<ExpertInvocationRequest> _invocations = [];
@@ -41,24 +41,20 @@ public sealed class RecordingReplayExpertRunner
         _invocations.Add(request);
         if (_recordings.Count == 0)
             throw new InvalidOperationException(
-                $"No recorded invocations remain; the invocation for contract '{request.Contract.Id}' exceeds "
+                $"No recorded invocations remain; the invocation for contract '{request.ContractId}' exceeds "
                 + $"the recording (request {_invocations.Count}).");
         var recording = _recordings.Dequeue();
-        var recorded = recording.Contract;
-        if (!string.Equals(recorded.Id, request.Contract.Id, StringComparison.Ordinal) ||
-            !recorded.Version.Supports(request.Contract.Version) ||
-            !string.Equals(recorded.Fingerprint, request.Contract.Fingerprint, StringComparison.Ordinal))
+        if (!string.Equals(recording.ContractId, request.ContractId, StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
-                $"Replayed recording {_invocations.Count} targets contract '{recorded.Id}' {recorded.Version} " +
-                $"with fingerprint '{recorded.Fingerprint}', but the invocation requires '{request.Contract.Id}' " +
-                $"{request.Contract.Version} with fingerprint '{request.Contract.Fingerprint}'.");
+                $"Replayed recording {_invocations.Count} targets contract '{recording.ContractId}', " +
+                $"but the invocation requires '{request.ContractId}'.");
         }
 
         if (recording.Terminal.Status != ExpertRecordingTerminal.Committed)
         {
             throw new InvalidOperationException(
-                $"The replayed invocation for contract '{recorded.Id}' failed as recorded " +
+                $"The replayed invocation for contract '{recording.ContractId}' failed as recorded " +
                 $"({recording.Terminal.Status}): {recording.Terminal.Error ?? recording.Terminal.Status}");
         }
 
@@ -74,6 +70,6 @@ public sealed class RecordingReplayExpertRunner
         return new ExpertInvocationResult(
             $"replay-{Interlocked.Increment(ref _sequence):D8}",
             recording.Terminal.Output ?? throw new InvalidOperationException(
-                $"The committed recording for '{recorded.Id}' is missing its output."));
+                $"The committed recording for '{recording.ContractId}' is missing its output."));
     }
 }

@@ -10,11 +10,7 @@ public sealed class PlaygroundServiceRecordingTests
     private const string MultiEventScenario = """
         [
           {
-            "contract": {
-              "id": "tests/playground",
-              "version": { "major": 1, "minor": 0 },
-              "fingerprint": "playground-fp-1"
-            },
+            "contract": "tests/playground",
             "scenarioId": "multi",
             "events": [
               { "eventType": "first", "payload": { "n": 1 } },
@@ -26,15 +22,18 @@ public sealed class PlaygroundServiceRecordingTests
         ]
         """;
 
-    private static ExpertContractRegistry Registry() =>
-        new([typeof(AbstractLongTextWritingExpert).Assembly]);
-
     private static ScriptedFakeExpertRunner MultiEventFake(DirectoryInfo root)
     {
         var scenarioPath = Path.Combine(root.FullName, "scenarios.json");
         File.WriteAllText(scenarioPath, MultiEventScenario);
         return ScriptedFakeExpertRunner.Load(scenarioPath);
     }
+
+    private static Dictionary<string, IExpertRunner> FakeRunners(ScriptedFakeExpertRunner fake) =>
+        new(StringComparer.Ordinal)
+        {
+            [DevHostOptions.FakeExecutorName] = fake
+        };
 
     [Fact]
     public async Task CancelledMidStreamInvocationIsRecordedAsAbortedWithDeliveredEventsOnly()
@@ -43,7 +42,7 @@ public sealed class PlaygroundServiceRecordingTests
         try
         {
             var store = new InMemoryExpertRecordingStore();
-            var playground = new PlaygroundService(MultiEventFake(root), null, Registry(), store);
+            var playground = new PlaygroundService(MultiEventFake(root), null, FakeRunners(MultiEventFake(root)), store);
             using var cancellation = new CancellationTokenSource();
             var sink = new CancellingSink(cancellation, cancelAfterEvents: 1);
 
@@ -79,7 +78,7 @@ public sealed class PlaygroundServiceRecordingTests
         try
         {
             var store = new InMemoryExpertRecordingStore();
-            var playground = new PlaygroundService(MultiEventFake(root), null, Registry(), store);
+            var playground = new PlaygroundService(MultiEventFake(root), null, FakeRunners(MultiEventFake(root)), store);
             using var cancelled = new CancellationTokenSource();
             await cancelled.CancelAsync();
 
@@ -106,7 +105,7 @@ public sealed class PlaygroundServiceRecordingTests
         var root = Directory.CreateTempSubdirectory("thousandli-playground-tests-");
         try
         {
-            var playground = new PlaygroundService(MultiEventFake(root), null, Registry(), new FailingRecordingStore());
+            var playground = new PlaygroundService(MultiEventFake(root), null, FakeRunners(MultiEventFake(root)), new FailingRecordingStore());
 
             var outcome = await playground.InvokeAsync(
                 new PlaygroundInvokeCommand("tests/playground", DevHostOptions.FakeExecutorName, TestSupport.Json("{}"), "multi", Record: true),
@@ -133,7 +132,7 @@ public sealed class PlaygroundServiceRecordingTests
         try
         {
             var store = new InMemoryExpertRecordingStore();
-            var playground = new PlaygroundService(MultiEventFake(root), null, Registry(), store);
+            var playground = new PlaygroundService(MultiEventFake(root), null, FakeRunners(MultiEventFake(root)), store);
 
             var outcome = await playground.InvokeAsync(
                 new PlaygroundInvokeCommand("tests/playground", DevHostOptions.FakeExecutorName, TestSupport.Json("{}"), "multi"),
@@ -158,7 +157,7 @@ public sealed class PlaygroundServiceRecordingTests
         try
         {
             var store = new InMemoryExpertRecordingStore();
-            var playground = new PlaygroundService(MultiEventFake(root), null, Registry(), store);
+            var playground = new PlaygroundService(MultiEventFake(root), null, FakeRunners(MultiEventFake(root)), store);
             var recorded = await playground.InvokeAsync(
                 new PlaygroundInvokeCommand("tests/playground", DevHostOptions.FakeExecutorName, TestSupport.Json("{}"), "multi", Record: true),
                 new RecordingSemanticSink(),
@@ -191,7 +190,7 @@ public sealed class PlaygroundServiceRecordingTests
         try
         {
             var store = new InMemoryExpertRecordingStore();
-            var playground = new PlaygroundService(MultiEventFake(root), null, Registry(), store);
+            var playground = new PlaygroundService(MultiEventFake(root), null, FakeRunners(MultiEventFake(root)), store);
 
             var outcome = await playground.InvokeAsync(
                 new PlaygroundInvokeCommand("tests/playground", DevHostOptions.FakeExecutorName, TestSupport.Json("{}"), "multi", Record: true),
@@ -225,19 +224,12 @@ public sealed class PlaygroundServiceRecordingTests
         var root = Directory.CreateTempSubdirectory("thousandli-playground-tests-");
         try
         {
-            var descriptor = AbstractLongTextWritingExpert.Descriptor;
+            const string contractId = "thousandli.expert/long-text-writing";
             var scenarioPath = Path.Combine(root.FullName, "scenarios.json");
             await File.WriteAllTextAsync(scenarioPath, $$"""
                 [
                   {
-                    "contract": {
-                      "id": "{{descriptor.Id}}",
-                      "version": {
-                        "major": {{descriptor.Version.Major}},
-                        "minor": {{descriptor.Version.Minor}}
-                      },
-                      "fingerprint": "{{descriptor.Fingerprint}}"
-                    },
+                    "contract": "{{contractId}}",
                     "scenarioId": "narrate",
                     "events": [],
                     "result": { "text": "fake" }
@@ -247,27 +239,32 @@ public sealed class PlaygroundServiceRecordingTests
             using var package = ExpertPackageLoader.Load(Path.Combine(
                 TestSupport.FindRepositoryRoot(),
                 "tests", "ThousandLi.LocalExpertFixture", "bin", "Debug", "net10.0", "PackageArtifact"));
+            var fake = ScriptedFakeExpertRunner.Load(scenarioPath);
+            var local = new LocalExpertComposition(
+                [package],
+                null,
+                new LocalExpertCompositionOptions(
+                    new RecordedBasicAi(
+                        ["test-model"],
+                        [],
+                        [new RecordedRuntimeBasicAiInteraction(
+                            "test-model",
+                            streamEvents: [new BasicAiJsonStreamEvent(
+                                JsonStreamEvent.StringChunk("/narrative", "Hello playground"))])]),
+                    new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "Curious explorer")));
             var playground = new PlaygroundService(
-                ScriptedFakeExpertRunner.Load(scenarioPath),
-                new LocalExpertComposition(
-                    Registry(),
-                    [package],
-                    null,
-                    new LocalExpertCompositionOptions(
-                        new RecordedBasicAi(
-                            ["test-model"],
-                            [],
-                            [new RecordedRuntimeBasicAiInteraction(
-                                "test-model",
-                                streamEvents: [new BasicAiJsonStreamEvent(
-                                    JsonStreamEvent.StringChunk("/narrative", "Hello playground"))])]),
-                        new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "Curious explorer"))),
-                Registry(),
+                fake,
+                local,
+                new Dictionary<string, IExpertRunner>(StringComparer.Ordinal)
+                {
+                    [DevHostOptions.FakeExecutorName] = fake,
+                    [DevHostOptions.LocalExecutorName] = local
+                },
                 new InMemoryExpertRecordingStore());
 
             var contracts = await playground.GetContractsAsync(TestSupport.CancellationToken);
             var entry = Assert.Single(contracts);
-            Assert.Equal(descriptor.Id, entry.ContractId);
+            Assert.Equal(contractId, entry.ContractId);
             Assert.Equal(
                 [DevHostOptions.FakeExecutorName, DevHostOptions.LocalExecutorName],
                 entry.Executors);
@@ -275,14 +272,14 @@ public sealed class PlaygroundServiceRecordingTests
 
             var outcome = await playground.InvokeAsync(
                 new PlaygroundInvokeCommand(
-                    descriptor.Id,
+                    contractId,
                     DevHostOptions.LocalExecutorName,
                     TestSupport.Json("""{"worldSettings":"A quiet valley.","playerInput":"advance"}""")),
                 new RecordingSemanticSink(),
                 TestSupport.CancellationToken);
 
             Assert.Equal(PlaygroundService.StatusCommitted, outcome.Diagnostics.Status);
-            Assert.Equal("Hello playground", outcome.Result!.Output.GetProperty("text").GetString());
+            Assert.Equal("Hello playground", outcome.Result!.Output.GetProperty("primary").GetString());
             var historyEntry = Assert.Single(playground.History);
             Assert.Equal(DevHostOptions.LocalExecutorName, historyEntry.Executor);
             Assert.Equal(PlaygroundService.StatusCommitted, historyEntry.Status);
@@ -301,7 +298,7 @@ public sealed class PlaygroundServiceRecordingTests
         var root = Directory.CreateTempSubdirectory("thousandli-playground-tests-");
         try
         {
-            var playground = new PlaygroundService(MultiEventFake(root), null, Registry(), new InMemoryExpertRecordingStore());
+            var playground = new PlaygroundService(MultiEventFake(root), null, FakeRunners(MultiEventFake(root)), new InMemoryExpertRecordingStore());
 
             var exception = await Assert.ThrowsAsync<ArgumentException>(
                 () => playground.ReplayAsync(

@@ -309,7 +309,7 @@ public sealed class LocalGameRuntime
         {
         }
 
-        public TAbstract Use<TAbstract>() where TAbstract : AbstractLongTextWritingExpert =>
+        public TAbstract Use<TAbstract>() where TAbstract : ExpertBase =>
             throw new InvalidOperationException(
                 $"Typed expert facade '{typeof(TAbstract).FullName}' is not configured for this local runtime; " +
                 "pass an IExpertFacade to LocalGameRuntime.CreateAsync.");

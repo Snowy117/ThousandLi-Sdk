@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Net.Sockets;
 using System.Text.Json;
-using ThousandLi.Contracts;
 
 namespace ThousandLi.RemoteExperts;
 
@@ -39,14 +38,14 @@ internal sealed class RemoteInvocationSession(RemoteExpertClient client, RemoteI
     /// random key; the timeout is enforced locally and forwarded as <c>timeoutSeconds</c>.
     /// </summary>
     /// <typeparam name="T">The invocation result type.</typeparam>
-    /// <param name="contract">The contract identity triple required from the platform.</param>
+    /// <param name="contractId">The contract id required from the platform.</param>
     /// <param name="input">The opaque contract input JSON.</param>
     /// <param name="idempotencyKey">The idempotency key, or <see langword="null" /> for a fresh random key.</param>
     /// <param name="clientCorrelation">An optional client-side correlation label.</param>
     /// <param name="handleFrame">The per-frame handler.</param>
     /// <param name="cancellationToken">The caller's cancellation token.</param>
     public async ValueTask<T> ExecuteAsync<T>(
-        ExpertContractDescriptor contract,
+        string contractId,
         JsonElement input,
         string? idempotencyKey,
         string? clientCorrelation,
@@ -54,15 +53,15 @@ internal sealed class RemoteInvocationSession(RemoteExpertClient client, RemoteI
         CancellationToken cancellationToken = default)
         where T : class
     {
-        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(contractId);
         ArgumentNullException.ThrowIfNull(handleFrame);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var expertPackageId = ResolveBinding(contract.Id);
-        await EnsureContractCompatibleAsync(contract, cancellationToken).ConfigureAwait(false);
+        var expertPackageId = ResolveBinding(contractId);
+        await EnsureContractAvailableAsync(contractId, cancellationToken).ConfigureAwait(false);
 
         var startRequest = new RemoteInvocationStartRequest(
-            contract,
+            contractId,
             expertPackageId,
             input,
             idempotencyKey: idempotencyKey ?? Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
@@ -109,14 +108,12 @@ internal sealed class RemoteInvocationSession(RemoteExpertClient client, RemoteI
             $"No remote Expert Package binding is configured for contract '{contractId}'. Configured bindings: {bound}.");
     }
 
-    private async ValueTask EnsureContractCompatibleAsync(
-        ExpertContractDescriptor contract,
+    private async ValueTask EnsureContractAvailableAsync(
+        string contractId,
         CancellationToken cancellationToken)
     {
         var contracts = await _client.ListContractsAsync(cancellationToken).ConfigureAwait(false);
-        var catalog = contracts.FirstOrDefault(entry =>
-            string.Equals(entry.ContractId, contract.Id, StringComparison.Ordinal));
-        if (catalog is null)
+        if (!contracts.Any(entry => string.Equals(entry.ContractId, contractId, StringComparison.Ordinal)))
         {
             var registered = contracts.Count == 0
                 ? "none"
@@ -125,21 +122,8 @@ internal sealed class RemoteInvocationSession(RemoteExpertClient client, RemoteI
                     .Order(StringComparer.Ordinal)
                     .Select(id => $"'{id}'"));
             throw new RemoteUnknownContractException(
-                $"Contract '{contract.Id}' is not registered on the remote platform. Registered contracts: {registered}.");
+                $"Contract '{contractId}' is not registered on the remote platform. Registered contracts: {registered}.");
         }
-
-        if (catalog.Version.Supports(contract.Version) &&
-            string.Equals(catalog.Fingerprint, contract.Fingerprint, StringComparison.Ordinal))
-            return;
-
-        throw new RemoteContractMismatchException(
-            $"Contract mismatch for '{contract.Id}': the invocation requires {contract.Version} " +
-            $"with fingerprint '{contract.Fingerprint}', but the remote catalog has {catalog.Version} " +
-            $"with fingerprint '{catalog.Fingerprint}'.",
-            requiredVersion: contract.Version.ToString(),
-            requiredFingerprint: contract.Fingerprint,
-            availableVersion: catalog.Version.ToString(),
-            availableFingerprint: catalog.Fingerprint);
     }
 
     private async ValueTask<T> StreamToCompletionAsync<T>(

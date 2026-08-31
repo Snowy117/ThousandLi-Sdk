@@ -15,12 +15,10 @@
   <Folder Name="/tests/">
     <Project Path="tests/ThousandLi.GameHelper.Tests/ThousandLi.GameHelper.Tests.csproj" />
     <Project Path="tests/ThousandLi.Sdk.Tests/ThousandLi.Sdk.Tests.csproj" />
-    <Project Path="tests/ThousandLi.BrokenContractFixtures/ThousandLi.BrokenContractFixtures.csproj" />
     <Project Path="tests/ThousandLi.LocalExpertBadAnchorFixture/ThousandLi.LocalExpertBadAnchorFixture.csproj" />
     <Project Path="tests/ThousandLi.LocalExpertFixture/ThousandLi.LocalExpertFixture.csproj" />
     <Project Path="tests/ThousandLi.LocalExpertMultiEntryFixture/ThousandLi.LocalExpertMultiEntryFixture.csproj" />
     <Project Path="tests/ThousandLi.LocalExpertNoContractFixture/ThousandLi.LocalExpertNoContractFixture.csproj" />
-    <Project Path="tests/ThousandLi.LocalExpertNonInvocableFixture/ThousandLi.LocalExpertNonInvocableFixture.csproj" />
     <Project Path="tests/ThousandLi.LocalExpertWrongShapeFixture/ThousandLi.LocalExpertWrongShapeFixture.csproj" />
     <Project Path="tests/ThousandLi.UnregisteredContractFixture/ThousandLi.UnregisteredContractFixture.csproj" />
     <Project Path="tests/ThousandLi.UserConfigurableSettingsFixture/ThousandLi.UserConfigurableSettingsFixture.csproj" />
