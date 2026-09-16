@@ -171,11 +171,9 @@ internal sealed class RemoteInvocationSession(RemoteExpertClient client, RemoteI
                             lastSeen = dataRequestFrame.Ordinal;
                             break;
                         case RemoteExpertCompletedFrame completedFrame:
-                            result = await handleFrame(snapshot, completedFrame, token).ConfigureAwait(false);
-                            if (result is null)
-                                throw new RemoteProtocolException(
+                            return await handleFrame(snapshot, completedFrame, token).ConfigureAwait(false)
+                                ?? throw new RemoteProtocolException(
                                     "The completed frame handler declined to finish the invocation.");
-                            return result;
                         default:
                             throw new RemoteProtocolException(
                                 $"Unknown stream frame '{frame.GetType().Name}'.");
