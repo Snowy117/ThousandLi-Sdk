@@ -51,22 +51,14 @@ public static class DevHostApplication
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ExpertComposition.ValidateExecutorOptions(options);
-        var fakeExperts = ScriptedFakeExpertExecutor.Load(options.FakeScenariosPath);
-        var expertFacade = ScriptedLongTextWritingExpertFacade.Load(options.FakeScenariosPath);
+        ExpertComposition.ValidateExpertModeOptions(options);
+        var fakeExperts = ScriptedFakeExpertRunner.Load(options.FakeScenariosPath);
         var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
         var contracts = ExpertComposition.BuildContractRegistry(options.ContractAssemblies);
-        var useLocalExperts = options.ExpertExecutor == DevHostOptions.LocalExecutorName;
-        var useRemoteExperts = options.ExpertExecutor == DevHostOptions.RemoteExecutorName;
+        var useLocalExperts = options.Experts == DevHostOptions.LocalExecutorName;
+        var useRemoteExperts = options.Experts == DevHostOptions.RemoteExecutorName;
 
-        var gamePackage = GamePackageLoader.Load(
-            options.ArtifactDirectory,
-            useLocalExperts || useRemoteExperts
-                ? [.. fakeExperts.Contracts, .. contracts.Registry.Contracts
-                    .Select(contract => contract.ToDescriptor())
-                    .Where(descriptor => fakeExperts.Contracts.All(
-                        existing => existing.Id != descriptor.Id))]
-                : fakeExperts.Contracts);
+        var gamePackage = GamePackageLoader.Load(options.ArtifactDirectory);
         try
         {
             var sessionId = new SessionId(options.SessionId);
@@ -80,34 +72,38 @@ public static class DevHostApplication
                 "Local development player");
             var expertPackages = new List<LoadedExpertPackage>();
             HttpClient? httpClient = null;
-            LocalExpertExecutor? localExperts = null;
+            LocalExpertComposition? localExperts = null;
             RemoteExpertComposition? remoteExperts = null;
             try
             {
                 if (useLocalExperts)
                 {
                     httpClient = new HttpClient();
-                    localExperts = ExpertComposition.CreateLocalExecutor(
+                    localExperts = ExpertComposition.CreateLocalExpertComposition(
                         options, contracts, player, httpClient, expertPackages);
                 }
                 else if (useRemoteExperts)
                 {
                     // Long SSE event streams must outlive HttpClient's default 100-second timeout.
                     httpClient = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
-                    remoteExperts = ExpertComposition.CreateRemoteExecutor(options, httpClient);
+                    remoteExperts = ExpertComposition.CreateRemoteInvocationRunner(options, httpClient, player);
                 }
 
-                IExpertExecutor experts = fakeExperts;
+                // The game-facing facade follows the selected expert mode: scripted doubles for
+                // fake, the same create-and-bind flow as the production Host for local, and the
+                // typed remote proxy for remote (identical fluent surface, full-fidelity wire).
+                IExpertFacade expertFacade;
                 if (localExperts is not null)
-                    experts = localExperts;
+                    expertFacade = new LocalExpertFacade(localExperts);
                 else if (remoteExperts is not null)
-                    experts = remoteExperts.Executor;
+                    expertFacade = remoteExperts.Facade;
+                else
+                    expertFacade = ScriptedLongTextWritingExpertFacade.Load(options.FakeScenariosPath);
 
                 var runtime = await LocalGameRuntime.CreateAsync(
                     gamePackage.Manifest.PackageId,
                     gamePackage.Backend,
                     player,
-                    experts,
                     store,
                     sessionId,
                     expertFacade,
@@ -126,10 +122,20 @@ public static class DevHostApplication
                 // The playground logger comes from the host's own logging pipeline. Both state
                 // objects are plain locals: the web host only maps routes against them, and the
                 // application-stopped callback owns their disposal.
+                // The runner table is resolved once here (the composition root): the Fake runner
+                // is always present; local and remote join when their modes are configured.
+                var runners = new Dictionary<string, IExpertRunner>(StringComparer.Ordinal)
+                {
+                    [DevHostOptions.FakeExecutorName] = fakeExperts
+                };
+                if (localExperts is not null)
+                    runners[DevHostOptions.LocalExecutorName] = localExperts;
+                if (remoteExperts is not null)
+                    runners[DevHostOptions.RemoteExecutorName] = remoteExperts.Runner;
                 var playground = new PlaygroundService(
                     fakeExperts,
                     localExperts,
-                    contracts.Registry,
+                    runners,
                     recordingStore,
                     app.Services.GetRequiredService<ILoggerFactory>().CreateLogger<PlaygroundService>(),
                     remoteExperts);
@@ -170,8 +176,8 @@ public static class DevHostApplication
             playerId = state.Player.PlayerId.Value,
             playerName = state.Player.PlayerName,
             persona = state.Player.Persona,
-            expertExecutor = options.ExpertExecutor,
-            expertPackageId = options.ExpertExecutor,
+            expertExecutor = options.Experts,
+            expertPackageId = options.Experts,
             committedState = state.Runtime.CommittedState
         }));
 
@@ -441,7 +447,7 @@ public static class DevHostApplication
         <label for="package">Expert package <span class="hint">(local override, optional)</span></label>
         <select id="package"><option value="">— configured binding —</option></select>
         <label for="input">Input JSON</label>
-        <textarea id="input">{"turn":1,"player":"traveler","action":"look around"}</textarea>
+        <textarea id="input">__THOUSANDLI_PLAYGROUND_DEFAULT_INPUT__</textarea>
         <div class="check"><input type="checkbox" id="record"><label for="record">Record invocation</label></div>
         <div class="row" style="margin-top:12px">
           <button id="invoke" disabled>Invoke</button>
@@ -663,7 +669,7 @@ public static class DevHostApplication
     </script>
     </body>
     </html>
-    """;
+    """.Replace("__THOUSANDLI_PLAYGROUND_DEFAULT_INPUT__", PlaygroundService.DefaultInputJson);
 
     private static string PreviewShell(string frontendUrl) => $$"""
     <!doctype html>

@@ -1,32 +1,8 @@
 using System.Text.Json;
-using JetBrains.Annotations;
 using Microsoft.Extensions.Logging;
 using ThousandLi.Contracts;
 
 namespace ThousandLi.ExpertAuthoring;
-
-/// <summary>
-/// The restricted execution context held by a runtime-facing concrete expert: exactly four
-/// capabilities (<see cref="BasicAi"/>, <see cref="GetExpertSettingsAsync{TSettings}"/>,
-/// <see cref="PlayerProfile"/>, <see cref="Logger"/>). The full game-backend execution context is
-/// deliberately absent so game-backend concerns stay unreachable at compile time from expert code.
-/// </summary>
-[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
-public interface IExpertExecutionContext
-{
-    IRuntimeBasicAi BasicAi { get; }
-
-    /// <summary>
-    /// Returns the typed effective settings resolved with the local two-layer policy
-    /// (schema defaults + optional local override file), resolved once per context and cached.
-    /// </summary>
-    ValueTask<TSettings> GetExpertSettingsAsync<TSettings>(CancellationToken cancellationToken = default)
-        where TSettings : class, new();
-
-    BoundPlayerProfile PlayerProfile { get; }
-
-    ILogger Logger { get; }
-}
 
 /// <summary>
 /// Composition-friendly implementation of <see cref="IExpertExecutionContext"/> for locally

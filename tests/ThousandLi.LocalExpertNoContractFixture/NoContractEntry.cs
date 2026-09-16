@@ -1,21 +1,14 @@
-using System.Text.Json;
 using ThousandLi.Contracts;
-using ThousandLi.ExpertAuthoring;
 
 [assembly: ExpertPackageEntryPoint(
-    typeof(ThousandLi.LocalExpertNoContractFixture.LocalAbstractExpert),
-    typeof(ThousandLi.LocalExpertNoContractFixture.LocalConcreteExpert))]
+    typeof(ThousandLi.LocalExpertNoContractFixture.NoContractAbstractExpert),
+    typeof(ThousandLi.LocalExpertNoContractFixture.NoContractConcreteExpert))]
 
 namespace ThousandLi.LocalExpertNoContractFixture;
 
-public abstract class LocalAbstractExpert
-    : RuntimeLongTextWritingExpertBase, IInvocableExpert
+/// <summary>继承锚类型但未携带 <c>[ExpertContract]</c> 的坏形状锚（装载校验应拒绝）。</summary>
+public abstract class NoContractAbstractExpert : AbstractLongTextWritingExpert
 {
-    public abstract Task<JsonElement> InvokeAsync(
-        JsonElement input,
-        IExpertSemanticEventSink events,
-        CancellationToken cancellationToken = default);
-
     protected override Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken) =>
         throw new NotImplementedException();
 
@@ -23,11 +16,4 @@ public abstract class LocalAbstractExpert
         throw new NotImplementedException();
 }
 
-public sealed class LocalConcreteExpert : LocalAbstractExpert
-{
-    public override Task<JsonElement> InvokeAsync(
-        JsonElement input,
-        IExpertSemanticEventSink events,
-        CancellationToken cancellationToken = default) =>
-        throw new NotImplementedException();
-}
+public sealed class NoContractConcreteExpert : NoContractAbstractExpert;

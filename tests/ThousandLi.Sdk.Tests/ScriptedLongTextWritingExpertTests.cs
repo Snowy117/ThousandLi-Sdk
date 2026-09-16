@@ -174,7 +174,7 @@ public sealed class ScriptedLongTextWritingExpertTests
                 [
                   {
                     "scenarioId": "advance",
-                    "contract": { "id": "x", "version": { "major": 1, "minor": 0 }, "fingerprint": "f" },
+                    "contract": "x",
                     "events": [ { "eventType": "chunk", "payload": { "text": "raw" } } ],
                     "result": { "text": "raw" },
                     "output": { "narrative": "Scripted!" },

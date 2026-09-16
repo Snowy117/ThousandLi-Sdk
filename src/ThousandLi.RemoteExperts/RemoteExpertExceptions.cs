@@ -136,7 +136,7 @@ public sealed class RemoteProtocolException(
 
 /// <summary>
 /// The remote invocation was cancelled. Derives from <see cref="OperationCanceledException" /> so
-/// that callers cancelling through the executor's cancellation token observe standard .NET
+/// that callers cancelling through the runner's cancellation token observe standard .NET
 /// cancellation semantics, while a remote terminal <c>cancelled</c> frame surfaces the same type.
 /// </summary>
 public sealed class RemoteInvocationCancelledException(

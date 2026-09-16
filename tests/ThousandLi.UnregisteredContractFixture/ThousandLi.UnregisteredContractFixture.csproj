@@ -5,6 +5,6 @@
     <IsThousandLiExpertPackageArtifact>true</IsThousandLiExpertPackageArtifact>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/ThousandLi.ExpertContracts/ThousandLi.ExpertContracts.csproj" />
+    <ProjectReference Include="../../src/ThousandLi.ExpertAuthoring/ThousandLi.ExpertAuthoring.csproj" />
   </ItemGroup>
 </Project>

@@ -1,15 +1,10 @@
-using ThousandLi.Contracts;
 using ThousandLi.Testing;
 
 namespace ThousandLi.Sdk.Tests;
 
 public sealed class ExpertRecordingComparisonTests
 {
-    private static readonly ExpertContractDescriptor NewerContract =
-        new("tests/narrator", new ContractVersion(1, 1), "tests-narrator-v1");
-
-    private static readonly ExpertContractDescriptor OtherContract =
-        new("tests/other", new ContractVersion(1, 0), "tests-other-v1");
+    private const string OtherContractId = "tests/other";
 
     [Fact]
     public void IdenticalRecordingsMatchInDefaultAndStrictMode()
@@ -174,7 +169,7 @@ public sealed class ExpertRecordingComparisonTests
     [Fact]
     public void ContractDifferenceFailsContractLayerAlone()
     {
-        var expected = TestSupport.CreateRecording(contract: OtherContract);
+        var expected = TestSupport.CreateRecording(contractId: OtherContractId);
         var actual = TestSupport.CreateRecording(events: [("other", "{}"), ("more", "{}")]);
 
         var result = ExpertRecordingComparison.Compare(expected, actual);
@@ -182,37 +177,8 @@ public sealed class ExpertRecordingComparisonTests
         Assert.False(result.Matches);
         var divergence = Assert.Single(result.Divergences);
         Assert.Equal(ExpertRecordingComparison.ContractLayer, divergence.Layer);
-        Assert.Contains(OtherContract.Id, divergence.Detail, StringComparison.Ordinal);
-        Assert.Contains(TestSupport.Contract.Id, divergence.Detail, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ContractVersionCompatibilityFollowsSupportsSemantics()
-    {
-        var expectedOlder = TestSupport.CreateRecording();
-        var actualNewer = TestSupport.CreateRecording(contract: NewerContract);
-        Assert.True(ExpertRecordingComparison.Compare(expectedOlder, actualNewer).Matches);
-
-        var expectedNewer = TestSupport.CreateRecording(contract: NewerContract);
-        var actualOlder = TestSupport.CreateRecording();
-        var result = ExpertRecordingComparison.Compare(expectedNewer, actualOlder);
-        Assert.False(result.Matches);
-        Assert.Equal(ExpertRecordingComparison.ContractLayer, Assert.Single(result.Divergences).Layer);
-    }
-
-    [Fact]
-    public void ContractFingerprintDifferenceFailsContractLayer()
-    {
-        var expected = TestSupport.CreateRecording();
-        var actual = TestSupport.CreateRecording(
-            contract: new ExpertContractDescriptor(TestSupport.Contract.Id, TestSupport.Contract.Version, "other-fp"));
-
-        var result = ExpertRecordingComparison.Compare(expected, actual);
-
-        Assert.False(result.Matches);
-        var divergence = Assert.Single(result.Divergences);
-        Assert.Equal(ExpertRecordingComparison.ContractLayer, divergence.Layer);
-        Assert.Contains("other-fp", divergence.Detail, StringComparison.Ordinal);
+        Assert.Contains(OtherContractId, divergence.Detail, StringComparison.Ordinal);
+        Assert.Contains(TestSupport.ContractId, divergence.Detail, StringComparison.Ordinal);
     }
 
     [Fact]

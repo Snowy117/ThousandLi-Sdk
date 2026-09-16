@@ -2,15 +2,12 @@ using System.Text.Json;
 using ThousandLi.Contracts;
 using ThousandLi.DevHost;
 using ThousandLi.ExpertAuthoring;
-using ThousandLi.ExpertContracts;
-using ThousandLi.ExpertContracts.Narration;
 
 namespace ThousandLi.Sdk.Tests;
 
 /// <summary>
-/// Regression tests for the Phase 6 sample migration: the sample game declares the official
-/// <c>thousandli.expert/narrator</c> contract from ThousandLi.ExpertContracts (never a private
-/// copy), and the sample expert package binds that same contract through the local executor.
+/// Regression tests for the sample migration: the sample game and the sample expert package bind
+/// the official <c>thousandli.expert/long-text-writing</c> contract through the local composition.
 /// </summary>
 public sealed class SampleExpertPackageTests
 {
@@ -25,28 +22,25 @@ public sealed class SampleExpertPackageTests
             "samples", "ThousandLi.SampleExpert", "bin", "Debug", "net10.0", "PackageArtifact");
 
     [Fact]
-    public void SampleGameManifestRequiresTheOfficialNarratorContract()
+    public void SampleGameManifestCarriesRuntimeAndFrontendCompatibility()
     {
         var manifest = GamePackageManifest.Load(SampleGameArtifact);
 
-        var required = Assert.Single(manifest.Compatibility.ExpertContracts);
-        Assert.Equal(AbstractNarratorExpert.Descriptor.Id, required.Id);
-        Assert.Equal(AbstractNarratorExpert.Descriptor.Version, required.Version);
-        Assert.Equal(AbstractNarratorExpert.Descriptor.Fingerprint, required.Fingerprint);
+        Assert.Equal("thousandli_sample-game@0.1.0", manifest.PackageId);
+        Assert.Equal(new PackageVersion(1, 0), manifest.Compatibility.Runtime);
+        Assert.Equal(new PackageVersion(1, 0), manifest.Compatibility.Frontend);
     }
 
     [Fact]
-    public void SampleExpertPackageBindsTheOfficialNarratorContract()
+    public void SampleExpertPackageBindsTheOfficialLongTextWritingContract()
     {
         using var package = ExpertPackageLoader.Load(SampleExpertArtifact);
 
         Assert.Equal("thousandli_sample-expert@0.1.0", package.Manifest.PackageId);
-        Assert.Equal(AbstractNarratorExpert.Descriptor.Id, package.Contract.Id);
-        Assert.Equal(AbstractNarratorExpert.Descriptor.Version, package.Contract.Version);
-        Assert.Equal(AbstractNarratorExpert.Descriptor.Fingerprint, package.Contract.Fingerprint);
-        Assert.Same(typeof(AbstractNarratorExpert).Assembly, package.AbstractExpertType.Assembly);
+        Assert.Equal(AbstractLongTextWritingExpert.ContractId, package.Shape.ContractId);
+        Assert.Same(typeof(AbstractLongTextWritingExpert).Assembly, package.Shape.AbstractExpertType.Assembly);
         Assert.Equal(
-            "ThousandLi.SampleExpert.SampleNarratorExpert",
+            "ThousandLi.SampleExpert.SampleLongTextWritingExpert",
             package.ExpertFactory().GetType().FullName);
     }
 
@@ -57,20 +51,18 @@ public sealed class SampleExpertPackageTests
 
         Assert.True(File.Exists(Path.Combine(bin, "ThousandLi.SampleExpert.dll")));
         Assert.False(File.Exists(Path.Combine(bin, "ThousandLi.Contracts.dll")));
-        Assert.False(File.Exists(Path.Combine(bin, "ThousandLi.ExpertContracts.dll")));
         Assert.False(File.Exists(Path.Combine(bin, "ThousandLi.ExpertAuthoring.dll")));
         Assert.False(File.Exists(Path.Combine(bin, "Microsoft.Extensions.Logging.Abstractions.dll")));
     }
 
     [Fact]
-    public async Task SampleExpertStreamsChunkEventsAndReturnsNarrationThroughTheLocalExecutor()
+    public async Task SampleExpertStreamsChunkEventsAndReturnsNarrationThroughTheLocalComposition()
     {
         using var package = ExpertPackageLoader.Load(SampleExpertArtifact);
-        var executor = new LocalExpertExecutor(
-            new ExpertContractRegistry([typeof(AbstractNarratorExpert).Assembly]),
+        var composition = new LocalExpertComposition(
             [package],
             null,
-            new LocalExpertExecutorOptions(
+            new LocalExpertCompositionOptions(
                 new RecordedBasicAi(
                     ["test-model"],
                     [],
@@ -84,11 +76,11 @@ public sealed class SampleExpertPackageTests
                 new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "Curious explorer")));
         var sink = new RecordingSemanticSink();
 
-        var result = await executor.ExecuteAsync(
+        var result = await composition.ExecuteAsync(
             new ExpertInvocationRequest(
-                AbstractNarratorExpert.Descriptor,
+                AbstractLongTextWritingExpert.ContractId,
                 "advance",
-                TestSupport.Json("""{"turn":1,"player":"Creator","action":{"choice":"advance"}}""")),
+                TestSupport.Json("""{"worldSettings":"A quiet valley.","playerInput":"advance"}""")),
             sink,
             TestSupport.CancellationToken);
 
@@ -96,33 +88,68 @@ public sealed class SampleExpertPackageTests
             [("chunk", """{"text":"The road "}"""), ("chunk", """{"text":"narrows."}""")],
             sink.Events.Select(semanticEvent =>
                 (semanticEvent.EventType, JsonSerializer.Serialize(semanticEvent.Payload))));
-        Assert.Equal("The road narrows.", result.Output.GetProperty("text").GetString());
+        Assert.Equal("The road narrows.", result.Output.GetProperty("primary").GetString());
     }
 
     [Fact]
     public async Task SampleExpertReportsMissingInputPropertiesWithAnActionableDiagnostic()
     {
         using var package = ExpertPackageLoader.Load(SampleExpertArtifact);
-        var executor = new LocalExpertExecutor(
-            new ExpertContractRegistry([typeof(AbstractNarratorExpert).Assembly]),
+        var composition = new LocalExpertComposition(
             [package],
             null,
-            new LocalExpertExecutorOptions(
+            new LocalExpertCompositionOptions(
                 new RecordedBasicAi(["test-model"], []),
                 new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "Curious explorer")));
         var sink = new RecordingSemanticSink();
 
         var exception = await Assert.ThrowsAsync<ArgumentException>(
-            async () => await executor.ExecuteAsync(
+            async () => await composition.ExecuteAsync(
                 new ExpertInvocationRequest(
-                    AbstractNarratorExpert.Descriptor,
+                    AbstractLongTextWritingExpert.ContractId,
                     "advance",
-                    TestSupport.Json("""{"turn":1,"player":"Creator"}""")),
+                    TestSupport.Json("""{"worldSettings":"A quiet valley"}""")),
                 sink,
                 TestSupport.CancellationToken));
 
-        Assert.Contains("'action'", exception.Message, StringComparison.Ordinal);
-        Assert.Contains(AbstractNarratorExpert.Descriptor.Id, exception.Message, StringComparison.Ordinal);
-        Assert.Contains("turn:int, player:string, action:*", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("playerInput", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SampleGameAdvanceRunsPureFacadeAgainstTheSampleExpertPackageLocally()
+    {
+        using var expertPackage = ExpertPackageLoader.Load(SampleExpertArtifact);
+        var composition = new LocalExpertComposition(
+            [expertPackage],
+            null,
+            new LocalExpertCompositionOptions(
+                new RecordedBasicAi(
+                    ["test-model"],
+                    [],
+                    [new RecordedRuntimeBasicAiInteraction(
+                        "test-model",
+                        streamEvents:
+                        [
+                            new BasicAiJsonStreamEvent(JsonStreamEvent.StringChunk("/narrative", "The road ")),
+                            new BasicAiJsonStreamEvent(JsonStreamEvent.StringChunk("/narrative", "narrows."))
+                        ])]),
+                new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "Curious explorer")));
+        using var gamePackage = GamePackageLoader.Load(SampleGameArtifact);
+        var runtime = await LocalGameRuntime.CreateAsync(
+            gamePackage.Manifest.PackageId,
+            gamePackage.Backend,
+            new BoundPlayerProfile(new PlayerId("player-1"), "Creator", "Curious explorer"),
+            new InMemoryLocalSessionStore(),
+            new SessionId($"sample-local-{Guid.NewGuid():N}"),
+            expertFacade: new LocalExpertFacade(composition),
+            cancellationToken: TestSupport.CancellationToken);
+
+        var events = await TestSupport.CollectAsync(runtime.HandleActionAsync(
+            TestSupport.Action("""{"choice":"advance"}"""), TestSupport.CancellationToken));
+
+        Assert.Equal(ActionRuntimeEventKind.Committed, events[^1].Kind);
+        var committed = runtime.CommittedState;
+        Assert.Equal(1, committed.GetProperty("turn").GetInt32());
+        Assert.Equal("The road narrows.", committed.GetProperty("lastNarrative").GetString());
     }
 }

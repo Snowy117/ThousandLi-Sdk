@@ -1,26 +1,27 @@
 using System.Reflection;
 using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
-using ThousandLi.ExpertContracts;
 using ThousandLi.RemoteExperts;
 
 namespace ThousandLi.DevHost;
 
 /// <summary>
-/// The registry plus the explicitly loaded trusted contract assemblies. The assemblies are loaded
-/// once into the default context and shared with every Expert assembly load context so contract
-/// type identities stay unified.
+/// The explicitly loaded trusted contract assemblies. The assemblies are loaded once into the
+/// default context and shared with every Expert assembly load context so contract type identities
+/// stay unified.
 /// </summary>
 internal sealed record ExpertContractComposition(
-    ExpertContractRegistry Registry,
     IReadOnlyDictionary<string, Assembly> ContractAssemblies);
 
 /// <summary>
-/// The remote expert execution pair composed by the DevHost composition root: the raw client (used
-/// by the Playground to list the platform catalog) and the executor (used by the game runtime and
-/// the Playground invoke path through the shared <see cref="IExpertExecutor" /> seam).
+/// The remote expert execution trio composed by the DevHost composition root: the raw client (used
+/// by the Playground to list the platform catalog), the invocation runner (the Playground
+/// invoke/replay tool face), and the game-facing remote facade (typed fluent proxy experts).
 /// </summary>
-public sealed record RemoteExpertComposition(RemoteExpertClient Client, RemoteExpertExecutor Executor);
+public sealed record RemoteExpertComposition(
+    RemoteExpertClient Client,
+    RemoteInvocationRunner Runner,
+    RemoteExpertFacade Facade);
 
 internal static class ExpertComposition
 {
@@ -29,13 +30,7 @@ internal static class ExpertComposition
     public static ExpertContractComposition BuildContractRegistry(IReadOnlyList<string> contractAssemblyPaths)
     {
         ArgumentNullException.ThrowIfNull(contractAssemblyPaths);
-        var officialAssembly = typeof(ExpertContractAttribute).Assembly;
-        var officialAssemblyName = officialAssembly.GetName().Name ?? officialAssembly.FullName ?? officialAssembly.ToString();
-        var contractAssemblies = new Dictionary<string, Assembly>(StringComparer.Ordinal)
-        {
-            [officialAssemblyName] = officialAssembly
-        };
-        var assemblies = new List<Assembly> { officialAssembly };
+        var contractAssemblies = new Dictionary<string, Assembly>(StringComparer.Ordinal);
         foreach (var path in contractAssemblyPaths)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -43,15 +38,14 @@ internal static class ExpertComposition
             if (!File.Exists(fullPath))
                 throw new FileNotFoundException("Contract assembly does not exist.", fullPath);
             var assembly = Assembly.LoadFrom(fullPath);
-            assemblies.Add(assembly);
             var name = assembly.GetName().Name ?? assembly.FullName ?? assembly.ToString();
             contractAssemblies.TryAdd(name, assembly);
         }
 
-        return new ExpertContractComposition(new ExpertContractRegistry(assemblies), contractAssemblies);
+        return new ExpertContractComposition(contractAssemblies);
     }
 
-    public static LocalExpertExecutor CreateLocalExecutor(
+    public static LocalExpertComposition CreateLocalExpertComposition(
         DevHostOptions options,
         ExpertContractComposition contracts,
         BoundPlayerProfile player,
@@ -77,7 +71,7 @@ internal static class ExpertComposition
             options.GatewayEndpoint,
             options.GatewayModels,
             CreateEnvironmentTokenProvider(options.GatewayApiKeyEnvironmentVariable));
-        var executorOptions = new LocalExpertExecutorOptions(
+        var compositionOptions = new LocalExpertCompositionOptions(
             new OpenAiCompatibleBasicAi(gatewayClient, gatewayOptions),
             player)
         {
@@ -85,19 +79,21 @@ internal static class ExpertComposition
         };
         loadedPackages.AddRange(options.ExpertArtifactDirectories.Select(
             directory => ExpertPackageLoader.Load(directory, contracts.ContractAssemblies)));
-        return new LocalExpertExecutor(
-            contracts.Registry,
+        return new LocalExpertComposition(
             loadedPackages,
             options.ExpertBindings.Count == 0 ? null : options.ExpertBindings,
-            executorOptions);
+            compositionOptions);
     }
 
     /// <summary>
-    /// Composes the remote expert execution pair from a DevHost already validated for the remote
-    /// executor. The caller owns the <see cref="HttpClient" /> lifecycle and must disable its
+    /// Composes the remote expert execution trio from a DevHost already validated for the remote
+    /// expert mode. The caller owns the <see cref="HttpClient" /> lifecycle and must disable its
     /// default request timeout for the long SSE event stream.
     /// </summary>
-    public static RemoteExpertComposition CreateRemoteExecutor(DevHostOptions options, HttpClient platformClient)
+    public static RemoteExpertComposition CreateRemoteInvocationRunner(
+        DevHostOptions options,
+        HttpClient platformClient,
+        BoundPlayerProfile? player = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(platformClient);
@@ -108,17 +104,19 @@ internal static class ExpertComposition
         var client = new RemoteExpertClient(
             platformClient,
             new RemoteExpertClientOptions(options.RemoteEndpoint, CreateEnvironmentTokenProvider(options.RemoteTokenEnvironmentVariable)));
-        var executor = new RemoteExpertExecutor(
+        var runnerOptions = new RemoteInvocationRunnerOptions(options.RemoteBindings);
+        var runner = new RemoteInvocationRunner(client, runnerOptions);
+        return new RemoteExpertComposition(
             client,
-            new RemoteExpertExecutorOptions(options.RemoteBindings));
-        return new RemoteExpertComposition(client, executor);
+            runner,
+            new RemoteExpertFacade(client, runnerOptions, player));
     }
 
-    public static void ValidateExecutorOptions(DevHostOptions options)
+    public static void ValidateExpertModeOptions(DevHostOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        if (options.ExpertExecutor != DevHostOptions.LocalExecutorName)
+        if (options.Experts != DevHostOptions.LocalExecutorName)
         {
             var localOnlyArguments = new List<string>();
             if (options.ExpertArtifactDirectories.Count > 0)
@@ -135,10 +133,10 @@ internal static class ExpertComposition
             if (localOnlyArguments.Count > 0)
                 throw new ArgumentException(
                     $"Arguments {string.Join(", ", localOnlyArguments.Select(flag => $"'{flag}'"))} require " +
-                    $"'--expert-executor {DevHostOptions.LocalExecutorName}'.");
+                    $"'--experts {DevHostOptions.LocalExecutorName}'.");
         }
 
-        if (options.ExpertExecutor == DevHostOptions.RemoteExecutorName)
+        if (options.Experts == DevHostOptions.RemoteExecutorName)
             return;
         var remoteOnlyArguments = new List<string>();
         if (!string.IsNullOrWhiteSpace(options.RemoteEndpoint))
@@ -151,7 +149,7 @@ internal static class ExpertComposition
         if (remoteOnlyArguments.Count > 0)
             throw new ArgumentException(
                 $"Arguments {string.Join(", ", remoteOnlyArguments.Select(flag => $"'{flag}'"))} require " +
-                $"'--expert-executor {DevHostOptions.RemoteExecutorName}'.");
+                $"'--experts {DevHostOptions.RemoteExecutorName}'.");
     }
 
     /// <summary>

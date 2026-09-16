@@ -1,6 +1,5 @@
 using ThousandLi.Contracts;
-using ThousandLi.ExpertContracts.Narration;
 
 [assembly: ExpertPackageEntryPoint(
-    typeof(AbstractNarratorExpert),
-    typeof(ThousandLi.TemplateName.NarratorExpert))]
+    typeof(AbstractLongTextWritingExpert),
+    typeof(ThousandLi.TemplateName.LongTextWritingExpert))]

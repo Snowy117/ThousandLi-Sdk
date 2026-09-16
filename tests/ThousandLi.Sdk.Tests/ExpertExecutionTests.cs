@@ -336,7 +336,7 @@ public sealed class ExpertExecutionTests
         return (expert, new RecordingSink());
     }
 
-    private sealed class TestExpert(IReadOnlySet<string> metadataFields) : RuntimeLongTextWritingExpertBase
+    private sealed class TestExpert(IReadOnlySet<string> metadataFields) : AbstractLongTextWritingExpert
     {
         protected override IReadOnlySet<string> MetadataFieldNames => metadataFields;
 
@@ -349,7 +349,7 @@ public sealed class ExpertExecutionTests
 
     private sealed class DelegatingExpert(
         BasicAiRequest request,
-        IReadOnlySet<string> metadataFields) : RuntimeLongTextWritingExpertBase
+        IReadOnlySet<string> metadataFields) : AbstractLongTextWritingExpert
     {
         public bool Invoked { get; private set; }
 

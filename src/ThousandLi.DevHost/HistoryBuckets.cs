@@ -202,10 +202,22 @@ public sealed class InMemoryHistoryBucketSet : IHistoryBucketSet, IHistoryBucket
         }
 
         /// <inheritdoc />
-        public IReadOnlyList<HistoryTurn> GetRawTurns() => owner.GetRawTurns(state);
+        public ValueTask<IReadOnlyList<HistoryTurn>> GetRawTurnsAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(owner.GetRawTurns(state));
+        }
 
         /// <inheritdoc />
-        public IReadOnlyList<HistoryProjectionEntry> GetCompressedView(CompressedViewOptions? options = null)
-            => [.. GetRawTurns().Select<HistoryTurn, HistoryProjectionEntry>(turn => new HistoryProjectionRawTurn(turn))];
+        public ValueTask<IReadOnlyList<HistoryProjectionEntry>> GetCompressedViewAsync(
+            CompressedViewOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            _ = options;
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<IReadOnlyList<HistoryProjectionEntry>>(
+                [.. owner.GetRawTurns(state)
+                    .Select<HistoryTurn, HistoryProjectionEntry>(turn => new HistoryProjectionRawTurn(turn))]);
+        }
     }
 }

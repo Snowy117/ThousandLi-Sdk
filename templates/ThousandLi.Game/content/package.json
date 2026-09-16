@@ -7,13 +7,6 @@
   "frontendRoot": "frontend",
   "compatibility": {
     "runtime": { "major": 1, "minor": 0 },
-    "frontend": { "major": 1, "minor": 0 },
-    "expertContracts": [
-      {
-        "id": "thousandli.expert/narrator",
-        "version": { "major": 1, "minor": 0 },
-        "fingerprint": "c514466424e626a6f24dfb5b53894c493351fb2466d30f1ba6e00e5153264b10"
-      }
-    ]
+    "frontend": { "major": 1, "minor": 0 }
   }
 }

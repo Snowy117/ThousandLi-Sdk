@@ -11,8 +11,7 @@
     <Compile Remove="tests/**/*.cs" />
     <EmbeddedResource Remove="tests/**/*" />
     <None Remove="tests/**/*" />
-    <PackageReference Include="ThousandLi.Contracts" Version="0.3.0-preview.2" />
-    <PackageReference Include="ThousandLi.ExpertContracts" Version="0.3.0-preview.2" />
-    <PackageReference Include="ThousandLi.GameAuthoring" Version="0.3.0-preview.2" />
+    <PackageReference Include="ThousandLi.Contracts" Version="0.5.0-preview.1" />
+    <PackageReference Include="ThousandLi.GameAuthoring" Version="0.5.0-preview.1" />
   </ItemGroup>
 </Project>

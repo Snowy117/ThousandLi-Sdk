@@ -1,4 +1,5 @@
 using ThousandLi.Contracts;
+using ThousandLi.Testing;
 
 namespace ThousandLi.Sdk.Tests;
 
@@ -138,8 +139,12 @@ public sealed class ExpertFacadeContractTests
 
     private sealed class ContextSupportFakeFacade : IExpertFacade
     {
-        public TAbstract Use<TAbstract>() where TAbstract : AbstractLongTextWritingExpert
-            => (TAbstract)(AbstractLongTextWritingExpert)new RecordingLongTextWritingExpert();
+        public TAbstract Use<TAbstract>() where TAbstract : ExpertBase
+        {
+            var expert = new RecordingLongTextWritingExpert();
+            expert.Bind(FakeExpertExecutionContext.Instance);
+            return (TAbstract)(ExpertBase)expert;
+        }
     }
 
     private sealed class InMemoryBucketStub : IHistoryBucket
@@ -150,8 +155,19 @@ public sealed class ExpertFacadeContractTests
         {
         }
 
-        public IReadOnlyList<HistoryTurn> GetRawTurns() => [];
+        public ValueTask<IReadOnlyList<HistoryTurn>> GetRawTurnsAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<IReadOnlyList<HistoryTurn>>([]);
+        }
 
-        public IReadOnlyList<HistoryProjectionEntry> GetCompressedView(CompressedViewOptions? options = null) => [];
+        public ValueTask<IReadOnlyList<HistoryProjectionEntry>> GetCompressedViewAsync(
+            CompressedViewOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            _ = options;
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<IReadOnlyList<HistoryProjectionEntry>>([]);
+        }
     }
 }

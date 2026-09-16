@@ -14,6 +14,16 @@ public sealed record DevHostOptions
     private static readonly IReadOnlyDictionary<string, string> EmptyBindings =
         new ReadOnlyDictionary<string, string>(new Dictionary<string, string>(StringComparer.Ordinal));
 
+    private static readonly HashSet<string> RepeatedFlags =
+        ["--expert-artifact", "--contract-assembly", "--gateway-model", "--expert-binding", "--remote-binding"];
+
+    private static readonly HashSet<string> SingleValueFlags =
+    [
+        "--artifact", "--workspace", "--frontend-url", "--session", "--port", "--data-root",
+        "--fake-scenarios", "--experts", "--gateway-endpoint", "--gateway-api-key-env",
+        "--remote-endpoint", "--remote-token-env"
+    ];
+
     public required string ArtifactDirectory { get; init; }
     public required string WorkspaceId { get; init; }
     public required string FrontendUrl { get; init; }
@@ -24,19 +34,19 @@ public sealed record DevHostOptions
     public string? DataRoot { get; init; }
     public string? FakeScenariosPath { get; init; }
 
-    /// <summary>Expert executor selection: 'fake' (default), 'local', or 'remote' (explicit opt-in).</summary>
-    public string ExpertExecutor { get; init; } = FakeExecutorName;
+    /// <summary>Expert mode selection: 'fake' (default), 'local', or 'remote' (explicit opt-in).</summary>
+    public string Experts { get; init; } = FakeExecutorName;
 
-    /// <summary>Artifact directories of trusted local Expert Packages to load with the local executor.</summary>
+    /// <summary>Artifact directories of trusted local Expert Packages to load with the local expert composition.</summary>
     public IReadOnlyList<string> ExpertArtifactDirectories { get; init; } = [];
 
     /// <summary>Explicit contract assembly paths registered in addition to the official contract assembly.</summary>
     public IReadOnlyList<string> ContractAssemblies { get; init; } = [];
 
-    /// <summary>Explicit contractId → expertPackageId bindings for the local executor.</summary>
+    /// <summary>Explicit contractId → expertPackageId bindings for the local expert composition.</summary>
     public IReadOnlyDictionary<string, string> ExpertBindings { get; init; } = EmptyBindings;
 
-    /// <summary>The OpenAI-compatible gateway endpoint used by the local expert executor.</summary>
+    /// <summary>The OpenAI-compatible gateway endpoint used by the local expert composition.</summary>
     public string? GatewayEndpoint { get; init; }
 
     /// <summary>The models configured on the local gateway; the authoritative list experts read at runtime.</summary>
@@ -48,7 +58,7 @@ public sealed record DevHostOptions
     /// </summary>
     public string GatewayApiKeyEnvironmentVariable { get; init; } = DefaultGatewayApiKeyEnvironmentVariable;
 
-    /// <summary>The platform Host base address the remote expert executor calls.</summary>
+    /// <summary>The platform Host base address the remote invocation runner calls.</summary>
     public string? RemoteEndpoint { get; init; }
 
     /// <summary>
@@ -57,7 +67,7 @@ public sealed record DevHostOptions
     /// </summary>
     public string RemoteTokenEnvironmentVariable { get; init; } = DefaultRemoteTokenEnvironmentVariable;
 
-    /// <summary>Explicit contractId → expertPackageId bindings for the remote executor.</summary>
+    /// <summary>Explicit contractId → expertPackageId bindings for the remote invocation runner.</summary>
     public IReadOnlyDictionary<string, string> RemoteBindings { get; init; } = EmptyBindings;
 
     public static DevHostOptions Parse(string[] args)
@@ -76,19 +86,24 @@ public sealed record DevHostOptions
             }
             if (!argument.StartsWith("--", StringComparison.Ordinal) || index + 1 >= args.Length)
                 throw new ArgumentException($"Unknown or incomplete argument '{argument}'.");
+            if (!SingleValueFlags.Contains(argument) && !RepeatedFlags.Contains(argument))
+            {
+                throw new ArgumentException(argument == "--expert-executor"
+                    ? "Argument '--expert-executor' was removed; use '--experts <fake|local|remote>' instead."
+                    : $"Unknown argument '{argument}'.");
+            }
             var value = args[++index];
-            if (argument is "--expert-artifact" or "--contract-assembly" or "--gateway-model" or
-                "--expert-binding" or "--remote-binding")
+            if (RepeatedFlags.Contains(argument))
                 CollectRepeated(repeated, argument, value);
             else
                 values[argument] = value;
         }
 
-        var expertExecutor = values.GetValueOrDefault("--expert-executor", FakeExecutorName);
-        if (expertExecutor is not (FakeExecutorName or LocalExecutorName or RemoteExecutorName))
+        var experts = values.GetValueOrDefault("--experts", FakeExecutorName);
+        if (experts is not (FakeExecutorName or LocalExecutorName or RemoteExecutorName))
             throw new ArgumentException(
-                $"Argument '--expert-executor' must be '{FakeExecutorName}', '{LocalExecutorName}', or " +
-                $"'{RemoteExecutorName}', but was '{expertExecutor}'.");
+                $"Argument '--experts' must be '{FakeExecutorName}', '{LocalExecutorName}', or " +
+                $"'{RemoteExecutorName}', but was '{experts}'.");
 
         return new DevHostOptions
         {
@@ -101,7 +116,7 @@ public sealed record DevHostOptions
             Reset = flags.Contains("--reset"),
             DataRoot = values.GetValueOrDefault("--data-root"),
             FakeScenariosPath = values.GetValueOrDefault("--fake-scenarios"),
-            ExpertExecutor = expertExecutor,
+            Experts = experts,
             ExpertArtifactDirectories = [.. repeated.GetValueOrDefault("--expert-artifact", [])],
             ContractAssemblies = [.. repeated.GetValueOrDefault("--contract-assembly", [])],
             ExpertBindings = ParseBindings(repeated.GetValueOrDefault("--expert-binding", []), "--expert-binding"),

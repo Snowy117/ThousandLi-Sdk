@@ -1,6 +1,6 @@
+using System.Text;
 using System.Text.Json;
 using ThousandLi.Contracts;
-using ThousandLi.ExpertContracts.Narration;
 using ThousandLi.GameAuthoring;
 
 namespace ThousandLi.TemplateName;
@@ -22,18 +22,20 @@ public sealed class GameBackend : IGameBackend
         CancellationToken cancellationToken = default)
     {
         var turn = context.State.Get(new JsonPointer("/turn")).GetInt32() + 1;
-        var sink = new DelegateExpertSemanticEventSink(async (semanticEvent, token) =>
-            await context.Frontend.WriteAsync(semanticEvent.EventType, semanticEvent.Payload, token).ConfigureAwait(false));
-        var result = await context.ExpertExecutor.ExecuteAsync(
-            new ExpertInvocationRequest(
-                AbstractNarratorExpert.Descriptor,
-                "advance",
-                JsonSerializer.SerializeToElement(
-                    new { turn, player = context.PlayerProfile.PlayerName, action = action.Payload })),
-            sink,
-            cancellationToken).ConfigureAwait(false);
+        var narrative = new StringBuilder();
+        await context.Experts
+            .Use<AbstractLongTextWritingExpert>()
+            .WithWorldSettings("A quiet journey along a long road.")
+            .WithPlayerInput($"turn {turn}: {action.Payload.GetRawText()}")
+            .WithPrimaryOutput(new TextPrimaryOutput((delta, token) =>
+            {
+                narrative.Append(delta.Delta);
+                return context.Frontend.WriteAsync(
+                    "narrativeDelta", JsonSerializer.SerializeToElement(new { text = delta.Delta }), token);
+            }))
+            .StreamAsync(cancellationToken).ConfigureAwait(false);
         context.State.Replace("/turn", turn);
-        context.State.Replace("/lastNarrative", result.Output.GetProperty("text").GetString());
+        context.State.Replace("/lastNarrative", narrative.ToString());
     }
 
     public ValueTask<FrontendRequestResult> HandleFrontendRequestAsync(

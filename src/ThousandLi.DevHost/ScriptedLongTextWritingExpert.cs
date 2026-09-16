@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text.Json;
+using Microsoft.Extensions.Logging.Abstractions;
 using ThousandLi.Contracts;
 
 namespace ThousandLi.DevHost;
@@ -69,24 +70,27 @@ public sealed record ScriptedLongTextWritingScenario
 /// </summary>
 public sealed class ScriptedLongTextWritingExpertFacade : IExpertFacade
 {
-    private readonly ScriptedLongTextWritingScenario _defaultScenario;
+    private readonly IReadOnlyList<ScriptedLongTextWritingScenario> _scenarios;
 
-    /// <summary>创建 facade；至少需要一个场景，默认取 <c>scenarioId == "default"</c>，否则取第一个。</summary>
+    /// <summary>
+    /// 创建 facade；至少需要一个场景。执行期优先按 PlayerInput 匹配 scenarioId，
+    /// 无匹配时回退到 <c>scenarioId == "default"</c>，否则取第一个。
+    /// </summary>
     /// <param name="scenarios">脚本化专家场景集合。</param>
     public ScriptedLongTextWritingExpertFacade(IEnumerable<ScriptedLongTextWritingScenario> scenarios)
     {
         ArgumentNullException.ThrowIfNull(scenarios);
         List<ScriptedLongTextWritingScenario> list = [.. scenarios];
-        _defaultScenario = list.FirstOrDefault(scenario => scenario.ScenarioId == "default")
-                          ?? list.FirstOrDefault()
-                          ?? throw new ArgumentException(
-                              "At least one scripted long-text-writing scenario is required.", nameof(scenarios));
+        if (list.Count == 0)
+            throw new ArgumentException(
+                "At least one scripted long-text-writing scenario is required.", nameof(scenarios));
+        _scenarios = list;
     }
 
     /// <summary>
     /// 从 <c>--fake-scenarios</c> JSON 数组加载脚本化类型化场景。
     /// 数组项的 <c>output</c> 属性（对象）作为脚本化模型输出；缺 <c>output</c> 的项只服务
-    /// <see cref="ScriptedFakeExpertExecutor" />（原始 IExpertExecutor 端口），此处跳过。
+    /// <see cref="ScriptedFakeExpertRunner" />（协议执行端口），此处跳过。
     /// 没有任何脚本化项时返回空 facade（输出空对象的默认场景），保证 <c>Use&lt;T&gt;</c> 可用。
     /// </summary>
     /// <param name="path">场景文件路径；null/空白时返回空 facade。</param>
@@ -121,10 +125,11 @@ public sealed class ScriptedLongTextWritingExpertFacade : IExpertFacade
             JsonSerializer.SerializeToElement(new Dictionary<string, object?>(StringComparer.Ordinal)))]);
 
     /// <inheritdoc />
-    public TAbstract Use<TAbstract>() where TAbstract : AbstractLongTextWritingExpert
+    public TAbstract Use<TAbstract>() where TAbstract : ExpertBase
     {
-        var expert = new ScriptedLongTextWritingExpert(_defaultScenario);
-        return (TAbstract)(AbstractLongTextWritingExpert)expert;
+        var expert = new ScriptedLongTextWritingExpert(_scenarios);
+        expert.Bind(ScriptedExpertExecutionContext.Instance);
+        return (TAbstract)(ExpertBase)expert;
     }
 
     private static Dictionary<string, string>? ReadStringMetadata(JsonElement item)
@@ -147,38 +152,63 @@ public sealed class ScriptedLongTextWritingExpertFacade : IExpertFacade
 /// 脚本化长文本写作专家（DevHost 假场景）：重放 <see cref="ScriptedLongTextWritingScenario" /> 的
 /// 确定性输出，把主输出与 Feature 的语义 callback 驱动起来，让使用
 /// <c>context.Experts.Use&lt;AbstractLongTextWritingExpert&gt;()</c> 的 Game 在本地
-/// 无 AI 端到端跑通。执行期间读取 <see cref="AbstractLongTextWritingExpert.ConfiguredHistoryBuckets" />
-/// （只读视图）并把回合数摘要写入结果 metadata，证明专家确实消费了历史桶。
+/// 无 AI 端到端跑通。执行期间读取配置的历史桶（只读视图）并把回合数摘要写入结果 metadata，
+/// 证明专家确实消费了历史桶。
 /// </summary>
 public sealed class ScriptedLongTextWritingExpert : AbstractLongTextWritingExpert
 {
     private const int ChunkSize = 4;
-    private readonly ScriptedLongTextWritingScenario _scenario;
+    private readonly IReadOnlyList<ScriptedLongTextWritingScenario> _scenarios;
+    private ScriptedLongTextWritingScenario _scenario;
 
-    internal ScriptedLongTextWritingExpert(ScriptedLongTextWritingScenario scenario)
+    internal ScriptedLongTextWritingExpert(IReadOnlyList<ScriptedLongTextWritingScenario> scenarios)
     {
-        _scenario = scenario ?? throw new ArgumentNullException(nameof(scenario));
+        ArgumentNullException.ThrowIfNull(scenarios);
+        if (scenarios.Count == 0)
+            throw new ArgumentException("At least one scripted scenario is required.", nameof(scenarios));
+        _scenarios = scenarios;
+        _scenario = scenarios[0];
     }
 
     /// <inheritdoc />
-    public override Task<ExpertCompletionResult> StreamAsync(CancellationToken cancellationToken = default)
+    protected override Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken)
         => ExecuteAsync(cancellationToken);
 
     /// <inheritdoc />
-    public override Task<ExpertCompletionResult> CompleteAsync(CancellationToken cancellationToken = default)
+    protected override Task<ExpertCompletionResult> CompleteAsyncCore(CancellationToken cancellationToken)
         => ExecuteAsync(cancellationToken);
 
     private async Task<ExpertCompletionResult> ExecuteAsync(CancellationToken cancellationToken)
     {
         ValidateCategoryInputs();
+        _scenario = ResolveScenario();
         cancellationToken.ThrowIfCancellationRequested();
-        var metadata = BuildMetadata();
+        var metadata = await BuildMetadataAsync(cancellationToken).ConfigureAwait(false);
         await StreamPrimaryOutputAsync(cancellationToken).ConfigureAwait(false);
         await StreamFeaturesAsync(cancellationToken).ConfigureAwait(false);
         return new ExpertCompletionResult(metadata, _scenario.Reasoning);
     }
 
-    private Dictionary<string, string> BuildMetadata()
+    /// <summary>
+    /// Dogfood 场景选择约定：PlayerInput 文本包含 scenarioId（≥3 字符）时优先命中该场景，
+    /// 否则回退到 <c>default</c> 或第一个场景。同一实例单次执行，选择在执行期完成。
+    /// </summary>
+    private ScriptedLongTextWritingScenario ResolveScenario()
+    {
+        if (PlayerInput is not { } input)
+            return _scenarios.FirstOrDefault(scenario => scenario.ScenarioId == "default") ?? _scenarios[0];
+
+        foreach (var scenario in _scenarios)
+        {
+            if (scenario.ScenarioId.Length >= 3 &&
+                input.Contains(scenario.ScenarioId, StringComparison.Ordinal))
+                return scenario;
+        }
+
+        return _scenarios.FirstOrDefault(scenario => scenario.ScenarioId == "default") ?? _scenarios[0];
+    }
+
+    private async ValueTask<Dictionary<string, string>> BuildMetadataAsync(CancellationToken cancellationToken)
     {
         var metadata = new Dictionary<string, string>(StringComparer.Ordinal);
         if (_scenario.Metadata is not null)
@@ -194,7 +224,7 @@ public sealed class ScriptedLongTextWritingExpert : AbstractLongTextWritingExper
         var totalTurns = 0;
         foreach (var bucket in ConfiguredHistoryBuckets)
         {
-            var count = bucket.GetRawTurns().Count;
+            var count = (await bucket.GetRawTurnsAsync(cancellationToken).ConfigureAwait(false)).Count;
             metadata[$"history.{bucket.Description}"] = count.ToString(CultureInfo.InvariantCulture);
             totalTurns += count;
         }
@@ -398,4 +428,31 @@ public sealed class ScriptedLongTextWritingExpert : AbstractLongTextWritingExper
         for (var index = 0; index < value.Length; index += ChunkSize)
             yield return value.Substring(index, Math.Min(ChunkSize, value.Length - index));
     }
+}
+
+/// <summary>
+/// The execution context bound to scripted experts: replay drives the fluent callbacks directly, so
+/// any model access or settings resolution attempt is a scripting bug and fails loudly.
+/// </summary>
+internal sealed class ScriptedExpertExecutionContext : IExpertExecutionContext
+{
+    public static ScriptedExpertExecutionContext Instance { get; } = new();
+
+    public IRuntimeBasicAi BasicAi => throw new NotSupportedException(
+        "Scripted experts replay deterministic scenarios and never invoke a model.");
+
+    public ValueTask<TSettings> GetExpertSettingsAsync<TSettings>(
+        CancellationToken cancellationToken = default)
+        where TSettings : class, new()
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(new TSettings());
+    }
+
+    public BoundPlayerProfile PlayerProfile => new(
+        new PlayerId("scripted-player"),
+        "Scripted Player",
+        "Scripted expert replay player");
+
+    public ILogger Logger => NullLogger.Instance;
 }

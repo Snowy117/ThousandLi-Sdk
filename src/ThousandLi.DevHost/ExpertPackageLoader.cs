@@ -3,14 +3,13 @@ using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using ThousandLi.Contracts;
 using ThousandLi.ExpertAuthoring;
-using ThousandLi.ExpertContracts;
 
 namespace ThousandLi.DevHost;
 
 /// <summary>
 /// A trusted locally loaded Expert Package: its manifest, its declared contract binding, and a
 /// factory for fresh (unbound) expert instances. Expert instances are created per invocation and
-/// bound to an execution context by the executor; the factory never reuses instances.
+/// bound to an execution context by the local composition; the factory never reuses instances.
 /// </summary>
 public sealed class LoadedExpertPackage : IDisposable
 {
@@ -19,28 +18,23 @@ public sealed class LoadedExpertPackage : IDisposable
 
     internal LoadedExpertPackage(
         ExpertPackageManifest manifest,
-        ExpertContractDescriptor contract,
-        Type abstractExpertType,
-        Func<RuntimeLongTextWritingExpertBase> expertFactory,
+        ExpertPackageShape shape,
+        Func<ExpertBase> expertFactory,
         PackageLoadContext loadContext)
     {
         Manifest = manifest;
-        Contract = contract;
-        AbstractExpertType = abstractExpertType;
+        Shape = shape;
         ExpertFactory = expertFactory;
         _loadContext = loadContext;
     }
 
     public ExpertPackageManifest Manifest { get; }
 
-    /// <summary>The contract declared by the abstract expert type of the entry point.</summary>
-    public ExpertContractDescriptor Contract { get; }
-
-    /// <summary>The abstract expert type declared by the entry point (the shared contract type).</summary>
-    public Type AbstractExpertType { get; }
+    /// <summary>The entry assembly shape: contract id, abstract anchor type, concrete expert type.</summary>
+    public ExpertPackageShape Shape { get; }
 
     /// <summary>Cached delegate over the concrete expert's public parameterless constructor.</summary>
-    public Func<RuntimeLongTextWritingExpertBase> ExpertFactory { get; }
+    public Func<ExpertBase> ExpertFactory { get; }
 
     /// <summary>Idempotent: unload is a one-shot operation and repeat calls are no-ops.</summary>
     public void Dispose()
@@ -62,8 +56,7 @@ internal static class ExpertSharedAssemblies
         new Dictionary<string, Assembly>(StringComparer.Ordinal)
         {
             ["ThousandLi.Contracts"] = typeof(IGameBackend).Assembly,
-            ["ThousandLi.ExpertContracts"] = typeof(ExpertContractAttribute).Assembly,
-            ["ThousandLi.ExpertAuthoring"] = typeof(RuntimeLongTextWritingExpertBase).Assembly,
+            ["ThousandLi.ExpertAuthoring"] = typeof(OpenAiCompatibleBasicAi).Assembly,
             ["Microsoft.Extensions.Logging.Abstractions"] = typeof(ILogger).Assembly
         };
 
@@ -81,8 +74,8 @@ internal static class ExpertSharedAssemblies
 
 /// <summary>
 /// Fails fast when an Expert Package entry assembly references a shared assembly with a version
-/// newer than (or a different major line than) the DevHost-provided one. Lower versions within
-/// the same major line are allowed (backward compatible).
+/// newer than (or a different major line than) the DevHost-provided one. Lower versions within the
+/// same major line are allowed (backward compatible).
 /// </summary>
 internal static class SharedAssemblyVersionGuard
 {
@@ -142,42 +135,11 @@ public static class ExpertPackageLoader
         try
         {
             var assembly = loadContext.LoadFromAssemblyPath(assemblyPath);
-            var attributes = assembly.GetCustomAttributes<ExpertPackageEntryPointAttribute>().ToArray();
-            if (attributes.Length != 1)
-                throw new InvalidOperationException(
-                    $"Expert Package Assembly must declare exactly one ExpertPackageEntryPoint attribute, but '{manifest.PackageId}' declares {attributes.Length}.");
-
-            var abstractType = attributes[0].AbstractExpertType;
-            var concreteType = attributes[0].ConcreteExpertType;
-            if (!abstractType.IsAbstract)
-                throw new InvalidOperationException(
-                    $"Expert entry point abstract type '{abstractType.FullName}' must be an abstract class.");
-            if (!typeof(RuntimeLongTextWritingExpertBase).IsAssignableFrom(abstractType))
-                throw new InvalidOperationException(
-                    $"Expert entry point abstract type '{abstractType.FullName}' must inherit from the authoring '{nameof(RuntimeLongTextWritingExpertBase)}' surface.");
-            if (!typeof(IInvocableExpert).IsAssignableFrom(abstractType))
-                throw new InvalidOperationException(
-                    $"Expert entry point abstract type '{abstractType.FullName}' must implement '{nameof(IInvocableExpert)}' so the executor can bind structured invocations.");
-            var contractAttribute = abstractType.GetCustomAttribute<ExpertContractAttribute>(inherit: false)
-                ?? throw new InvalidOperationException(
-                    $"Expert entry point abstract type '{abstractType.FullName}' does not carry '[ExpertContract]'; the entry point cannot be bound to a registered contract.");
-            if (!abstractType.IsAssignableFrom(concreteType) || concreteType.IsAbstract ||
-                concreteType.ContainsGenericParameters)
-                throw new InvalidOperationException(
-                    $"Expert entry point concrete type '{concreteType.FullName}' must be a concrete class inheriting '{abstractType.FullName}'.");
-            if (concreteType.Assembly != assembly)
-                throw new InvalidOperationException(
-                    "Expert entry point concrete type must be declared in the Package entry assembly.");
-            if (concreteType.GetConstructor(Type.EmptyTypes) is not { IsPublic: true })
-                throw new InvalidOperationException(
-                    $"Expert entry point concrete type '{concreteType.FullName}' requires a public parameterless constructor.");
-
-            var constructor = concreteType.GetConstructor(Type.EmptyTypes)!;
+            var shape = ExpertPackageShapeValidator.Validate(assembly);
             return new LoadedExpertPackage(
                 manifest,
-                new ExpertContractDescriptor(contractAttribute.Id, contractAttribute.Version, contractAttribute.Fingerprint),
-                abstractType,
-                () => (RuntimeLongTextWritingExpertBase)constructor.Invoke(null),
+                shape,
+                ExpertPackageShapeValidator.CreateFactory(shape),
                 loadContext);
         }
         catch

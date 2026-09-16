@@ -30,7 +30,6 @@ public sealed class ActionContext(
     IFrontendEventSink frontend,
     IActionHistory history,
     IExpertFacade experts,
-    IExpertExecutor expertExecutor,
     IHistoryBucketSet buckets,
     Func<Type, CancellationToken, Task<object>>? getGameSettings = null,
     IGameSettingsStore? gameSettingsStore = null,
@@ -47,11 +46,8 @@ public sealed class ActionContext(
     public IFrontendEventSink Frontend { get; } = frontend ?? throw new ArgumentNullException(nameof(frontend));
     public IActionHistory History { get; } = history ?? throw new ArgumentNullException(nameof(history));
 
-    /// <summary>类型化专家 facade（生产 Host 注入；DevHost 在支持前注入禁用实现）。</summary>
+    /// <summary>类型化专家 facade（生产 Host / DevHost 各模式注入）。</summary>
     public IExpertFacade Experts { get; } = experts ?? throw new ArgumentNullException(nameof(experts));
-
-    /// <summary>本地 JSON 脚本化专家执行端口（DevHost 假场景 / 测试用）。</summary>
-    public IExpertExecutor ExpertExecutor { get; } = expertExecutor ?? throw new ArgumentNullException(nameof(expertExecutor));
 
     /// <summary>历史消息桶集合。</summary>
     public IHistoryBucketSet Buckets { get; } = buckets ?? throw new ArgumentNullException(nameof(buckets));

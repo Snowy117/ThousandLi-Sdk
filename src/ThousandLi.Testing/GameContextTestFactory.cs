@@ -6,8 +6,8 @@ namespace ThousandLi.Testing;
 
 /// <summary>
 /// <see cref="ActionContext" /> 的测试组装工厂：未提供的依赖使用清晰的禁用态默认
-/// （确定性的测试 ID、空 JSON 对象状态、丢弃事件的 frontend、空历史、抛错的专家门面与
-/// 执行器、内存历史桶），供 Game Package 测试一行构造 action 运行上下文。
+/// （确定性的测试 ID、空 JSON 对象状态、丢弃事件的 frontend、空历史、抛错的专家门面、
+/// 内存历史桶），供 Game Package 测试一行构造 action 运行上下文。
 /// 生产代码不应调用本工厂。
 /// </summary>
 public static class ActionContextTestFactory
@@ -18,7 +18,6 @@ public static class ActionContextTestFactory
     /// <param name="frontend">前端事件接收器；默认 <see cref="NoOpFrontendEventSink.Instance" />。</param>
     /// <param name="history">玩家行动历史；默认 <see cref="EmptyActionHistory.Instance" />。</param>
     /// <param name="experts">类型化专家 facade；默认 <see cref="ThrowingExpertFacade.Instance" />。</param>
-    /// <param name="expertExecutor">结构化专家执行端口；默认 <see cref="ThrowingExpertExecutor" />。</param>
     /// <param name="buckets">历史消息桶集合；默认新的 <see cref="InMemoryHistoryBucketSet" />。</param>
     /// <param name="gameSettingsStore">游戏设置存储；默认 null（未注入）。</param>
     /// <param name="getGameSettings">延迟解析游戏设置的委托；默认 null（回退存储/默认实例）。</param>
@@ -34,7 +33,6 @@ public static class ActionContextTestFactory
         IFrontendEventSink? frontend = null,
         IActionHistory? history = null,
         IExpertFacade? experts = null,
-        IExpertExecutor? expertExecutor = null,
         IHistoryBucketSet? buckets = null,
         IGameSettingsStore? gameSettingsStore = null,
         Func<Type, CancellationToken, Task<object>>? getGameSettings = null,
@@ -49,7 +47,6 @@ public static class ActionContextTestFactory
         frontend ??= NoOpFrontendEventSink.Instance;
         history ??= EmptyActionHistory.Instance;
         experts ??= ThrowingExpertFacade.Instance;
-        expertExecutor ??= ThrowingExpertExecutor.Instance;
         buckets ??= new InMemoryHistoryBucketSet();
 
         return new ActionContext(
@@ -62,7 +59,6 @@ public static class ActionContextTestFactory
             frontend,
             history,
             experts,
-            expertExecutor,
             buckets,
             getGameSettings,
             gameSettingsStore,

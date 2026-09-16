@@ -229,16 +229,16 @@ public sealed class ActionOptionsFeature : ILongTextWritingFeature
 }
 
 /// <summary>
-/// 专家 facade 契约：按抽象专家类别解析并返回请求作用域的专家 builder 实例。
-/// 平台运行时（生产 Host）注入真实实现；本地 DevHost 在支持前注入禁用实现。
+/// 专家 facade 契约：按抽象专家类别（<see cref="ExpertBase"/> 子类锚点）解析并返回请求作用域的
+/// 专家实例。泛型约束类别无关——新增专家类别不需要改动本接口或任何实现。
 /// </summary>
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 public interface IExpertFacade
 {
     /// <summary>
-    /// 按抽象专家类别解析一个请求作用域的专家调用 builder。返回类型由平台运行时决定，
-    /// 必须是 <typeparamref name="TAbstract" /> 的具体实现。
+    /// 按抽象专家类别解析一个请求作用域的专家调用实例。返回实例已绑定执行上下文，
+    /// 由调用方继续 fluent 配置后执行。
     /// </summary>
-    /// <typeparam name="TAbstract">抽象专家类别（如 <see cref="AbstractLongTextWritingExpert" />）。</typeparam>
-    TAbstract Use<TAbstract>() where TAbstract : AbstractLongTextWritingExpert;
+    /// <typeparam name="TAbstract">抽象专家类别锚点（如 <see cref="AbstractLongTextWritingExpert" />）。</typeparam>
+    TAbstract Use<TAbstract>() where TAbstract : ExpertBase;
 }

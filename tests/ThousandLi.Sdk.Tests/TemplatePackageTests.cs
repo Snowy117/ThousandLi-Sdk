@@ -1,5 +1,4 @@
 using System.Text.Json;
-using ThousandLi.ExpertContracts.Narration;
 
 namespace ThousandLi.Sdk.Tests;
 
@@ -56,46 +55,37 @@ public sealed class TemplatePackageTests
     }
 
     [Fact]
-    public void ExpertTemplateBindsTheOfficialNarratorContractThroughTheEntryPointAttribute()
+    public void ExpertTemplateBindsTheOfficialCategoryContractThroughTheEntryPointAttribute()
     {
         var assemblyInfo = ReadTemplateFile("ThousandLi.Expert", "AssemblyInfo.cs");
-        var expertSource = ReadTemplateFile("ThousandLi.Expert", "NarratorExpert.cs");
+        var expertSource = ReadTemplateFile("ThousandLi.Expert", "LongTextWritingExpert.cs");
 
         Assert.Contains("[assembly: ExpertPackageEntryPoint(", assemblyInfo);
-        Assert.Contains("typeof(AbstractNarratorExpert)", assemblyInfo);
-        Assert.Contains("typeof(ThousandLi.TemplateName.NarratorExpert)", assemblyInfo);
-        Assert.Contains(": AbstractNarratorExpert", expertSource);
+        Assert.Contains("typeof(AbstractLongTextWritingExpert)", assemblyInfo);
+        Assert.Contains("typeof(ThousandLi.TemplateName.LongTextWritingExpert)", assemblyInfo);
+        Assert.Contains(": AbstractLongTextWritingExpert", expertSource);
     }
 
     [Fact]
-    public void ExpertTemplateBindsRequiredInputPropertiesWithActionableDiagnostics()
+    public void ExpertTemplateIsPureCoreImplementationWithoutInvocationBoilerplate()
     {
-        var expertSource = ReadTemplateFile("ThousandLi.Expert", "NarratorExpert.cs");
+        var expertSource = ReadTemplateFile("ThousandLi.Expert", "LongTextWritingExpert.cs");
 
-        Assert.Contains("RequiredInputProperty(\"turn\")", expertSource, StringComparison.Ordinal);
-        Assert.Contains("RequiredInputProperty(\"player\")", expertSource, StringComparison.Ordinal);
-        Assert.Contains("RequiredInputProperty(\"action\")", expertSource, StringComparison.Ordinal);
-        Assert.Contains("turn:int, player:string, action:*", expertSource, StringComparison.Ordinal);
+        Assert.Contains(": AbstractLongTextWritingExpert", expertSource);
+        Assert.DoesNotContain("IInvocableExpert", expertSource);
+        Assert.DoesNotContain("RequiredInputString", expertSource);
+        Assert.DoesNotContain("IExpertSemanticEventSink", expertSource);
     }
 
     [Fact]
-    public void GeneratedGameAndExpertPairOnTheSameOfficialNarratorContract()
+    public void GeneratedGameManifestDeclaresRuntimeAndFrontendCompatibilityOnly()
     {
         using var gameManifest = JsonDocument.Parse(ReadTemplateFile("ThousandLi.Game", "package.json"));
-        var required = gameManifest.RootElement
-            .GetProperty("compatibility")
-            .GetProperty("expertContracts")[0];
+        var compatibility = gameManifest.RootElement.GetProperty("compatibility");
 
-        Assert.Equal(AbstractNarratorExpert.Descriptor.Id, required.GetProperty("id").GetString());
-        Assert.Equal(
-            AbstractNarratorExpert.Descriptor.Fingerprint,
-            required.GetProperty("fingerprint").GetString());
-        Assert.Equal(
-            AbstractNarratorExpert.Descriptor.Version.Major,
-            required.GetProperty("version").GetProperty("major").GetInt32());
-        Assert.Equal(
-            AbstractNarratorExpert.Descriptor.Version.Minor,
-            required.GetProperty("version").GetProperty("minor").GetInt32());
+        Assert.Equal(1, compatibility.GetProperty("runtime").GetProperty("major").GetInt32());
+        Assert.Equal(1, compatibility.GetProperty("frontend").GetProperty("major").GetInt32());
+        Assert.False(compatibility.TryGetProperty("expertContracts", out _));
     }
 
     [Fact]
@@ -105,8 +95,8 @@ public sealed class TemplatePackageTests
 
         Assert.Contains("<IsThousandLiPackageArtifact>true</IsThousandLiPackageArtifact>", project);
         Assert.Contains("<IsThousandLiExpertPackageArtifact>true</IsThousandLiExpertPackageArtifact>", project);
-        Assert.Contains("<PackageReference Include=\"ThousandLi.Contracts\" Version=\"0.3.0-preview.2\" />", project);
-        Assert.Contains("<PackageReference Include=\"ThousandLi.ExpertContracts\" Version=\"0.3.0-preview.2\" />", project);
+        Assert.Contains("<PackageReference Include=\"ThousandLi.Contracts\" Version=\"0.5.0-preview.1\" />", project);
+        Assert.Contains("<PackageReference Include=\"ThousandLi.ExpertAuthoring\" Version=\"0.5.0-preview.1\" />", project);
     }
 
     [Fact]
@@ -129,16 +119,16 @@ public sealed class TemplatePackageTests
     }
 
     [Fact]
-    public void ExpertContractsPackageCarriesTheSharedArtifactTargetsForExpertOnlyAuthors()
+    public void ExpertAuthoringPackageCarriesTheSharedArtifactTargetsForExpertOnlyAuthors()
     {
         var project = File.ReadAllText(Path.Combine(
             TestSupport.FindRepositoryRoot(),
             "src",
-            "ThousandLi.ExpertContracts",
-            "ThousandLi.ExpertContracts.csproj"));
+            "ThousandLi.ExpertAuthoring",
+            "ThousandLi.ExpertAuthoring.csproj"));
 
         Assert.Contains("../../eng/ThousandLi.GameAuthoring.targets", project);
-        Assert.Contains("buildTransitive/ThousandLi.ExpertContracts.targets", project);
+        Assert.Contains("buildTransitive/ThousandLi.ExpertAuthoring.targets", project);
     }
 
     private static JsonElement ReadTemplateConfig(string templateName)

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using ThousandLi.Contracts;
+using ThousandLi.DevHost;
 using ThousandLi.ExpertAuthoring;
-using ThousandLi.ExpertContracts.Narration;
 using ThousandLi.SampleGame;
 using ThousandLi.Testing;
 
@@ -10,11 +10,11 @@ namespace ThousandLi.Sdk.Tests;
 /// <summary>
 /// SampleGame 变量更新管线端到端（Slice 4 批次 ⑥）：reflect 动作经类型化专家门面
 /// 与 <c>WithVariableUpdate</c> 接线，由 RecordedBasicAi 录制的第二遍 completion 流驱动
-/// 补丁回写托管根、缓存失效重水合；advance 动作回归保护结构化执行端口不被改动。
+/// 补丁回写托管根、缓存失效重水合；advance 动作同走门面并回归保护回合/叙事簿记。
 /// </summary>
 public sealed class SampleGameVariableUpdateTests
 {
-    private const string MainModelId = "sample-narrator-model";
+    private const string MainModelId = "sample-long-text-writing-model";
     private const string VariableUpdateModelId = "sample-variable-model";
     private const string MainNarrative = "The road quietly bends toward the hills.";
     private const string ManagedRootPath = "/_gameHelper/sessionVariables";
@@ -32,34 +32,40 @@ public sealed class SampleGameVariableUpdateTests
     }
 
     [Fact]
-    public async Task AdvanceActionKeepsUsingTheNarratorExecutorPort()
+    public async Task AdvanceActionUsesTheTypedExpertFacade()
     {
         var backend = new SampleGameBackend();
-        var executor = new FakeExpertExecutor([
-            new FakeExpertScenario(
-                "advance",
-                AbstractNarratorExpert.Descriptor,
-                [new ExpertSemanticEvent("chunk", TestSupport.Json("""{"text":"A new path opens."}"""))],
-                TestSupport.Json("""{"text":"A new path opens."}"""))
-        ]);
+        var facade = new FakeExpertFacade();
+        facade.Register<AbstractLongTextWritingExpert>(() =>
+        {
+            var expert = new ScriptedLongTextWritingExpert([
+                new ScriptedLongTextWritingScenario(
+                    "advance",
+                    TestSupport.Json("""{"narrative":"A new path opens."}"""))
+            ]);
+            expert.Bind(FakeExpertExecutionContext.Instance);
+            return expert;
+        });
         var frontend = new CollectingFrontendEventSink();
         var context = ActionContextTestFactory.Create(
             state: await CreateInitialStateAsync(backend),
             frontend: frontend,
-            expertExecutor: executor);
+            experts: facade);
 
         await backend.HandleActionAsync(
             TestSupport.Action("""{"choice":"advance"}"""), context, TestSupport.CancellationToken);
 
-        var invocation = Assert.Single(executor.Invocations);
-        Assert.Equal(AbstractNarratorExpert.Descriptor.Id, invocation.Request.Contract.Id);
-        Assert.Equal("advance", invocation.Request.ScenarioId);
         Assert.Equal(1, context.State.Get(new JsonPointer("/turn")).GetInt32());
         Assert.Equal("A new path opens.", context.State.Get(new JsonPointer("/lastNarrative")).GetString());
         Assert.Equal(10, context.State.Get(new JsonPointer(ManagedRootPath + "/courage")).GetInt32());
         Assert.Equal(30, context.State.Get(new JsonPointer(ManagedRootPath + "/trust")).GetInt32());
         Assert.Equal(0, context.State.Get(new JsonPointer(ManagedRootPath + "/reflectCount")).GetInt32());
-        Assert.Contains(frontend.Events, frontendEvent => frontendEvent.EventType == "chunk");
+
+        var deltas = frontend.Events
+            .Where(frontendEvent => frontendEvent.EventType == "narrativeDelta")
+            .Select(frontendEvent => frontendEvent.Payload.GetProperty("text").GetString())
+            .ToArray();
+        Assert.Equal("A new path opens.", string.Concat(deltas));
     }
 
     [Fact]
@@ -170,12 +176,12 @@ public sealed class SampleGameVariableUpdateTests
     }
 
     /// <summary>
-    /// 测试组合根提供的具体长文本写作专家（派生 <see cref="RuntimeLongTextWritingExpertBase" />）：
+    /// 测试组合根提供的具体长文本写作专家（派生 <see cref="AbstractLongTextWritingExpert" />）：
     /// StreamAsyncCore 内构建主调用 request+sink，并把 Game 传入的 VariableUpdateFeature
     /// 显式交给共享的 ExpertVariableUpdateExecution 第二遍。平台语义中具体专家来自独立
     /// Expert 包；测试与本地组合根负责实例化与绑定。
     /// </summary>
-    private sealed class SampleReflectingLongTextExpert : RuntimeLongTextWritingExpertBase
+    private sealed class SampleReflectingLongTextExpert : AbstractLongTextWritingExpert
     {
         protected override async Task<ExpertCompletionResult> StreamAsyncCore(CancellationToken cancellationToken)
         {

@@ -3,7 +3,6 @@ using System.Text.Json;
 using ThousandLi.Contracts;
 using ThousandLi.DevHost;
 using ThousandLi.GameHelper;
-using ThousandLi.Testing;
 using InMemoryGameSettingsStore = ThousandLi.DevHost.InMemoryGameSettingsStore;
 using InMemoryHistoryBucketSet = ThousandLi.DevHost.InMemoryHistoryBucketSet;
 
@@ -99,12 +98,12 @@ public sealed class DogfoodBackend : IGameBackend
         context.State.Replace(new JsonPointer("/timeTagsEnabled"), TestSupport.Json(settings.EnableTimeTags ? "true" : "false"));
     }
 
-    public ValueTask<FrontendRequestResult> HandleFrontendRequestAsync(
+    public async ValueTask<FrontendRequestResult> HandleFrontendRequestAsync(
         FrontendRequestEnvelope request,
         FrontendRequestContext context,
         CancellationToken cancellationToken = default)
     {
-        var turns = context.Buckets["main"].GetRawTurns();
+        var turns = await context.Buckets["main"].GetRawTurnsAsync(cancellationToken);
         var variables = context.GetSessionState<DogfoodSessionVariables>();
         var payload = JsonSerializer.SerializeToElement(new
         {
@@ -116,7 +115,7 @@ public sealed class DogfoodBackend : IGameBackend
             visits = variables.Visits,
             playerName = variables.PlayerName
         }, WebJsonOptions);
-        return ValueTask.FromResult(new FrontendRequestResult(payload));
+        return new FrontendRequestResult(payload);
     }
 
     private static IHistoryBucket EnsureBucket(ActionContext context)
@@ -165,7 +164,6 @@ public sealed class DevHostDogfoodingTests
             "tests_game@1.0.0",
             backend,
             Player,
-            new ThrowingExpertExecutor(),
             new InMemoryLocalSessionStore(),
             new SessionId("dogfood-1"),
             expertFacade: facade,
@@ -194,7 +192,7 @@ public sealed class DevHostDogfoodingTests
         Assert.Equal(["Continue", "Flee"], backend.LastOptions);
 
         // 提交后的 bucket 账本：user 回合 + 携带专家 metadata 的 assistant 回合。
-        var turns = buckets["main"].GetRawTurns();
+        var turns = await buckets["main"].GetRawTurnsAsync(CancellationToken.None);
         Assert.Equal(2, turns.Count);
         Assert.Equal(ChatMessageRole.Assistant, turns[1].Messages[0].Role);
         Assert.Equal("A New Path Opens.", turns[1].Messages[0].Content);
@@ -217,7 +215,7 @@ public sealed class DevHostDogfoodingTests
             TestSupport.Action(), TestSupport.CancellationToken));
         Assert.Equal(ActionRuntimeEventKind.Committed, second[^1].Kind);
         Assert.Equal(2, runtime.CommittedState.GetProperty("turn").GetInt32());
-        Assert.Equal(4, buckets["main"].GetRawTurns().Count);
+        Assert.Equal(4, (await buckets["main"].GetRawTurnsAsync(CancellationToken.None)).Count);
         Assert.Equal(2, runtime.CommittedState.GetProperty("_gameHelper").GetProperty("sessionVariables").GetProperty("visits").GetInt32());
     }
 }

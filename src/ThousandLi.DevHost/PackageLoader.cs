@@ -85,17 +85,14 @@ internal sealed class PackageLoadContext(
 
 public static class GamePackageLoader
 {
-    public static LoadedGamePackage Load(
-        string artifactDirectory,
-        IReadOnlyList<ExpertContractDescriptor> fakeExpertContracts)
+    public static LoadedGamePackage Load(string artifactDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(artifactDirectory);
-        ArgumentNullException.ThrowIfNull(fakeExpertContracts);
         var root = Path.GetFullPath(artifactDirectory);
         var manifest = GamePackageManifest.Load(root);
         CompatibilityValidator.Validate(
             manifest,
-            new DevHostCompatibility(SdkContracts.Runtime, SdkContracts.Frontend, fakeExpertContracts));
+            new DevHostCompatibility(SdkContracts.Runtime, SdkContracts.Frontend));
         var assemblyPath = ResolveArtifactPath(root, manifest.EntryAssembly);
         if (!File.Exists(assemblyPath))
             throw new FileNotFoundException("Package entry assembly does not exist.", assemblyPath);

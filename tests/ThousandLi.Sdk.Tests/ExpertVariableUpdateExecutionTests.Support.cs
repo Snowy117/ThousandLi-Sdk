@@ -62,7 +62,7 @@ public sealed partial class ExpertVariableUpdateExecutionTests
         return expert;
     }
 
-    private sealed class TestExpert(IReadOnlySet<string> metadataFieldNames) : RuntimeLongTextWritingExpertBase
+    private sealed class TestExpert(IReadOnlySet<string> metadataFieldNames) : AbstractLongTextWritingExpert
     {
         protected override IReadOnlySet<string> MetadataFieldNames => metadataFieldNames;
 

@@ -11,4 +11,12 @@
   <ItemGroup>
     <ProjectReference Include="../ThousandLi.Contracts/ThousandLi.Contracts.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Expert-only authors do not consume ThousandLi.GameAuthoring, so the shared Package
+         Artifact build targets must also ship from this package. The targets file stays
+         single-sourced in eng/. -->
+    <None Include="../../eng/ThousandLi.GameAuthoring.targets"
+          Pack="true"
+          PackagePath="buildTransitive/ThousandLi.ExpertAuthoring.targets" />
+  </ItemGroup>
 </Project>

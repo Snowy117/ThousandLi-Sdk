@@ -25,8 +25,6 @@ public interface IExpertRecordingStore
 public sealed record ExpertInvocationRecordingSummary(
     string RecordingId,
     string ContractId,
-    string ContractVersion,
-    string Fingerprint,
     string? Executor,
     string? ScenarioId,
     string? ChannelKey,
@@ -216,9 +214,7 @@ internal static class ExpertRecordingSummaries
 {
     public static ExpertInvocationRecordingSummary Create(string recordingId, ExpertInvocationRecording recording) => new(
         recordingId,
-        recording.Contract.Id,
-        recording.Contract.Version.ToString(),
-        recording.Contract.Fingerprint,
+        recording.ContractId,
         recording.Executor,
         recording.ScenarioId,
         recording.ChannelKey,

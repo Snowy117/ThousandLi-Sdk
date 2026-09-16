@@ -1,6 +1,5 @@
 using ThousandLi.Contracts;
 using ThousandLi.DevHost;
-using ThousandLi.Testing;
 using InMemoryHistoryBucketSet = ThousandLi.DevHost.InMemoryHistoryBucketSet;
 
 namespace ThousandLi.Sdk.Tests;
@@ -14,20 +13,19 @@ public sealed class LocalHistoryBucketRuntimeTests
     public async Task BufferedBucketWritesAreVisibleAndCommitAfterSuccessfulRun()
     {
         var buckets = new InMemoryHistoryBucketSet();
-        var backend = new DelegateBackend((_, context, _) =>
+        var backend = new DelegateBackend(async (_, context, cancellationToken) =>
         {
             var bucket = EnsureBucket(context, "main");
             bucket.AddMessages(null, null, ChatMessage.User("hello"));
             // 读己写：同一 run 内立即可见。
-            Assert.Single(bucket.GetRawTurns());
-            return ValueTask.CompletedTask;
+            Assert.Single(await bucket.GetRawTurnsAsync(cancellationToken));
         });
         var runtime = await CreateRuntimeAsync(backend, buckets);
 
         await TestSupport.CollectAsync(runtime.HandleActionAsync(TestSupport.Action(), TestSupport.CancellationToken));
 
         // run 提交后，unbound 读回到提交基线。
-        var turn = Assert.Single(buckets["main"].GetRawTurns());
+        var turn = Assert.Single(await buckets["main"].GetRawTurnsAsync(CancellationToken.None));
         Assert.Equal("hello", turn.Messages[0].Content);
     }
 
@@ -86,7 +84,8 @@ public sealed class LocalHistoryBucketRuntimeTests
         // 失败 run 的序号被回滚：重试的 run 不留下序号空洞。
         runtime = await CreateRuntimeAsync(backend, buckets, sessionId: new SessionId("session-3"));
         await TestSupport.CollectAsync(runtime.HandleActionAsync(TestSupport.Action(), TestSupport.CancellationToken));
-        Assert.Equal([0L, 1L], buckets["main"].GetRawTurns().Select(turn => turn.TurnOrdinal));
+        var survivingTurns = await buckets["main"].GetRawTurnsAsync(CancellationToken.None);
+        Assert.Equal([0L, 1L], survivingTurns.Select(turn => turn.TurnOrdinal));
     }
 
     [Fact]
@@ -101,16 +100,16 @@ public sealed class LocalHistoryBucketRuntimeTests
             context.Buckets["main"].AddMessages(null, null, ChatMessage.User("inflight"));
             buffered.SetResult();
             await release.Task.WaitAsync(cancellationToken);
-        }, handleFrontendRequest: (_, context, _) =>
+        }, handleFrontendRequest: async (_, context, cancellationToken) =>
         {
             try
             {
-                _ = context.Buckets["main"].GetRawTurns();
-                return ValueTask.FromResult(new FrontendRequestResult(TestSupport.Json("{\"bucketVisible\":true}")));
+                await context.Buckets["main"].GetRawTurnsAsync(cancellationToken);
+                return new FrontendRequestResult(TestSupport.Json("{\"bucketVisible\":true}"));
             }
             catch (KeyNotFoundException)
             {
-                return ValueTask.FromResult(new FrontendRequestResult(TestSupport.Json("{\"bucketVisible\":false}")));
+                return new FrontendRequestResult(TestSupport.Json("{\"bucketVisible\":false}"));
             }
         });
         var runtime = await CreateRuntimeAsync(backend, buckets);
@@ -136,7 +135,6 @@ public sealed class LocalHistoryBucketRuntimeTests
             "tests_game@1.0.0",
             backend,
             Player,
-            new ThrowingExpertExecutor(),
             new InMemoryLocalSessionStore(),
             sessionId ?? new SessionId($"session-{Guid.NewGuid():N}"),
             buckets: buckets,

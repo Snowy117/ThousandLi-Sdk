@@ -10,8 +10,7 @@ internal static class TestSupport
     public static PlayerId PlayerId { get; } = new("player-1");
     public static SessionId SessionId { get; } = new("session-1");
     private static BoundPlayerProfile Player { get; } = new(PlayerId, "Creator", "Curious explorer");
-    public static ExpertContractDescriptor Contract { get; } =
-        new("tests/narrator", new ContractVersion(1, 0), "tests-narrator-v1");
+    public const string ContractId = "tests/story";
     public static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
 
     public static string FindRepositoryRoot()
@@ -25,7 +24,7 @@ internal static class TestSupport
     public static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement.Clone();
 
     internal static ExpertInvocationRecording CreateRecording(
-        ExpertContractDescriptor? contract = null,
+        string? contractId = null,
         string? input = """{"prompt":"hello"}""",
         IReadOnlyList<(string EventType, string Payload)>? events = null,
         string? terminalStatus = null,
@@ -41,7 +40,7 @@ internal static class TestSupport
     {
         var status = terminalStatus ?? ExpertRecordingTerminal.Committed;
         return new ExpertInvocationRecording(
-            contract ?? Contract,
+            contractId ?? ContractId,
             Json(input ?? "{}"),
             [.. (events ?? [("narrative", """{"text":"hello"}""")])
                 .Select(pair => new ExpertSemanticEvent(pair.EventType, Json(pair.Payload)))],
@@ -59,10 +58,10 @@ internal static class TestSupport
 
     public static PlayerActionEnvelope Action(string json = "{}") => new(PlayerId, Json(json), "client-action-1");
 
-    public static FakeExpertExecutor FakeExpert() => new([
+    public static FakeExpertRunner FakeExpert() => new([
         new FakeExpertScenario(
             "default",
-            Contract,
+            ContractId,
             [new ExpertSemanticEvent("chunk", Json("{\"text\":\"hello\"}"))],
             Json("{\"text\":\"complete\"}"))
     ]);
@@ -70,15 +69,15 @@ internal static class TestSupport
     public static ValueTask<LocalGameRuntime> CreateRuntimeAsync(
         IGameBackend backend,
         ILocalSessionStore? store = null,
-        IExpertExecutor? experts = null,
+        IExpertFacade? experts = null,
         SessionId? sessionId = null) =>
         LocalGameRuntime.CreateAsync(
             "tests_game@1.0.0",
             backend,
             Player,
-            experts ?? FakeExpert(),
             store ?? new InMemoryLocalSessionStore(),
             sessionId ?? SessionId,
+            expertFacade: experts,
             cancellationToken: CancellationToken);
 
     public static async Task<IReadOnlyList<ActionRuntimeEvent>> CollectAsync(

@@ -3,15 +3,15 @@ using System.Net.Http.Json;
 using System.Net.Sockets;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
+using ThousandLi.Contracts;
 using ThousandLi.DevHost;
+using ThousandLi.Testing;
 
 namespace ThousandLi.Sdk.Tests;
 
 public sealed class PlaygroundHttpTests
 {
-    private const string SampleContractId = "thousandli.expert/narrator";
-    private const string SampleContractFingerprint =
-        "c514466424e626a6f24dfb5b53894c493351fb2466d30f1ba6e00e5153264b10";
+    private const string SampleContractId = "thousandli.expert/long-text-writing";
 
     [Fact]
     public async Task PlaygroundPageAndReadRoutesServe()
@@ -22,17 +22,14 @@ public sealed class PlaygroundHttpTests
         var page = await client.GetAsync("/playground", TestSupport.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, page.StatusCode);
         Assert.Equal("text/html", page.Content.Headers.ContentType?.MediaType);
-        Assert.Contains(
-            "ThousandLi Expert Playground",
-            await page.Content.ReadAsStringAsync(TestSupport.CancellationToken),
-            StringComparison.Ordinal);
+        var pageContent = await page.Content.ReadAsStringAsync(TestSupport.CancellationToken);
+        Assert.Contains("ThousandLi Expert Playground", pageContent, StringComparison.Ordinal);
+        Assert.Contains(PlaygroundService.DefaultInputJson, pageContent, StringComparison.Ordinal);
 
         var contracts = await client.GetFromJsonAsync<JsonElement>("/api/playground/contracts", TestSupport.CancellationToken);
-        var narrator = Assert.Single(contracts.EnumerateArray());
-        Assert.Equal(SampleContractId, narrator.GetProperty("contractId").GetString());
-        Assert.Equal("1.0", narrator.GetProperty("version").GetString());
-        Assert.Equal(SampleContractFingerprint, narrator.GetProperty("fingerprint").GetString());
-        Assert.Equal(["fake"], narrator.GetProperty("executors").EnumerateArray().Select(entry => entry.GetString()));
+        var contract = Assert.Single(contracts.EnumerateArray());
+        Assert.Equal(SampleContractId, contract.GetProperty("contractId").GetString());
+        Assert.Equal(["fake"], contract.GetProperty("executors").EnumerateArray().Select(entry => entry.GetString()));
 
         var history = await client.GetFromJsonAsync<JsonElement>("/api/playground/history", TestSupport.CancellationToken);
         Assert.Equal(JsonValueKind.Array, history.ValueKind);
@@ -40,6 +37,42 @@ public sealed class PlaygroundHttpTests
 
         var recordings = await client.GetFromJsonAsync<JsonElement>("/api/playground/recordings", TestSupport.CancellationToken);
         Assert.Equal(0, recordings.GetArrayLength());
+    }
+
+    [Fact]
+    public void DefaultInputTemplateFollowsTheWireCodecShape()
+    {
+        using var document = JsonDocument.Parse(PlaygroundService.DefaultInputJson);
+        var input = document.RootElement.Clone();
+
+        Assert.Empty(LongTextWritingWireCodec.Default.Validate(input));
+
+        var config = LongTextWritingWireCodec.Default.DecodeInvocation(
+            input, NoOpWireEventSink.Instance, RejectBucket);
+
+        Assert.Equal("A quiet valley under autumn rain.", config.WorldSettings);
+        Assert.Equal("look around", config.PlayerInput);
+        Assert.Null(config.PlayerPersona);
+        Assert.Null(config.CurrentState);
+        Assert.Null(config.StateSchema);
+        var primaryOutput = Assert.IsType<TextPrimaryOutput>(config.PrimaryOutput);
+        Assert.Equal("narrative", primaryOutput.PropertyName);
+        var actionOptions = Assert.IsType<ActionOptionsFeature>(Assert.Single(config.Features));
+        Assert.Equal(3, actionOptions.MaxCount);
+        Assert.Empty(config.HistoryBuckets);
+    }
+
+    private static IHistoryBucket RejectBucket(string bucketId) => throw new InvalidOperationException(
+        $"The default input template must not reference history buckets (bucket '{bucketId}').");
+
+    private sealed class NoOpWireEventSink : IWireEventSink
+    {
+        public static readonly NoOpWireEventSink Instance = new();
+
+        public ValueTask SendAsync(
+            string eventType,
+            JsonElement payload,
+            CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
     }
 
     [Fact]
@@ -102,8 +135,8 @@ public sealed class PlaygroundHttpTests
 
             var recording = await client.GetFromJsonAsync<JsonElement>(
                 $"/api/playground/recordings/{recordingId}", TestSupport.CancellationToken);
-            Assert.Equal(1, recording.GetProperty("formatMajor").GetInt32());
-            Assert.Equal(SampleContractId, recording.GetProperty("contract").GetProperty("id").GetString());
+            Assert.Equal(ExpertInvocationRecording.CurrentFormatMajor, recording.GetProperty("formatMajor").GetInt32());
+            Assert.Equal(SampleContractId, recording.GetProperty("contractId").GetString());
             Assert.Equal("committed", recording.GetProperty("terminal").GetProperty("status").GetString());
 
             var recordingsDirectory = Path.Combine(root.FullName, "recordings", workspaceId);
@@ -136,7 +169,7 @@ public sealed class PlaygroundHttpTests
             contractId = SampleContractId,
             executor = "remote",
             input = new { }
-        }, "--expert-executor remote");
+        }, "--experts remote");
         await AssertRejectedAsync(client, new
         {
             contractId = SampleContractId,
@@ -155,7 +188,7 @@ public sealed class PlaygroundHttpTests
             contractId = SampleContractId,
             executor = "local",
             input = new { }
-        }, "--expert-executor local");
+        }, "--experts local");
 
         using var malformed = await client.PostAsync(
             "/api/playground/invoke",
@@ -358,7 +391,7 @@ public sealed class PlaygroundHttpTests
             await using var app = await StartAppAsync(ephemeral: true, dataRoot: null, configure: options =>
                 options with
                 {
-                    ExpertExecutor = DevHostOptions.RemoteExecutorName,
+                    Experts = DevHostOptions.RemoteExecutorName,
                     RemoteEndpoint = platform.BaseUri.ToString(),
                     RemoteTokenEnvironmentVariable = tokenVariable,
                     RemoteBindings = new Dictionary<string, string>
@@ -370,16 +403,14 @@ public sealed class PlaygroundHttpTests
 
             var contracts = await client.GetFromJsonAsync<JsonElement>(
                 "/api/playground/contracts", TestSupport.CancellationToken);
-            var narrator = Assert.Single(contracts.EnumerateArray());
-            Assert.Equal(SampleContractId, narrator.GetProperty("contractId").GetString());
-            Assert.Equal("1.0", narrator.GetProperty("version").GetString());
-            Assert.Equal(SampleContractFingerprint, narrator.GetProperty("fingerprint").GetString());
+            var contract = Assert.Single(contracts.EnumerateArray());
+            Assert.Equal(SampleContractId, contract.GetProperty("contractId").GetString());
             Assert.Equal(
                 ["fake", "remote"],
-                narrator.GetProperty("executors").EnumerateArray().Select(entry => entry.GetString()));
+                contract.GetProperty("executors").EnumerateArray().Select(entry => entry.GetString()));
             Assert.Equal(
                 [remotePackageId],
-                narrator.GetProperty("expertPackageIds").EnumerateArray().Select(entry => entry.GetString()));
+                contract.GetProperty("expertPackageIds").EnumerateArray().Select(entry => entry.GetString()));
 
             using var response = await client.PostAsJsonAsync(
                 "/api/playground/invoke",
@@ -419,9 +450,7 @@ public sealed class PlaygroundHttpTests
     }
 
     private static string RemoteCatalogJson =>
-        "[{\"contractId\":\"" + SampleContractId +
-        "\",\"name\":\"Narrator\",\"description\":\"\",\"version\":{\"major\":1,\"minor\":0},\"fingerprint\":\"" +
-        SampleContractFingerprint + "\"}]";
+        "[{\"contractId\":\"" + SampleContractId + "\",\"name\":\"LongTextWriting\",\"description\":\"\"}]";
 
     private static string RemotePackagesJson =>
         "[{\"expertPackageId\":\"official-longtextwriting@0.1.0\",\"displayName\":\"Official Long Text Writing\"," +

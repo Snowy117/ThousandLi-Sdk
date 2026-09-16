@@ -44,23 +44,13 @@ public sealed class GameContextTestFactoryTests
     }
 
     [Fact]
-    public async Task DefaultExpertsAndExecutorFailWithClearMessages()
+    public void DefaultExpertsFailWithClearMessages()
     {
         var context = ActionContextTestFactory.Create();
 
         var facadeError = Assert.Throws<InvalidOperationException>(
             () => context.Experts.Use<AbstractLongTextWritingExpert>());
-        var executorError = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await context.ExpertExecutor.ExecuteAsync(
-                new ExpertInvocationRequest(
-                    new ExpertContractDescriptor("tests/facade", new ContractVersion(1, 0), "fp"),
-                    "scenario",
-                JsonSerializer.SerializeToElement(new { })),
-                new RecordingSemanticSink(),
-                TestSupport.CancellationToken));
-
         Assert.Contains("not configured for this test context", facadeError.Message, StringComparison.Ordinal);
-        Assert.Contains("No Expert executor is configured", executorError.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -198,7 +188,7 @@ public sealed class GameContextTestFactoryTests
     }
 
     [Fact]
-    public void InMemoryHistoryBucketAppendsTurnsWithMonotonicOrdinals()
+    public async Task InMemoryHistoryBucketAppendsTurnsWithMonotonicOrdinals()
     {
         var buckets = new InMemoryHistoryBucketSet();
         buckets.Create("main", "主叙事历史");
@@ -206,11 +196,11 @@ public sealed class GameContextTestFactoryTests
         buckets["main"].AddMessages(null, null, ChatMessage.User("一"));
         buckets["main"].AddMessages("digest", null, ChatMessage.User("二"), ChatMessage.Assistant("答"));
 
-        var turns = buckets["main"].GetRawTurns();
+        var turns = await buckets["main"].GetRawTurnsAsync(CancellationToken.None);
         Assert.Equal([0L, 1L], turns.Select(turn => turn.TurnOrdinal));
         Assert.Equal(["一", "二", "答"], turns.SelectMany(turn => turn.Messages).Select(item => item.Content));
         Assert.Equal("digest", turns[1].Digest);
-        var projections = buckets["main"].GetCompressedView()
+        var projections = (await buckets["main"].GetCompressedViewAsync(cancellationToken: CancellationToken.None))
             .Select(Assert.IsType<HistoryProjectionRawTurn>)
             .ToArray();
         Assert.Equal(turns, projections.Select(projection => projection.Turn));
